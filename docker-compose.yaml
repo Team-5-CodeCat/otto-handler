@@ -1,0 +1,45 @@
+
+services:
+  app:
+    container_name: otto-handler-app
+    build:
+      context: .
+      target: development  # 개발 스테이지 사용
+    ports:
+      - "${PORT:-4000}:${PORT:-4000}"
+    env_file:
+      - .env
+    volumes:
+      - .:/app                # 소스코드 마운트
+      - /app/node_modules     # node_modules 제외
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    command: pnpm run start:dev  # 핫 리로드 명령어
+
+  postgres:
+    container_name: otto-handler-postgres
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: otto_handler
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    container_name: otto-handler-redis
+    image: redis:7.4-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
