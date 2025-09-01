@@ -16,7 +16,8 @@ services:
       - postgres
       - redis
     restart: unless-stopped
-    command: pnpm run start:dev  # 핫 리로드 명령어
+    tty: true                # 대화형 터미널 활성화
+    stdin_open: true         # 표준 입력 유지
 
   postgres:
     container_name: otto-handler-postgres
