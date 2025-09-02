@@ -53,7 +53,7 @@ RUN pnpm install --prod
 COPY --from=builder /app/dist ./dist
 
 # Expose port (default 4000)
-EXPOSE 4000
+EXPOSE 4001
 
 # Start application
 CMD ["node", "dist/main"]

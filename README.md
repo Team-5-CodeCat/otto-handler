@@ -142,6 +142,93 @@ docker compose down && docker compose up -d
 docker compose up --build -d
 ```
 
+## GitHub 앱 통합
+
+### GitHub 앱 설정
+
+1. **GitHub App 생성**
+   - GitHub에서 새 GitHub App 생성
+   - Webhook URL: `https://your-domain.com/api/integrations/github/webhook`
+   - Callback URL: `https://your-domain.com/api/integrations/github/install/callback`
+
+2. **환경 변수 설정**
+   ```bash
+   GITHUB_APP_ID="your-github-app-id"
+   GITHUB_APP_NAME="otto-handler"
+   GITHUB_APP_PRIVATE_KEY="your-github-app-private-key"
+   GITHUB_WEBHOOK_SECRET="your-github-webhook-secret"
+   FRONTEND_URL="http://localhost:3000"
+   BACKEND_URL="http://localhost:3001"
+   ```
+
+### API 엔드포인트
+
+#### 1. GitHub 앱 설치 URL 조회
+```http
+GET /api/integrations/github/install/url
+Authorization: Bearer <token>
+```
+
+#### 2. GitHub 앱 등록
+```http
+POST /api/integrations/github/register
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "installationId": "string",
+  "accessToken": "string"
+}
+```
+
+#### 3. 브랜치 목록 조회
+```http
+GET /api/integrations/github/branches?repo=owner/repo
+Authorization: Bearer <token>
+```
+
+#### 4. 브랜치 등록
+```http
+POST /api/integrations/github/branches
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "repo": "owner/repo",
+  "branch": "main"
+}
+```
+
+#### 5. GitHub Webhook (내부용)
+```http
+POST /api/integrations/github/webhook
+X-GitHub-Event: installation
+```
+
+### 프론트엔드 연동 예시
+
+```typescript
+// 1. GitHub 앱 설치 URL 조회
+const { installUrl } = await fetch('/api/integrations/github/install/url', {
+  headers: { 'Authorization': `Bearer ${token}` }
+}).then(res => res.json());
+
+// 2. GitHub 앱 설치 페이지로 이동
+window.open(installUrl, '_blank');
+
+// 3. 설치 완료 후 URL 파라미터 확인
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('github_installed') === 'true') {
+  const installationId = urlParams.get('installation_id');
+  // GitHub 앱 등록 API 호출
+  await fetch('/api/integrations/github/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ installationId, accessToken })
+  });
+}
+```
+
 ## 프로덕션 배포
 
 ```bash

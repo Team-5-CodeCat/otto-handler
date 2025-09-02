@@ -93,16 +93,36 @@ model RefreshToken {
 }
 
 
-// GitHub 인증 정보: webhook 및 OAuth용
+// GitHub 앱 설치 정보: GitHub App 설치 및 인증
 model Github {
-  userID      String  @id @db.Uuid @map("user_id") // 기본 키, User.userID와 동일 (UUID)
-  githubID    String  @unique @map("github_id") // GitHub 계정 고유 ID
-  accessToken String? @map("access_token") // OAuth 액세스 토큰 (선택적, API 호출용)
+  userID         String  @id @db.Uuid @map("user_id") // 기본 키, User.userID와 동일 (UUID)
+  installationId String  @unique @map("installation_id") // GitHub App 설치 ID
+  accessToken    String  @map("access_token") // GitHub App 액세스 토큰
+  createdAt      DateTime @default(now()) @db.Timestamptz(6) @map("created_at") // 설치 시각
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6) @map("updated_at") // 마지막 업데이트 시각
 
   // 관계
   user User @relation(fields: [userID], references: [userID], onDelete: Cascade) // 사용자 삭제 시 연쇄 삭제
 
   @@map("github") // DB 테이블 이름: github
+}
+
+// 프로젝트-레포지토리 연결: 프로젝트와 GitHub 레포지토리 연결
+model ProjectRepository {
+  id              String   @id @default(uuid()) @db.Uuid @map("id") // 기본 키, UUID
+  projectID       String   @db.Uuid @map("project_id") // 소속 프로젝트 ID
+  repoFullName    String   @map("repo_full_name") // 레포지토리 전체 이름 (owner/repo)
+  selectedBranch  String   @map("selected_branch") // 선택된 브랜치
+  isActive        Boolean  @default(true) @map("is_active") // 활성 상태
+  createdAt       DateTime @default(now()) @db.Timestamptz(6) @map("created_at") // 생성 시각
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6) @map("updated_at") // 수정 시각
+
+  // 관계
+  project Project @relation(fields: [projectID], references: [projectID], onDelete: Cascade) // 프로젝트 삭제 시 연쇄 삭제
+
+  @@unique([projectID, repoFullName]) // 프로젝트당 레포지토리 고유성
+  @@index([projectID]) // 프로젝트별 조회 최적화
+  @@map("project_repositories") // DB 테이블 이름: project_repositories
 }
 
 // 프로젝트: 사용자별 CI/CD 작업 단위
@@ -115,9 +135,10 @@ model Project {
   updatedAt  DateTime  @updatedAt @db.Timestamptz(6) @map("updated_at") // 수정 시각
 
   // 관계
-  user         User         @relation(fields: [userID], references: [userID], onDelete: Cascade) // 사용자 삭제 시 연쇄 삭제
-  pipelines    Pipeline[]   // 프로젝트에 속한 파이프라인들
-  environments Environment[] // 프로젝트 환경 설정들
+  user         User                @relation(fields: [userID], references: [userID], onDelete: Cascade) // 사용자 삭제 시 연쇄 삭제
+  pipelines    Pipeline[]          // 프로젝트에 속한 파이프라인들
+  environments Environment[]       // 프로젝트 환경 설정들
+  repositories ProjectRepository[] // 프로젝트에 연결된 레포지토리들
 
   @@map("projects") // DB 테이블 이름: projects
 }

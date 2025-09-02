@@ -6,7 +6,7 @@ services:
       context: .
       target: development  # 개발 스테이지 사용
     ports:
-      - "${PORT:-4000}:${PORT:-4000}"
+      - "4001:4001"
     env_file:
       - .env
     volumes:

@@ -13,7 +13,13 @@
     "target": "ES2023",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
+    "baseUrl": "./src",
+    "paths": {
+      "@github/*": ["integrations/github/*"],
+      "@common/*": ["common/*"],
+      "@auth/*": ["auth/*"],
+      "@database/*": ["database/*"]
+    },
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
