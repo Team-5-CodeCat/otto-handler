@@ -21,6 +21,7 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
+
     "plugins": [
       {
         "transform": "@nestia/core/lib/transform",
@@ -54,5 +55,9 @@
         "transform": "typia/lib/transform"
       }
     ]
-  }
+  },
+  "include": [
+    "src/**/*",
+    "src/types/**/*"  // 추가
+  ]
 }
