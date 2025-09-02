@@ -8,6 +8,193 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  email      String     @unique @map("email")
+  password   String     @map("password")
+  name       String     @map("name")
+  memberRole MemberRole @default(MEMBER) @map("member_role")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  userID     String     @id @default(uuid()) @map("user_id") @db.Uuid
+  github     Github?
+  projects   Project[]
+
+  @@map("users")
+}
+
+model Github {
+  githubID    String  @unique @map("github_id")
+  accessToken String? @map("access_token")
+  userID      String  @id @map("user_id") @db.Uuid
+  user        User    @relation(fields: [userID], references: [userID], onDelete: Cascade)
+
+  @@map("github")
+}
+
+model Project {
+  name         String        @map("name")
+  webhookUrl   String?       @unique @map("webhook_url")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  projectID    String        @id @default(uuid()) @map("project_id") @db.Uuid
+  userID       String        @map("user_id") @db.Uuid
+  environments Environment[]
+  pipelines    Pipeline[]
+  user         User          @relation(fields: [userID], references: [userID], onDelete: Cascade)
+
+  @@map("projects")
+}
+
+model Environment {
+  language         Language          @map("language")
+  deployEnv        DeployEnvironment @map("deploy_environment")
+  envVariables     Json?             @map("env_variables")
+  credentials      Json?             @map("credentials")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deploymentPath   String?           @map("deployment_path")
+  deploymentTarget String?           @map("deployment_target")
+  servicePort      Int?              @map("service_port")
+  environmentID    String            @id @default(uuid()) @map("environment_id") @db.Uuid
+  projectID        String            @map("project_id") @db.Uuid
+  project          Project           @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
+
+  @@map("environments")
+}
+
+model Pipeline {
+  name         String        @map("name")
+  isBlockBased Boolean       @default(false) @map("is_block_based")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  active       Boolean       @default(true) @map("active")
+  owner        String?       @map("owner")
+  pipelineSpec Json          @map("pipeline_spec")
+  version      Int           @default(1) @map("version")
+  pipelineID   String        @id @default(uuid()) @map("pipeline_id") @db.Uuid
+  projectID    String        @map("project_id") @db.Uuid
+  runs         PipelineRun[]
+  project      Project       @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
+
+  @@unique([name, version])
+  @@index([owner])
+  @@index([projectID])
+  @@map("pipelines")
+}
+
+model PipelineRun {
+  id              String    @id @default(uuid()) @map("id") @db.Uuid
+  pipelineID      String    @map("pipeline_id") @db.Uuid
+  pipelineVersion Int       @map("pipeline_version")
+  status          JobStatus @map("status")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  queuedAt        DateTime? @map("queued_at") @db.Timestamptz(6)
+  startedAt       DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt      DateTime? @map("finished_at") @db.Timestamptz(6)
+  exitCode        Int?      @map("exit_code")
+  owner           String?   @map("owner")
+  agent           String?   @map("agent")
+  containerImage  String?   @map("container_image")
+  trigger         String?   @map("trigger")
+  labels          Json?     @map("labels")
+  metadata        Json?     @map("metadata")
+  externalRunKey  String?   @unique @map("external_run_key")
+  jobs            Job[]
+  pipeline        Pipeline  @relation(fields: [pipelineID], references: [pipelineID])
+
+  @@index([pipelineID, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("pipeline_runs")
+}
+
+model Job {
+  id             String           @id @map("id")
+  runID          String           @map("run_id") @db.Uuid
+  name           String           @map("name")
+  type           JobType          @map("type")
+  testType       TestType?        @map("test_type")
+  status         JobStatus        @map("status")
+  attemptCurrent Int              @default(0) @map("attempt_current")
+  attemptMax     Int              @default(3) @map("attempt_max")
+  exitCode       Int?             @map("exit_code")
+  envVariables   Json?            @map("env_variables")
+  s3ArtifactUrl  String?          @map("s3_artifact_url")
+  targetUrl      String?          @map("target_url")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  queuedAt       DateTime?        @map("queued_at") @db.Timestamptz(6)
+  startedAt      DateTime?        @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime?        @map("finished_at") @db.Timestamptz(6)
+  owner          String?          @map("owner")
+  agent          String?          @map("agent")
+  containerImage String?          @map("container_image")
+  command        String?          @map("command")
+  inputs         Json?            @map("inputs")
+  outputs        Json?            @map("outputs")
+  externalJobKey String?          @unique @map("external_job_key")
+  errors         JobError[]
+  statusEvents   JobStatusEvent[]
+  run            PipelineRun      @relation(fields: [runID], references: [id], onDelete: Cascade)
+  logs           Log[]
+
+  @@unique([runID, name])
+  @@index([runID, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
+  @@index([agent])
+  @@map("jobs")
+}
+
+model JobStatusEvent {
+  id         String     @id @default(uuid()) @map("id") @db.Uuid
+  jobID      String     @map("job_id")
+  fromStatus JobStatus? @map("from_status")
+  toStatus   JobStatus  @map("to_status")
+  reason     String?    @map("reason")
+  data       Json?      @map("data")
+  at         DateTime   @default(now()) @map("at") @db.Timestamptz(6)
+  job        Job        @relation(fields: [jobID], references: [id], onDelete: Cascade)
+
+  @@index([jobID, at(sort: Desc)])
+  @@map("job_status_events")
+}
+
+model JobError {
+  id         String   @id @default(uuid()) @map("id") @db.Uuid
+  jobID      String   @map("job_id")
+  attemptNo  Int      @map("attempt_no")
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  errorType  String?  @map("error_type")
+  message    String?  @map("message") @db.VarChar(4096)
+  stacktrace String?  @map("stacktrace") @db.VarChar(8192)
+  context    Json?    @map("context")
+  dedupeKey  String?  @unique @map("dedupe_key")
+  job        Job      @relation(fields: [jobID], references: [id], onDelete: Cascade)
+
+  @@index([jobID, attemptNo])
+  @@index([occurredAt(sort: Desc)])
+  @@index([errorType])
+  @@map("job_errors")
+}
+
+model Log {
+  logID         String    @id @map("log_id")
+  content       String?   @map("content")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  attemptNo     Int       @map("attempt_no")
+  contentType   String?   @map("content_type")
+  jobID         String    @map("job_id")
+  sizeBytes     BigInt?   @map("size_bytes")
+  storageBucket String?   @map("storage_bucket")
+  storageKey    String?   @map("storage_key")
+  stream        LogStream @map("stream")
+  job           Job       @relation(fields: [jobID], references: [id], onDelete: Cascade)
+
+  @@unique([jobID, attemptNo, stream])
+  @@index([jobID, attemptNo])
+  @@index([createdAt(sort: Desc)])
+  @@map("logs")
+}
+
 enum MemberRole {
   ADMIN
   MEMBER
@@ -17,183 +204,32 @@ enum MemberRole {
 enum Language {
   NODE
   PYTHON
-  JAVA
 }
 
 enum DeployEnvironment {
   EC2
-  DOCKER
 }
 
-enum RetryStatus {
-  PENDING
-  SUCCESS
-  FAILED
-  CIRCUIT_BREAKER
-}
-
-enum LogType {
+enum JobType {
   BUILD
   TEST
   DEPLOYMENT
 }
 
-model User {
-  userID     Int        @id @default(autoincrement()) @map("user_id")
-  email      String     @unique @map("email")
-  password   String     @map("password")
-  name       String     @map("name")
-  memberRole MemberRole @default(MEMBER) @map("member_role")
-  createdAt  DateTime   @default(now()) @map("created_at")
-  updatedAt  DateTime   @updatedAt @map("updated_at")
-
-  // Relations
-  projects      Project[]
-  github        Github?
-  refreshTokens RefreshToken[]
-
-  @@map("users")
+enum JobStatus {
+  pending
+  running
+  completed
+  failed
+  cancelled
 }
 
-model RefreshToken {
-  tokenId    Int      @id @default(autoincrement()) @map("token_id")
-  userID     Int      @map("user_id")
-  token      String   @unique @map("token")
-  expiresAt  DateTime @map("expires_at")
-  lastUsedAt DateTime @default(now()) @map("last_used_at")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  // Relations
-  user User @relation(fields: [userID], references: [userID], onDelete: Cascade)
-
-  @@map("refresh_tokens")
+enum LogStream {
+  stdout
+  stderr
 }
 
-model Github {
-  userID      Int     @id @map("user_id")
-  githubID    String  @unique @map("github_id")
-  accessToken String? @map("access_token")
-
-  // Relations
-  user User @relation(fields: [userID], references: [userID], onDelete: Cascade)
-
-  @@map("github")
-}
-
-model Project {
-  projectID  Int      @id @default(autoincrement()) @map("project_id")
-  userID     Int      @map("user_id")
-  name       String   @map("name")
-  webhookUrl String?  @unique @map("webhook_url")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  user         User          @relation(fields: [userID], references: [userID], onDelete: Cascade)
-  pipelines    Pipeline[]
-  environments Environment[]
-
-  @@map("projects")
-}
-
-model Environment {
-  environmentID Int               @id @default(autoincrement()) @map("environment_id")
-  projectID     Int               @map("project_id")
-  language      Language          @map("language")
-  deployEnv     DeployEnvironment @map("deploy_environment")
-  envVariables  Json?             @map("env_variables")
-  credentials   Json?             @map("credentials")
-  createdAt     DateTime          @default(now()) @map("created_at")
-  updatedAt     DateTime          @updatedAt @map("updated_at")
-
-  // Relations
-  project Project @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
-
-  @@map("environments")
-}
-
-model Pipeline {
-  pipelineID   Int      @id @default(autoincrement()) @map("pipeline_id")
-  projectID    Int      @map("project_id")
-  name         String   @map("name")
-  config       Json     @map("config")
-  isBlockBased Boolean  @default(false) @map("is_block_based")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  project     Project      @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
-  builds      Build[]
-  tests       Test[]
-  deployments Deployment[]
-
-  @@map("pipelines")
-}
-
-model Build {
-  buildID       Int          @id @default(autoincrement()) @map("build_id")
-  pipelineID    Int          @map("pipeline_id")
-  status        String       @map("status")
-  retryCount    Int          @default(0) @map("retry_count")
-  retryStatus   RetryStatus? @map("retry_status")
-  s3ArtifactUrl String?      @map("s3_artifact_url")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
-
-  // Relations
-  pipeline Pipeline @relation(fields: [pipelineID], references: [pipelineID], onDelete: Cascade)
-  logs     Log[]    @relation("BuildLogs")
-
-  @@map("builds")
-}
-
-model Test {
-  testID      Int          @id @default(autoincrement()) @map("test_id")
-  pipelineID  Int          @map("pipeline_id")
-  type        String       @map("type")
-  status      String       @map("status")
-  retryCount  Int          @default(0) @map("retry_count")
-  retryStatus RetryStatus? @map("retry_status")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-
-  // Relations
-  pipeline Pipeline @relation(fields: [pipelineID], references: [pipelineID], onDelete: Cascade)
-  logs     Log[]    @relation("TestLogs")
-
-  @@map("tests")
-}
-
-model Deployment {
-  deploymentID Int          @id @default(autoincrement()) @map("deployment_id")
-  pipelineID   Int          @map("pipeline_id")
-  status       String       @map("status")
-  retryCount   Int          @default(0) @map("retry_count")
-  retryStatus  RetryStatus? @map("retry_status")
-  targetUrl    String?      @map("target_url")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-
-  // Relations
-  pipeline Pipeline @relation(fields: [pipelineID], references: [pipelineID], onDelete: Cascade)
-  logs     Log[]    @relation("DeploymentLogs")
-
-  @@map("deployments")
-}
-
-model Log {
-  logID     Int      @id @default(autoincrement()) @map("log_id")
-  type      LogType  @map("type") // BUILD, TEST, DEPLOYMENT
-  content   String   @map("content")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  // Relations
-  build        Build?      @relation("BuildLogs", fields: [buildID], references: [buildID], onDelete: Cascade)
-  test         Test?       @relation("TestLogs", fields: [testID], references: [testID], onDelete: Cascade)
-  deployment   Deployment? @relation("DeploymentLogs", fields: [deploymentID], references: [deploymentID], onDelete: Cascade)
-  buildID      Int?        @map("build_id")
-  testID       Int?        @map("test_id")
-  deploymentID Int?        @map("deployment_id")
-
-  @@map("logs")
+enum TestType {
+  UNIT
+  E2E
 }
