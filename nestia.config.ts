@@ -2,15 +2,23 @@
 import { INestiaConfig } from '@nestia/sdk';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './src/app.module';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
+import fastifyCookie from '@fastify/cookie';
 
 const NESTIA_CONFIG: INestiaConfig = {
   input: async () => {
-    const app = await NestFactory.create(AppModule);
-    // app.setGlobalPrefix("api");
-    // app.enableVersioning({
-    //   type: VersioningType.URI,
-    //   prefix: "v",
-    // });
+    const app = await NestFactory.create<NestFastifyApplication>(
+      AppModule,
+      new FastifyAdapter({
+        logger: process.env.NODE_ENV !== 'production',
+      }),
+    );
+    await app.register(fastifyCookie, {
+      secret: process.env.COOKIE_SECRET ?? 'dev-cookie-secret',
+    });
     return app;
   },
   output: '../otto-sdk/sdk',
