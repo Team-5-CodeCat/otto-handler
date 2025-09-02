@@ -39,13 +39,13 @@ enum LogType {
 }
 
 model User {
-  userID        Int             @id @default(autoincrement()) @map("user_id")
-  email         String          @unique @map("email")
-  password      String          @map("password")
-  name          String          @map("name")
-  memberRole    MemberRole      @default(MEMBER) @map("member_role")
-  createdAt     DateTime        @default(now()) @map("created_at")
-  updatedAt     DateTime        @updatedAt @map("updated_at")
+  userID     Int        @id @default(autoincrement()) @map("user_id")
+  email      String     @unique @map("email")
+  password   String     @map("password")
+  name       String     @map("name")
+  memberRole MemberRole @default(MEMBER) @map("member_role")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
 
   // Relations
   projects      Project[]
@@ -56,145 +56,144 @@ model User {
 }
 
 model RefreshToken {
-  tokenId     Int      @id @default(autoincrement()) @map("token_id")
-  userID      Int      @map("user_id")
-  token       String   @unique @map("token")
-  deviceInfo  String?  @map("device_info")
-  expiresAt   DateTime @map("expires_at")
-  lastUsedAt  DateTime @default(now()) @map("last_used_at")
-  createdAt   DateTime @default(now()) @map("created_at")
+  tokenId    Int      @id @default(autoincrement()) @map("token_id")
+  userID     Int      @map("user_id")
+  token      String   @unique @map("token")
+  expiresAt  DateTime @map("expires_at")
+  lastUsedAt DateTime @default(now()) @map("last_used_at")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   // Relations
-  user        User     @relation(fields: [userID], references: [userID], onDelete: Cascade)
+  user User @relation(fields: [userID], references: [userID], onDelete: Cascade)
 
   @@map("refresh_tokens")
 }
 
 model Github {
-  userID      Int    @id @map("user_id")
-  githubID    String @unique @map("github_id")
+  userID      Int     @id @map("user_id")
+  githubID    String  @unique @map("github_id")
   accessToken String? @map("access_token")
 
   // Relations
-  user        User   @relation(fields: [userID], references: [userID], onDelete: Cascade)
+  user User @relation(fields: [userID], references: [userID], onDelete: Cascade)
 
   @@map("github")
 }
 
 model Project {
-  projectID   Int       @id @default(autoincrement()) @map("project_id")
-  userID      Int       @map("user_id")
-  name        String    @map("name")
-  webhookUrl  String?   @unique @map("webhook_url")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  projectID  Int      @id @default(autoincrement()) @map("project_id")
+  userID     Int      @map("user_id")
+  name       String   @map("name")
+  webhookUrl String?  @unique @map("webhook_url")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   // Relations
-  user        User      @relation(fields: [userID], references: [userID], onDelete: Cascade)
-  pipelines   Pipeline[]
+  user         User          @relation(fields: [userID], references: [userID], onDelete: Cascade)
+  pipelines    Pipeline[]
   environments Environment[]
 
   @@map("projects")
 }
 
 model Environment {
-  environmentID Int            @id @default(autoincrement()) @map("environment_id")
-  projectID     Int            @map("project_id")
-  language      Language       @map("language")
+  environmentID Int               @id @default(autoincrement()) @map("environment_id")
+  projectID     Int               @map("project_id")
+  language      Language          @map("language")
   deployEnv     DeployEnvironment @map("deploy_environment")
-  envVariables  Json?          @map("env_variables")
-  credentials   Json?          @map("credentials")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
+  envVariables  Json?             @map("env_variables")
+  credentials   Json?             @map("credentials")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
 
   // Relations
-  project       Project        @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
+  project Project @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
 
   @@map("environments")
 }
 
 model Pipeline {
-  pipelineID    Int       @id @default(autoincrement()) @map("pipeline_id")
-  projectID     Int       @map("project_id")
-  name          String    @map("name")
-  config        Json      @map("config")
-  isBlockBased  Boolean   @default(false) @map("is_block_based")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  pipelineID   Int      @id @default(autoincrement()) @map("pipeline_id")
+  projectID    Int      @map("project_id")
+  name         String   @map("name")
+  config       Json     @map("config")
+  isBlockBased Boolean  @default(false) @map("is_block_based")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relations
-  project       Project   @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
-  builds        Build[]
-  tests         Test[]
-  deployments   Deployment[]
+  project     Project      @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
+  builds      Build[]
+  tests       Test[]
+  deployments Deployment[]
 
   @@map("pipelines")
 }
 
 model Build {
-  buildID       Int         @id @default(autoincrement()) @map("build_id")
-  pipelineID    Int         @map("pipeline_id")
-  status        String      @map("status")
-  retryCount    Int         @default(0) @map("retry_count")
+  buildID       Int          @id @default(autoincrement()) @map("build_id")
+  pipelineID    Int          @map("pipeline_id")
+  status        String       @map("status")
+  retryCount    Int          @default(0) @map("retry_count")
   retryStatus   RetryStatus? @map("retry_status")
-  s3ArtifactUrl String?     @map("s3_artifact_url")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  s3ArtifactUrl String?      @map("s3_artifact_url")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
 
   // Relations
-  pipeline      Pipeline    @relation(fields: [pipelineID], references: [pipelineID], onDelete: Cascade)
-  logs          Log[]       @relation("BuildLogs")
+  pipeline Pipeline @relation(fields: [pipelineID], references: [pipelineID], onDelete: Cascade)
+  logs     Log[]    @relation("BuildLogs")
 
   @@map("builds")
 }
 
 model Test {
-  testID        Int         @id @default(autoincrement()) @map("test_id")
-  pipelineID    Int         @map("pipeline_id")
-  type          String      @map("type")
-  status        String      @map("status")
-  retryCount    Int         @default(0) @map("retry_count")
-  retryStatus   RetryStatus? @map("retry_status")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  testID      Int          @id @default(autoincrement()) @map("test_id")
+  pipelineID  Int          @map("pipeline_id")
+  type        String       @map("type")
+  status      String       @map("status")
+  retryCount  Int          @default(0) @map("retry_count")
+  retryStatus RetryStatus? @map("retry_status")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
 
   // Relations
-  pipeline      Pipeline    @relation(fields: [pipelineID], references: [pipelineID], onDelete: Cascade)
-  logs          Log[]       @relation("TestLogs")
+  pipeline Pipeline @relation(fields: [pipelineID], references: [pipelineID], onDelete: Cascade)
+  logs     Log[]    @relation("TestLogs")
 
   @@map("tests")
 }
 
 model Deployment {
-  deploymentID  Int         @id @default(autoincrement()) @map("deployment_id")
-  pipelineID    Int         @map("pipeline_id")
-  status        String      @map("status")
-  retryCount    Int         @default(0) @map("retry_count")
-  retryStatus   RetryStatus? @map("retry_status")
-  targetUrl     String?     @map("target_url")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  deploymentID Int          @id @default(autoincrement()) @map("deployment_id")
+  pipelineID   Int          @map("pipeline_id")
+  status       String       @map("status")
+  retryCount   Int          @default(0) @map("retry_count")
+  retryStatus  RetryStatus? @map("retry_status")
+  targetUrl    String?      @map("target_url")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
 
   // Relations
-  pipeline      Pipeline    @relation(fields: [pipelineID], references: [pipelineID], onDelete: Cascade)
-  logs          Log[]       @relation("DeploymentLogs")
+  pipeline Pipeline @relation(fields: [pipelineID], references: [pipelineID], onDelete: Cascade)
+  logs     Log[]    @relation("DeploymentLogs")
 
   @@map("deployments")
 }
 
 model Log {
-  logID       Int       @id @default(autoincrement()) @map("log_id")
-  type        LogType   @map("type") // BUILD, TEST, DEPLOYMENT
-  content     String    @map("content")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  logID     Int      @id @default(autoincrement()) @map("log_id")
+  type      LogType  @map("type") // BUILD, TEST, DEPLOYMENT
+  content   String   @map("content")
+  createdAt DateTime @default(now()) @map("created_at")
 
   // Relations
-  build       Build?    @relation("BuildLogs", fields: [buildID], references: [buildID], onDelete: Cascade)
-  test        Test?     @relation("TestLogs", fields: [testID], references: [testID], onDelete: Cascade)
-  deployment  Deployment? @relation("DeploymentLogs", fields: [deploymentID], references: [deploymentID], onDelete: Cascade)
-  buildID     Int?      @map("build_id")
-  testID      Int?      @map("test_id")
-  deploymentID Int?     @map("deployment_id")
+  build        Build?      @relation("BuildLogs", fields: [buildID], references: [buildID], onDelete: Cascade)
+  test         Test?       @relation("TestLogs", fields: [testID], references: [testID], onDelete: Cascade)
+  deployment   Deployment? @relation("DeploymentLogs", fields: [deploymentID], references: [deploymentID], onDelete: Cascade)
+  buildID      Int?        @map("build_id")
+  testID       Int?        @map("test_id")
+  deploymentID Int?        @map("deployment_id")
 
   @@map("logs")
 }
