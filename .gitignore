@@ -2,7 +2,7 @@
 /dist
 /node_modules
 /build
-
+.pnpm-store
 # Logs
 logs
 *.log
@@ -55,6 +55,7 @@ pids
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
+
 .pnpm-store/
 .pnpm-debug.log*
 node_modules/.pnpm/
@@ -62,6 +63,7 @@ node_modules/.pnpm/
 
 **/.pnpm-store/
 
-.gitkeep
 
+
+.gitkeep
 CLAUDE.md
