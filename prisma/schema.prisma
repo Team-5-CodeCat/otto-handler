@@ -1,0 +1,53 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MemberRole {
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model User {
+  userID     Int        @id @default(autoincrement()) @map("user_id")
+  email      String?    @unique
+  password   String?
+  name       String
+  memberRole MemberRole @default(MEMBER) @map("member_role")
+  teamID     Int?       @map("team_id")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  team   Team?   @relation(fields: [teamID], references: [teamID])
+  github Github?
+
+  @@map("users")
+}
+
+model Github {
+  userID   Int    @id @map("user_id")
+  githubID String @unique @map("github_id")
+
+  // Relations
+  user User @relation(fields: [userID], references: [userID], onDelete: Cascade)
+
+  @@map("github")
+}
+
+model Team {
+  teamID    Int      @id @default(autoincrement()) @map("team_id")
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  members User[]
+
+  @@map("teams")
+}
