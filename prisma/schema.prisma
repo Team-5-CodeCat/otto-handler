@@ -39,28 +39,44 @@ enum LogType {
 }
 
 model User {
-  userID     Int        @id @default(autoincrement()) @map("user_id")
-  email      String     @unique @map("email")
-  password   String     @map("password")
-  name       String     @map("name")
-  memberRole MemberRole @default(MEMBER) @map("member_role")
-  createdAt  DateTime   @default(now()) @map("created_at")
-  updatedAt  DateTime   @updatedAt @map("updated_at")
+  userID        Int             @id @default(autoincrement()) @map("user_id")
+  email         String          @unique @map("email")
+  password      String          @map("password")
+  name          String          @map("name")
+  memberRole    MemberRole      @default(MEMBER) @map("member_role")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
 
   // Relations
-  projects  Project[]
-  github    Github?
+  projects      Project[]
+  github        Github?
+  refreshTokens RefreshToken[]
 
   @@map("users")
 }
 
+model RefreshToken {
+  tokenId     Int      @id @default(autoincrement()) @map("token_id")
+  userID      Int      @map("user_id")
+  token       String   @unique @map("token")
+  deviceInfo  String?  @map("device_info")
+  expiresAt   DateTime @map("expires_at")
+  lastUsedAt  DateTime @default(now()) @map("last_used_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user        User     @relation(fields: [userID], references: [userID], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
 model Github {
-  userID    Int    @id @map("user_id")
-  githubID  String @unique @map("github_id")
+  userID      Int    @id @map("user_id")
+  githubID    String @unique @map("github_id")
   accessToken String? @map("access_token")
 
   // Relations
-  user      User   @relation(fields: [userID], references: [userID], onDelete: Cascade)
+  user        User   @relation(fields: [userID], references: [userID], onDelete: Cascade)
 
   @@map("github")
 }
