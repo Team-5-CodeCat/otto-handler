@@ -1,8 +1,8 @@
 onlyBuiltDependencies:
   - '@nestjs/core'
+  - prisma
   - '@prisma/client'
   - '@prisma/engines'
   - bcrypt
-  - prisma
   - protobufjs
   - unrs-resolver
