@@ -21,8 +21,9 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException(AuthErrorEnum.LOGIN_FAIL);
     }
+    console.log(user);
 
-    const passwordValid = await bcrypt.compare(password, user.passwordHash);
+    const passwordValid = await bcrypt.compare(password, user.password ?? '');
 
     if (!passwordValid) {
       throw new UnauthorizedException(AuthErrorEnum.LOGIN_FAIL);
