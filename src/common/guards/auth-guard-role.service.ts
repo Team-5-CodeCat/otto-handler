@@ -15,7 +15,7 @@ import { IRequestType, JwtPayloadType } from '../type';
 import { ROLES_KEY } from '../decorators/role-guard';
 
 @Injectable()
-export class AuthGuard implements CanActivate {
+export class AuthGuardRole implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly jwtService: JwtService,
@@ -31,7 +31,7 @@ export class AuthGuard implements CanActivate {
 
     const token = this.extractTokenFromRequest(request);
     if (!token) {
-      throw new UnauthorizedException(AuthErrorEnum.LOGIN_FAIL);
+      throw new UnauthorizedException(AuthErrorEnum.NOT_VALID_USER);
     }
 
     try {
@@ -39,7 +39,7 @@ export class AuthGuard implements CanActivate {
 
       // JWT 디코딩 실패 체크를 try-catch 안에서 처리
       if (!payload || !payload.sub) {
-        throw new UnauthorizedException(AuthErrorEnum.LOGIN_FAIL);
+        throw new UnauthorizedException(AuthErrorEnum.NOT_VALID_USER);
       }
 
       const user = await this.prismaService.user.findUnique({
@@ -53,7 +53,7 @@ export class AuthGuard implements CanActivate {
       });
 
       if (!user) {
-        throw new UnauthorizedException(AuthErrorEnum.LOGIN_FAIL);
+        throw new UnauthorizedException(AuthErrorEnum.NOT_VALID_USER);
       }
 
       // request.user에 사용자 정보 설정
@@ -67,7 +67,7 @@ export class AuthGuard implements CanActivate {
       // 역할 권한 체크
       if (requiredRoles && requiredRoles.length > 0) {
         if (!requiredRoles.includes(user.memberRole)) {
-          throw new ForbiddenException('접근 권한이 없습니다.');
+          throw new ForbiddenException(AuthErrorEnum.NOT_VALID_ROLE);
         }
       }
 
@@ -79,7 +79,7 @@ export class AuthGuard implements CanActivate {
       }
 
       // JWT 만료, 형식 오류 등 모든 인증 관련 오류를 LOGIN_FAIL로 통일
-      throw new UnauthorizedException(AuthErrorEnum.LOGIN_FAIL);
+      throw new UnauthorizedException(AuthErrorEnum.NOT_VALID_USER);
     }
   }
 
