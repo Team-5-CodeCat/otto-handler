@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 # Cancel in progress workflows
 concurrency:
@@ -36,6 +37,11 @@ jobs:
         with:
           version: latest
 
+      - name: Setup npm auth for GitHub Packages
+        run: |
+          echo "@Team-5-CodeCat:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -58,6 +64,11 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: latest
+
+      - name: Setup npm auth for GitHub Packages
+        run: |
+          echo "@Team-5-CodeCat:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
