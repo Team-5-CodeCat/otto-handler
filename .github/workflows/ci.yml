@@ -39,11 +39,13 @@ jobs:
 
       - name: Setup npm auth for GitHub Packages
         run: |
-          echo "@Team-5-CodeCat:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+          echo "@Team-5-CodeCat:registry=https://npm.pkg.github.com/" > ~/.npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run lint
         run: pnpm run lint
