@@ -17,7 +17,7 @@ export class UserController {
 
   /**
    *
-   * @summary 내 기능 구해오기
+   * @summary 내 정보 구해오기
    * @tag user
    */
   @TypedException<ForbiddenException>({
