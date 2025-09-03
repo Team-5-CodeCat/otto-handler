@@ -13,6 +13,7 @@ import {
 import { TOKEN_CONSTANTS } from '../constants';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthErrorEnum } from '../constants';
+import type { CommonMessageResponseDto } from '../../common/dto';
 
 @Controller()
 export class AuthController {
@@ -88,5 +89,23 @@ export class AuthController {
     });
 
     return result;
+  }
+
+  /**
+   * @tag auth
+   * 로그인
+   */
+  @TypedException<HttpException>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: '로그인 실패',
+  })
+  @HttpCode(200)
+  @TypedRoute.Post('/sign_out')
+  authSignOut(
+    @Res({ passthrough: true }) res: FastifyReply,
+  ): CommonMessageResponseDto {
+    res.clearCookie(TOKEN_CONSTANTS.ACCESS_TOKEN_COOKIE);
+    res.clearCookie(TOKEN_CONSTANTS.REFRESH_TOKEN_COOKIE);
+    return { message: ' 성공' };
   }
 }
