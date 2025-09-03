@@ -1,25 +1,37 @@
-import { Controller, HttpCode } from '@nestjs/common';
+import {
+  Controller,
+  ForbiddenException,
+  HttpStatus,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { UserService } from '../services';
-import { TypedBody, TypedException, TypedRoute } from '@nestia/core';
-import type { SignUpRequestDto } from '../dto';
-import type { SignUpResponseDto } from '../dto';
-import { ConflictException, HttpStatus } from '@nestjs/common';
-import { UserErrorEnum } from '../constants';
+import { TypedException, TypedRoute } from '@nestia/core';
+import { AuthGuard } from '../../common/decorators/role-guard';
+import type { IRequestType } from '../../common/type';
+import type { UserInfoResponse } from '../dto/response/user-info-response';
+import type { CommonErrorResponseDto } from '../../common/dto';
 
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
   /**
+   *
+   * @summary 내 정보 구해오기
    * @tag user
-   * 회원가입
    */
-  @TypedException<ConflictException>({
-    status: HttpStatus.CONFLICT,
-    description: UserErrorEnum.EMAIL_ALREADY_EXISTS,
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: '로그인 필요',
   })
-  @TypedRoute.Post('/sign_up')
-  userSignUP(@TypedBody() body: SignUpRequestDto): Promise<SignUpResponseDto> {
-    return this.userService.signUp(body);
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.FORBIDDEN,
+    description: '권한 없음',
+  })
+  @AuthGuard()
+  @TypedRoute.Get('/')
+  userMyInfo(@Req() request: IRequestType): UserInfoResponse {
+    return request.user;
   }
 }

@@ -1,10 +1,16 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { LoginRequestDto, LoginResponseDto } from '../dtos';
+import { LoginRequestDto, LoginResponseDto, SignUpRequestDto } from '../dtos';
 import { AuthErrorEnum, AuthResponseEnum, TOKEN_CONSTANTS } from '../constants';
 import { JwtService } from './jwt.service';
-import { randomBytes, createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
+import type { JwtPayloadType } from '../../common/type';
+import { SignUpResponseDto } from '../dtos/response/sign-up-response';
 
 @Injectable()
 export class AuthService {
@@ -40,8 +46,8 @@ export class AuthService {
     const accessTokenExpiresIn: number = TOKEN_CONSTANTS.ACCESS_TOKEN_TTL_SEC;
     const refreshTokenExpiresIn: number = TOKEN_CONSTANTS.REFRESH_TOKEN_TTL_SEC;
 
-    const accessToken: string = this.jwtService.encode(
-      { sub: user.userID, email: user.email, type: 'access' },
+    const accessToken: string = this.jwtService.encode<JwtPayloadType>(
+      { sub: user.userID },
       { expiresIn: accessTokenExpiresIn },
     );
     const refreshToken: string = randomBytes(64).toString('hex');
@@ -108,7 +114,6 @@ export class AuthService {
       throw new UnauthorizedException(AuthErrorEnum.REFRESH_FAIL);
     }
 
-    // 회전: 기존 토큰 제거 후 새로운 토큰 발급/저장
     await this.prismaService.refreshToken.delete({
       where: { tokenId: existing.tokenId },
     });
@@ -140,5 +145,33 @@ export class AuthService {
       accessTokenExpiresIn,
       refreshTokenExpiresIn,
     };
+  }
+
+  /**
+   * 회원가입
+   */
+  async signUp({
+    email,
+    password,
+    username,
+  }: SignUpRequestDto): Promise<SignUpResponseDto> {
+    const exists = await this.prismaService.user.findUnique({
+      where: { email },
+    });
+    if (exists) {
+      throw new ConflictException(AuthErrorEnum.EMAIL_ALREADY_EXISTS);
+    }
+
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    await this.prismaService.user.create({
+      data: {
+        email,
+        password: passwordHash,
+        name: username,
+      },
+    });
+    return { message: AuthResponseEnum.SIGN_UP_SUCCESS };
   }
 }
