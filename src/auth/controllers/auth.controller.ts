@@ -18,7 +18,10 @@ import {
 import { TOKEN_CONSTANTS } from '../constants';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthErrorEnum } from '../constants';
-import type { CommonMessageResponseDto } from '../../common/dto';
+import type {
+  CommonErrorResponseDto,
+  CommonMessageResponseDto,
+} from '../../common/dto';
 import { SignUpResponseDto } from '../dtos/response/sign-up-response';
 
 @Controller()
@@ -30,7 +33,7 @@ export class AuthController {
    * @tag auth
    *
    */
-  @TypedException<HttpException>({
+  @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 실패',
   })
@@ -67,7 +70,7 @@ export class AuthController {
    * @tag auth
    *
    */
-  @TypedException<HttpException>({
+  @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '리프레시 실패',
   })
@@ -105,7 +108,7 @@ export class AuthController {
    * @tag auth
    *
    */
-  @TypedException<HttpException>({
+  @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 실패',
   })
@@ -125,7 +128,7 @@ export class AuthController {
    *
    */
 
-  @TypedException<ConflictException>({
+  @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.CONFLICT,
     description: '이메일 중복',
   })

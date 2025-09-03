@@ -10,6 +10,7 @@ import { TypedException, TypedRoute } from '@nestia/core';
 import { AuthGuard } from '../../common/decorators/role-guard';
 import type { IRequestType } from '../../common/type';
 import type { UserInfoResponse } from '../dto/response/user-info-response';
+import type { CommonErrorResponseDto } from '../../common/dto';
 
 @Controller('user')
 export class UserController {
@@ -20,11 +21,11 @@ export class UserController {
    * @summary 내 정보 구해오기
    * @tag user
    */
-  @TypedException<ForbiddenException>({
+  @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
   })
-  @TypedException<ForbiddenException>({
+  @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.FORBIDDEN,
     description: '권한 없음',
   })
