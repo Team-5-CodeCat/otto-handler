@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { UserService } from '../services';
 import { TypedException, TypedRoute } from '@nestia/core';
-import { UserRole } from '../../common/decorators/role-guard';
+import { AuthGuard } from '../../common/decorators/role-guard';
 import type { IRequestType } from '../../common/type';
 import type { UserInfoResponse } from '../dto/response/user-info-response';
 
@@ -16,8 +16,9 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   /**
+   *
+   * @summary 내 기능 구해오기
    * @tag user
-   * 내 정보 구해오기
    */
   @TypedException<ForbiddenException>({
     status: HttpStatus.UNAUTHORIZED,
@@ -27,7 +28,7 @@ export class UserController {
     status: HttpStatus.FORBIDDEN,
     description: '권한 없음',
   })
-  @UseGuards(UserRole)
+  @AuthGuard()
   @TypedRoute.Get('/')
   userMyInfo(@Req() request: IRequestType): UserInfoResponse {
     return request.user;

@@ -26,8 +26,9 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
+   * @summary 로그인
    * @tag auth
-   * 로그인
+   *
    */
   @TypedException<HttpException>({
     status: HttpStatus.UNAUTHORIZED,
@@ -61,8 +62,10 @@ export class AuthController {
   }
 
   /**
+   *
+   * @summary 리프레시 토큰 로그인
    * @tag auth
-   * 리프레시 토큰 로그인 (회전)
+   *
    */
   @TypedException<HttpException>({
     status: HttpStatus.UNAUTHORIZED,
@@ -98,8 +101,9 @@ export class AuthController {
   }
 
   /**
+   * @summary 로그아웃
    * @tag auth
-   * 로그아웃
+   *
    */
   @TypedException<HttpException>({
     status: HttpStatus.UNAUTHORIZED,
@@ -116,8 +120,9 @@ export class AuthController {
   }
 
   /**
+   * @summary 회원가입
    * @tag auth
-   * 회원가입
+   *
    */
 
   @TypedException<ConflictException>({
