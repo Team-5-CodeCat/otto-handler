@@ -133,7 +133,7 @@ export class AuthController {
     description: '이메일 중복',
   })
   @TypedRoute.Post('/sign_up')
-  authSignUP(@TypedBody() body: SignUpRequestDto): Promise<SignUpResponseDto> {
+  authSignUp(@TypedBody() body: SignUpRequestDto): Promise<SignUpResponseDto> {
     return this.authService.signUp(body);
   }
 }
