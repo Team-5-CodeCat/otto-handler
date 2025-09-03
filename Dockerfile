@@ -15,6 +15,9 @@ RUN pnpm install
 # Copy source code
 COPY . .
 
+# Generate Prisma client for the correct platform
+RUN pnpm prisma generate
+
 # Build stage
 FROM node:22-alpine AS builder
 
@@ -53,7 +56,7 @@ RUN pnpm install --prod
 COPY --from=builder /app/dist ./dist
 
 # Expose port (default 4000)
-EXPOSE 4001
+EXPOSE 4000
 
 # Start application
 CMD ["node", "dist/main"]

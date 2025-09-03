@@ -20,20 +20,7 @@ async function bootstrap() {
 
   // CORS 설정
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:4001', // 백엔드 포트
-      'http://localhost:56552', // 프론트엔드 포트
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:3001',
-      'http://127.0.0.1:4001',
-      'http://127.0.0.1:56552',
-      // Docker 환경에서 프론트엔드 접근 허용
-      'http://magical_brown:3000',
-      'http://frontend:3000',
-      'http://otto-frontend:3000'
-    ],
+    origin: ['http://otto-frontend:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
@@ -49,6 +36,6 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api-docs', app, document);
 
-  await app.listen(process.env.PORT ?? 4001, '0.0.0.0');
+  await app.listen(process.env.PORT ?? 4000, '0.0.0.0');
 }
 void bootstrap();
