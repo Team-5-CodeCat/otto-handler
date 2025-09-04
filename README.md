@@ -185,9 +185,57 @@ pnpm test:e2e
 pnpm run lint
 pnpm run format
 
-# Prisma 관련
-pnpm prisma studio      # 데이터베이스 GUI
+# 데이터베이스 마이그레이션 관련
+pnpm run db:generate    # Prisma 클라이언트 생성
+pnpm run db:migrate     # 새 마이그레이션 생성 및 적용
+pnpm run db:studio      # 데이터베이스 GUI 실행
+pnpm run db:reset       # 데이터베이스 리셋 (모든 데이터 삭제 주의!)
+pnpm run db:deploy      # 프로덕션 마이그레이션 적용
+pnpm run db:seed        # 데이터베이스 시드 데이터 삽입
+
+# 직접 Prisma 명령어 사용 시
+pnpm prisma generate    # 클라이언트 생성
 pnpm prisma migrate dev # 마이그레이션
+pnpm prisma studio      # GUI 실행
+pnpm prisma migrate reset # 리셋
+```
+
+### 데이터베이스 작업 워크플로우
+
+#### 1. 스키마 변경 후 마이그레이션
+```bash
+# 1. schema.prisma 파일 수정
+# 2. 마이그레이션 생성 및 적용
+pnpm run db:migrate
+# 또는 직접 명령어
+pnpm prisma migrate dev --name "설명적인_마이그레이션_이름"
+
+# 3. Prisma 클라이언트 재생성 (자동으로 실행됨)
+# 수동으로 하려면: pnpm run db:generate
+```
+
+#### 2. 데이터베이스 초기화 (개발 환경)
+```bash
+# 모든 데이터 삭제 후 최신 스키마로 재설정
+pnpm run db:reset
+
+# 시드 데이터 삽입 (있는 경우)
+pnpm run db:seed
+```
+
+#### 3. 데이터베이스 상태 확인
+```bash
+# GUI로 데이터 확인
+pnpm run db:studio
+
+# 마이그레이션 상태 확인
+pnpm prisma migrate status
+```
+
+#### 4. 프로덕션 배포용 마이그레이션
+```bash
+# 프로덕션 환경에서 마이그레이션 적용
+pnpm run db:deploy
 ```
 
 ## 코드 변경 시 반영 방법
