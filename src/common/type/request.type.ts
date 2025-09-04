@@ -3,7 +3,7 @@ import { MemberRole } from '@prisma/client';
 
 export interface IRequestType extends FastifyRequest {
   user: {
-    user_id: number;
+    user_id: string;
     nickname: string;
     email: string;
     role: MemberRole;

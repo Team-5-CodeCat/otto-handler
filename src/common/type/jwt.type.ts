@@ -1,3 +1,3 @@
 export interface JwtPayloadType {
-  sub: number;
+  sub: string;
 }
