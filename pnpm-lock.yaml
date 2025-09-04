@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@Team-5-CodeCat/otto-sdk':
-        specifier: ^0.2.1
-        version: '@team-5-codecat/otto-sdk@0.2.1(@types/node@22.18.0)(typescript@5.9.2)'
       '@fastify/cookie':
         specifier: ^11.0.2
         version: 11.0.2
@@ -1015,9 +1012,6 @@ packages:
 
   '@standard-schema/spec@1.0.0':
     resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
-
-  '@team-5-codecat/otto-sdk@0.2.1':
-    resolution: {integrity: sha512-wN7IZ3viWhnwYecJ5UOlMVrP8lrE0UcIPgFhpquHOVe8yyJ/ri2S772QiTkcf6/EaabBpMT2yXU1yXko05pTPA==, tarball: https://npm.pkg.github.com/download/@Team-5-CodeCat/otto-sdk/0.2.1/39879d5680dcc0dffd2fe498ae5d25b5399b88f2}
 
   '@tokenizer/inflate@0.2.7':
     resolution: {integrity: sha512-MADQgmZT1eKjp06jpI2yozxaU9uVs4GzzgSL+uEq7bVcJ9V1ZXQkeGNql1fsSI0gMy1vhvNTNbUqrx+pZfJVmg==}
@@ -3593,12 +3587,6 @@ packages:
     peerDependencies:
       typescript: '>=4.8.0 <5.10.0'
 
-  typia@9.7.2:
-    resolution: {integrity: sha512-eLIKd0KHZtSvbsA+FYwX+Y0ZBt0BwVGz3GgODQX+6GfGL4DOzKW02LEx62oUZg6vCQX1BL5xyiPXAIdW+Hc51g==}
-    hasBin: true
-    peerDependencies:
-      typescript: '>=4.8.0 <5.10.0'
-
   uglify-js@3.19.3:
     resolution: {integrity: sha512-v3Xu+yuwBXisp6QYTcH4UbH+xYJXqnq2m/LtQVWKWzYc1iehYnLixoQDN9FH6/j9/oybfd6W9Ghwkl8+UMKTKQ==}
     engines: {node: '>=0.8.0'}
@@ -4824,14 +4812,6 @@ snapshots:
       '@sinonjs/commons': 3.0.1
 
   '@standard-schema/spec@1.0.0': {}
-
-  '@team-5-codecat/otto-sdk@0.2.1(@types/node@22.18.0)(typescript@5.9.2)':
-    dependencies:
-      '@nestia/fetcher': 7.4.0
-      typia: 9.7.2(@types/node@22.18.0)(typescript@5.9.2)
-    transitivePeerDependencies:
-      - '@types/node'
-      - typescript
 
   '@tokenizer/inflate@0.2.7':
     dependencies:
@@ -7654,19 +7634,6 @@ snapshots:
   typescript@5.9.2: {}
 
   typia@9.7.1(@types/node@22.18.0)(typescript@5.9.2):
-    dependencies:
-      '@samchon/openapi': 4.7.1
-      '@standard-schema/spec': 1.0.0
-      commander: 10.0.1
-      comment-json: 4.2.5
-      inquirer: 8.2.7(@types/node@22.18.0)
-      package-manager-detector: 0.2.11
-      randexp: 0.5.3
-      typescript: 5.9.2
-    transitivePeerDependencies:
-      - '@types/node'
-
-  typia@9.7.2(@types/node@22.18.0)(typescript@5.9.2):
     dependencies:
       '@samchon/openapi': 4.7.1
       '@standard-schema/spec': 1.0.0
