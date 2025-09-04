@@ -1,56 +1,52 @@
-// ---------------------------------------------
 // Database: PostgreSQL
-// 주요 기능: 사용자 인증, GitHub 연동, 프로젝트/환경/파이프라인/실행/작업/로그 관리, Outbox 발행
-// 설계 원칙 (2025-09-04 갱신):
-//   - 모든 ID는 UUID(v4) 사용 (단순성/호환성)
-//   - 시간 순 정렬은 created_at + 인덱스로 처리 (DESC 인덱스는 Raw SQL로만 필요 시 추가)
-//   - 파이프라인 스펙: 원본(original)·정규화(normalized)·해시(specHash=canonical JSON → SHA-256) 모두 보관
-//   - Outbox + IdempotencyKey로 발행 신뢰성/멱등성 확보
-//   - FK 타입은 모두 일관되게 @db.Uuid
-//   - Logs 테이블은 포인터 1행 정책(대용량 본문은 외부 스토리지/스트리밍)
-//   - 프로젝트 이름은 같은 사용자(userID) 내에서 유일(@@unique([userID, name]))
-//   - OAuth(GitHub) 계정은 password 필드 NULL 허용(User.password: String?)
-// ---------------------------------------------
+// 목적: 사용자/프로젝트/파이프라인/실행/작업/로그/오류 + GitHub App 설치/레포 연결 관리
+// 갱신 일자: 25.09.05 (v3)
+// 설계 원칙:
+//   - 모든 PK/FK: UUID(v4)
+//   - 시간 정렬: created_at + 인덱스
+//   - 파이프라인 스펙: original_spec / normalized_spec / spec_hash 보관 (canonical JSON → SHA-256)
+//   - 멱등성: pipeline_runs.idempotency_key(unique) + 필요 시 Outbox 패턴
+//   - GitHub App: installationId 저장, accessToken? 는 확인 용도로만 보류
+//   - 프로젝트↔레포 연결(ProjectRepository) 유지
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
+  binaryTargets   = ["native", "debian-openssl-3.0.x"] // ← 수정: ubuntu/debian x64
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL") // .env 파일의 DB 연결 문자열 사용
+  url      = env("DATABASE_URL")
 }
 
-// -----------------------------
-// Enums: 역할, 언어, 환경, Job/Log 상태 정의
-// -----------------------------
-
-// RBAC: 사용자 역할
+// 공용 enum
+// 사용자 역할 정의 (RBAC: 역할 기반 접근 제어)
 enum MemberRole {
-  ADMIN
-  MEMBER
-  VIEWER
+  ADMIN // 관리자: 모든 권한
+  MEMBER // 일반 사용자: 기본 권한
+  VIEWER // 읽기 전용: 제한된 권한
 }
 
-// 지원 언어
+// 지원 언어 정의 (MVP: Node, Python)
 enum Language {
-  NODE
-  PYTHON
+  NODE // Node.js 환경
+  PYTHON // Python 환경
 }
 
-// MVP 배포 환경
+// 지원 배포 환경 정의 (MVP: EC2)
 enum DeployEnvironment {
-  EC2
+  EC2 // AWS EC2 인스턴스
 }
 
-// 작업 타입
+// 작업 타입 정의 (빌드/테스트/배포 작업 구분)
 enum JobType {
-  BUILD
-  TEST
-  DEPLOYMENT
+  BUILD // 빌드 작업
+  TEST // 테스트 작업 (Unit/E2E)
+  DEPLOYMENT // 배포 작업
 }
 
-// 작업 상태 라이프사이클
+// 작업 상태 정의 (작업 라이프사이클 관리, 재시도 상태 포함)
 enum JobStatus {
   pending
   running
@@ -59,44 +55,41 @@ enum JobStatus {
   cancelled
 }
 
-// 로그 스트림
+// 로그 스트림 정의 (stdout/stderr 구분, S3 연계 시 사용)
 enum LogStream {
-  stdout
-  stderr
+  stdout // 표준 출력
+  stderr // 표준 에러
 }
 
-// 테스트 세분화
+// 테스트 타입 정의 (테스트 작업 세분화)
 enum TestType {
-  UNIT
-  E2E
+  UNIT // 단위 테스트
+  E2E // End-to-End 테스트
 }
 
-// -----------------------------
-// Models
-// -----------------------------
-
+// 사용자 정보: 인증 및 프로젝트 소유
 model User {
-  userID     String     @id @default(uuid()) @map("user_id") @db.Uuid // UUID 기본키
-  email      String     @unique @map("email") // 로그인 식별자
-  password   String?    @map("password") // bcrypt 해시 저장, GitHub 계정은 NULL 허용
-  name       String     @map("name") // 표시 이름
-  memberRole MemberRole @default(MEMBER) @map("member_role") // 역할
-  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6) // 생성일
-  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6) // 수정일
+  userID     String     @id @default(uuid()) @map("user_id") @db.Uuid
+  email      String     @unique @map("email")
+  password   String?    @map("password") // OAuth-only 계정 허용
+  name       String     @map("name")
+  memberRole MemberRole @default(MEMBER) @map("member_role")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  // Relations
   projects      Project[]
-  github        Github?
+  installations GithubInstallation[]
   refreshTokens RefreshToken[]
 
-  @@index([createdAt]) // 최근 사용자 조회
+  @@index([createdAt])
   @@map("users")
 }
 
+// Refresh Token
 model RefreshToken {
   tokenId    String   @id @default(uuid()) @map("token_id") @db.Uuid
   userID     String   @map("user_id") @db.Uuid
-  token      String   @unique @map("token") // 리프레시 토큰 값
+  token      String   @unique @map("token")
   expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
   lastUsedAt DateTime @default(now()) @map("last_used_at") @db.Timestamptz(6)
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -109,44 +102,80 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-model Github {
-  userID      String  @id @map("user_id") @db.Uuid
-  githubID    String  @unique @map("github_id") // GitHub 계정 고유 ID
-  accessToken String? @map("access_token") // 선택적 토큰
+// GitHub App 설치 (User:Installation = 1:N)
+model GithubInstallation {
+  id             String  @id @default(uuid()) @map("id") @db.Uuid
+  userID         String  @map("user_id") @db.Uuid
+  installationId String  @unique @map("installation_id") // GitHub 설치 고유 ID
+  accountLogin   String? @map("account_login") // 소유자 login (user/org)
+  accountId      BigInt? @map("account_id") @db.BigInt // 소유자 numeric ID
+
+  // ⚠ 운영 원칙: 설치 토큰은 DB 미저장(재발급/캐시 권장). 아래 컬럼은 확인 목적의 보류용.
+  accessToken    String?   @map("access_token") // 확인 필요: 운영 저장 금지 권장
+  tokenExpiresAt DateTime? @map("token_expires_at") @db.Timestamptz(6)
+  lastIssuedAt   DateTime? @map("last_issued_at") @db.Timestamptz(6)
+  lastUsedAt     DateTime? @map("last_used_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userID], references: [userID], onDelete: Cascade)
 
-  @@map("github")
+  @@index([userID])
+  @@index([accountLogin])
+  @@index([accountId])
+  @@map("github_installations")
 }
 
+// 프로젝트: 사용자별 CI/CD 작업 단위
 model Project {
-  projectID  String   @id @default(uuid()) @map("project_id") @db.Uuid // 프로젝트 ID (UUID)
-  userID     String   @map("user_id") @db.Uuid // 소유 사용자 ID (FK)
-  name       String   @map("name") // 프로젝트명 (사용자별 유일)
-  webhookUrl String?  @unique @map("webhook_url") // GitHub webhook (전역 유일, NULL 허용)
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6) // 생성 시각
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6) // 수정 시각
+  projectID  String   @id @default(uuid()) @map("project_id") @db.Uuid
+  userID     String   @map("user_id") @db.Uuid // 소유자 ID
+  name       String   @map("name") // 프로젝트 표시 이름
+  webhookUrl String?  @unique @map("webhook_url")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  // Relations
-  user         User          @relation(fields: [userID], references: [userID], onDelete: Cascade) // 사용자 삭제 시 연쇄 삭제
-  pipelines    Pipeline[] // 프로젝트에 속한 파이프라인들
-  environments Environment[] // 프로젝트 환경들
+  user         User                @relation(fields: [userID], references: [userID], onDelete: Cascade)
+  pipelines    Pipeline[]
+  environments Environment[]
+  repositories ProjectRepository[]
 
-  @@unique([userID, name]) // 같은 사용자 내 동일 이름 금지(GitHub 리포지토리 네이밍과 유사 규칙)
-  @@index([userID]) // 사용자별 프로젝트 조회 최적화
-  @@index([createdAt]) // 최신순 정렬/조회 최적화
+  @@unique([userID, name]) // 동일 사용자 내 프로젝트명 유일
+  @@index([userID])
+  @@index([createdAt])
   @@map("projects")
 }
 
+// 프로젝트 ↔ 레포 연결
+model ProjectRepository {
+  id             String   @id @default(uuid()) @map("id") @db.Uuid
+  projectID      String   @map("project_id") @db.Uuid
+  repoFullName   String   @map("repo_full_name") // owner/repo
+  selectedBranch String   @map("selected_branch") // 대상 브랜치
+  installationId String?  @map("installation_id") // 사용 설치 선택(다중 설치 대비)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project Project @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
+
+  @@unique([projectID, repoFullName]) // 동일 프로젝트-레포 중복 연결 방지
+  @@index([projectID])
+  @@index([installationId])
+  @@map("project_repositories")
+}
+
+// 환경 설정: 언어, 배포 환경, 환경 변수, 인증 정보
 model Environment {
   environmentID    String            @id @default(uuid()) @map("environment_id") @db.Uuid
-  projectID        String            @map("project_id") @db.Uuid
-  language         Language          @map("language")
-  deployEnv        DeployEnvironment @map("deploy_environment")
-  envVariables     Json?             @map("env_variables")
-  credentials      Json?             @map("credentials")
-  deploymentTarget String?           @map("deployment_target")
-  deploymentPath   String?           @map("deployment_path")
+  projectID        String            @map("project_id") @db.Uuid // 소속 프로젝트 ID
+  language         Language          @map("language") // 프로그래밍 언어 (Node/Python)
+  deployEnv        DeployEnvironment @map("deploy_environment") // 배포 환경 (EC2)
+  envVariables     Json?             @map("env_variables") // 런타임/빌드용 ENV
+  credentials      Json?             @map("credentials") // 자격/접속 정보(암호화 전제)
+  deploymentTarget String?           @map("deployment_target") // 대상 호스트/도메인
+  deploymentPath   String?           @map("deployment_path") // 원격 경로
   servicePort      Int?              @map("service_port")
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -158,50 +187,52 @@ model Environment {
   @@map("environments")
 }
 
+// 파이프라인 정의: 빌드/테스트/배포 워크플로우 정의
 model Pipeline {
   pipelineID     String   @id @default(uuid()) @map("pipeline_id") @db.Uuid
-  projectID      String   @map("project_id") @db.Uuid
-  name           String   @map("name")
-  version        Int      @default(1) @map("version") // 버전 관리
-  active         Boolean  @default(true) @map("active")
-  owner          String?  @map("owner")
-  pipelineSpec   Json     @map("pipeline_spec") // 원본 pipeline JSON
+  projectID      String   @map("project_id") @db.Uuid // 소속 프로젝트 ID
+  name           String   @map("name") // 파이프라인 이름
+  version        Int      @default(1) @map("version") // 버전 관리, 기본 1
+  active         Boolean  @default(true) @map("active") // 활성 여부
+  owner          String?  @map("owner") // 소유자 정보 (선택적, 사용자 이름/ID)
+  pipelineSpec   Json     @map("pipeline_spec")
   isBlockBased   Boolean  @default(false) @map("is_block_based")
-  originalSpec   String?  @map("original_spec") @db.Text // 원본 YAML/JSON 저장
-  normalizedSpec Json?    @map("normalized_spec") // 정규화된 JSON
-  specHash       String?  @map("spec_hash") @db.VarChar(64) // SHA-256 해시
+  originalSpec   String?  @map("original_spec") @db.Text // 원본 YAML/JSON
+  normalizedSpec Json?    @map("normalized_spec") // canonical JSON
+  specHash       String?  @map("spec_hash") @db.VarChar(64) // SHA-256
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   project Project       @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
   runs    PipelineRun[]
 
-  @@unique([projectID, name, version])
+  @@unique([projectID, name, version]) // 프로젝트별 버전 유일
   @@index([owner])
   @@index([projectID])
-  @@index([specHash])
   @@index([createdAt])
+  @@index([specHash])
   @@map("pipelines")
 }
 
+// 파이프라인 실행 인스턴스: 특정 시점의 파이프라인 실행
 model PipelineRun {
   id              String    @id @default(uuid()) @map("id") @db.Uuid
-  pipelineID      String    @map("pipeline_id") @db.Uuid
-  pipelineVersion Int       @map("pipeline_version")
-  status          JobStatus @map("status")
+  pipelineID      String    @map("pipeline_id") @db.Uuid // 소속 파이프라인 ID
+  pipelineVersion Int       @map("pipeline_version") // 실행 시점의 파이프라인 버전
+  status          JobStatus @map("status") // 실행 상태
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   queuedAt        DateTime? @map("queued_at") @db.Timestamptz(6)
   startedAt       DateTime? @map("started_at") @db.Timestamptz(6)
   finishedAt      DateTime? @map("finished_at") @db.Timestamptz(6)
-  exitCode        Int?      @map("exit_code")
-  owner           String?   @map("owner")
-  agent           String?   @map("agent")
-  containerImage  String?   @map("container_image")
-  trigger         String?   @map("trigger")
-  labels          Json?     @map("labels")
-  metadata        Json?     @map("metadata")
-  externalRunKey  String?   @unique @map("external_run_key")
-  idempotencyKey  String?   @unique @map("idempotency_key") // 멱등성 보장
+  exitCode        Int?      @map("exit_code") // 종료 코드 (오류 분석)
+  owner           String?   @map("owner") // 실행 요청자
+  agent           String?   @map("agent") // 실행 에이전트 (서버/컨테이너)
+  containerImage  String?   @map("container_image") // 컨테이너 이미지
+  trigger         String?   @map("trigger") // webhook/manual 등
+  labels          Json?     @map("labels") // 레이블 (메타데이터)
+  metadata        Json?     @map("metadata") // 추가 메타데이터
+  externalRunKey  String?   @unique @map("external_run_key") // 외부 실행 키 (고유)
+  idempotencyKey  String?   @unique @map("idempotency_key") // 요청 멱등키
 
   pipeline Pipeline @relation(fields: [pipelineID], references: [pipelineID], onDelete: Restrict)
   jobs     Job[]
@@ -212,37 +243,38 @@ model PipelineRun {
   @@map("pipeline_runs")
 }
 
+// 개별 작업: 빌드/테스트/배포 등 구체적 작업 단위
 model Job {
   id             String    @id @default(uuid()) @map("id") @db.Uuid
-  runID          String    @map("run_id") @db.Uuid
-  name           String    @map("name")
-  type           JobType   @map("type")
-  testType       TestType? @map("test_type")
-  status         JobStatus @map("status")
-  attemptCurrent Int       @default(0) @map("attempt_current")
-  attemptMax     Int       @default(3) @map("attempt_max")
-  exitCode       Int?      @map("exit_code")
-  envVariables   Json?     @map("env_variables")
-  s3ArtifactUrl  String?   @map("s3_artifact_url")
-  targetUrl      String?   @map("target_url")
+  runID          String    @map("run_id") @db.Uuid // 소속 실행 ID
+  name           String    @map("name") // 작업 이름
+  type           JobType   @map("type") // 작업 타입 (BUILD/TEST/DEPLOYMENT)
+  testType       TestType? @map("test_type") // 테스트 타입 (TEST일 때 사용)
+  status         JobStatus @map("status") // 작업 상태 (재시도 상태 포함)
+  attemptCurrent Int       @default(0) @map("attempt_current") // 현재 재시도 횟수
+  attemptMax     Int       @default(3) @map("attempt_max") // 최대 재시도 횟수
+  exitCode       Int?      @map("exit_code") // 종료 코드
+  envVariables   Json?     @map("env_variables") // 작업별 환경 변수 (런타임 주입)
+  s3ArtifactUrl  String?   @map("s3_artifact_url") // S3 결과물 URL
+  targetUrl      String?   @map("target_url") // 배포 대상 URL (DEPLOYMENT용)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   queuedAt       DateTime? @map("queued_at") @db.Timestamptz(6)
   startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
   finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
-  owner          String?   @map("owner")
-  agent          String?   @map("agent")
-  containerImage String?   @map("container_image")
-  command        String?   @map("command")
-  inputs         Json?     @map("inputs")
-  outputs        Json?     @map("outputs")
-  externalJobKey String?   @unique @map("external_job_key")
+  owner          String?   @map("owner") // 소유자
+  agent          String?   @map("agent") // 에이전트
+  containerImage String?   @map("container_image") // 컨테이너 이미지
+  command        String?   @map("command") // 실행 명령어
+  inputs         Json?     @map("inputs") // 입력 데이터
+  outputs        Json?     @map("outputs") // 출력 결과
+  externalJobKey String?   @unique @map("external_job_key") // 외부 작업 키
 
   run          PipelineRun      @relation(fields: [runID], references: [id], onDelete: Cascade)
   statusEvents JobStatusEvent[]
   errors       JobError[]
   logs         Log[]
 
-  @@unique([runID, name])
+  @@unique([runID, name]) // 실행 내 작업명 유일
   @@index([runID, createdAt])
   @@index([status, createdAt])
   @@index([type, createdAt])
@@ -251,13 +283,14 @@ model Job {
   @@map("jobs")
 }
 
+// 작업 상태 이벤트: 상태 변화 추적
 model JobStatusEvent {
   id         String     @id @default(uuid()) @map("id") @db.Uuid
-  jobID      String     @map("job_id") @db.Uuid
-  fromStatus JobStatus? @map("from_status")
-  toStatus   JobStatus  @map("to_status")
-  reason     String?    @map("reason")
-  data       Json?      @map("data")
+  jobID      String     @map("job_id") @db.Uuid // 소속 작업 ID
+  fromStatus JobStatus? @map("from_status") // 이전 상태 (선택적)
+  toStatus   JobStatus  @map("to_status") // 현재 상태
+  reason     String?    @map("reason") // 상태 변경 사유
+  data       Json?      @map("data") // 추가 데이터
   at         DateTime   @default(now()) @map("at") @db.Timestamptz(6)
 
   job Job @relation(fields: [jobID], references: [id], onDelete: Cascade)
@@ -266,55 +299,60 @@ model JobStatusEvent {
   @@map("job_status_events")
 }
 
+// 작업 오류: 실행 중 발생한 오류 기록
 model JobError {
   id         String   @id @default(uuid()) @map("id") @db.Uuid
-  jobID      String   @map("job_id") @db.Uuid
-  attemptNo  Int      @map("attempt_no")
+  jobID      String   @map("job_id") @db.Uuid // 소속 작업 ID
+  attemptNo  Int      @map("attempt_no") // 재시도 번호
   occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
-  errorType  String?  @map("error_type")
-  message    String?  @map("message") @db.VarChar(4096)
-  stacktrace String?  @map("stacktrace") @db.VarChar(8192)
+  errorType  String?  @map("error_type") // 오류 유형
+  message    String?  @map("message") @db.VarChar(4096) // 오류 메시지
+  stacktrace String?  @map("stacktrace") @db.VarChar(8192) // 스택 트레이스
   context    Json?    @map("context")
-  dedupeKey  String?  @map("dedupe_key")
+  dedupeKey  String?  @map("dedupe_key") // 동일 작업 내 중복 에러 제거
 
   job Job @relation(fields: [jobID], references: [id], onDelete: Cascade)
 
-  @@unique([jobID, dedupeKey]) // Job별 오류 중복 제거
+  @@unique([jobID, dedupeKey]) // 작업 단위 중복 방지
   @@index([jobID, attemptNo])
   @@index([occurredAt])
   @@index([errorType])
   @@map("job_errors")
 }
 
+// 로그 (1행 포인터: 대용량은 외부 스토리지)
 model Log {
   logID         String    @id @default(uuid()) @map("log_id") @db.Uuid
-  jobID         String    @map("job_id") @db.Uuid
-  attemptNo     Int       @map("attempt_no")
-  stream        LogStream @map("stream")
-  content       String?   @map("content") // 짧은 로그만 저장
-  storageBucket String?   @map("storage_bucket") // S3 버킷
+  jobID         String    @map("job_id") @db.Uuid // 소속 작업 ID
+  attemptNo     Int       @map("attempt_no") // 재시도 번호
+  stream        LogStream @map("stream") // 로그 스트림 (stdout/stderr)
+  content       String?   @map("content") // 내부 로그 내용 (짧은 로그)
+  storageBucket String?   @map("storage_bucket") // S3 버킷 (긴 로그)
   storageKey    String?   @map("storage_key") // S3 키
-  sizeBytes     BigInt?   @map("size_bytes") @db.BigInt
-  contentType   String?   @map("content_type")
+  sizeBytes     BigInt?   @map("size_bytes") @db.BigInt // 로그 크기 (바이트)
+  contentType   String?   @map("content_type") // 콘텐츠 타입 (e.g., text/plain)
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   job Job @relation(fields: [jobID], references: [id], onDelete: Cascade)
 
-  @@unique([jobID, attemptNo, stream]) // Job/시도/스트림별 1행만
+  @@unique([jobID, attemptNo, stream]) // 동일 시도/스트림 1행
   @@index([jobID, attemptNo])
   @@index([createdAt])
   @@map("logs")
 }
 
+// Outbox 패턴: 트랜잭션 내 이벤트를 안전하게 발행하기 위한 테이블
+// DB commit 성공 이후 별도 프로세스가 읽어 외부 시스템(Kafka, Redis, S3 등)에 전달
+// API → DB 기록 → Outbox → 비동기 발행 으로 데이터 유실 방지
 model Outbox {
   id          BigInt    @id @default(autoincrement()) @map("id")
-  eventType   String    @map("event_type") // 이벤트 타입
-  payload     Json      @map("payload") // 이벤트 본문
+  eventType   String    @map("event_type") // 이벤트 유형 (예: JOB_CREATED, PIPELINE_RUN_FINISHED)
+  payload     Json      @map("payload") // 이벤트 본문 (JSON 직렬화된 데이터)
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  publishedAt DateTime? @map("published_at") @db.Timestamptz(6) // 발행 시각
-  attempts    Int       @default(0) @map("attempts") // 재시도 횟수
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6) // 외부 발행 시각 (NULL이면 미발행 상태)
+  attempts    Int       @default(0) @map("attempts") // 발행 시도 횟수 (재시도 로직에 사용)
 
-  @@index([publishedAt])
   @@index([createdAt])
+  @@index([publishedAt])
   @@map("outbox")
 }
