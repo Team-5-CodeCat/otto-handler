@@ -63,10 +63,9 @@ Otto Handler는 소규모 팀이나 초보 개발자를 위한 직관적이고 �
 ├── .env.example
 ├── .gitignore
 ├── .prettierrc
-├── docker-compose.yaml
-├── Dockerfile
 ├── eslint.config.mjs
 ├── nest-cli.json
+├── nestia.config.ts
 ├── package.json
 ├── pnpm-lock.yaml
 ├── README.md

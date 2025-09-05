@@ -39,7 +39,7 @@ const NESTIA_CONFIG: INestiaConfig = {
     // 서버 설정
     servers: [
       {
-        url: 'http://localhost:3000',
+        url: 'http://localhost:4000',
         description: 'Local Development Server',
       },
     ],

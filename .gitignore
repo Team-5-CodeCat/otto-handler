@@ -62,6 +62,3 @@ node_modules/.pnpm/
 .pnpm/
 
 **/.pnpm-store/
-
-.gitkeep
-CLAUDE.md
