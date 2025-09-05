@@ -1,6 +1,6 @@
 import { AuthService } from '../services';
 import { TypedBody, TypedException, TypedRoute } from '@nestia/core';
-import type { LoginRequestDto, LoginResponseDto } from '../dtos';
+import type { LoginRequestDto, LoginResponseDto, SignUpRequestDto, SignUpResponseDto } from '../dtos';
 import {
   Controller,
   HttpCode,
@@ -9,14 +9,31 @@ import {
   Res,
   Req,
   UnauthorizedException,
+  ConflictException,
 } from '@nestjs/common';
 import { TOKEN_CONSTANTS } from '../constants';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthErrorEnum } from '../constants';
 
-@Controller()
+@Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  /**
+   * @tag auth
+   * 회원가입
+   */
+  @TypedException<ConflictException>({
+    status: HttpStatus.CONFLICT,
+    description: '이메일 중복',
+  })
+  @HttpCode(200)
+  @TypedRoute.Post('/sign_up')
+  async authSignUp(
+    @TypedBody() body: SignUpRequestDto,
+  ): Promise<SignUpResponseDto> {
+    return this.authService.signUp(body);
+  }
 
   /**
    * @tag auth
