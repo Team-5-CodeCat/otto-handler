@@ -54,7 +54,7 @@ async function bootstrap() {
 
   // CORS 설정
   app.enableCors({
-    origin: allowedOrigins,
+    origin: ['http://otto-frontend:3004','http://localhost:3004'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],

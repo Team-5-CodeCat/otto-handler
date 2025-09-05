@@ -22,7 +22,6 @@ import { HttpException, HttpStatus } from '@nestjs/common';
  * - 프로젝트와 GitHub 리소스 연결
  */
 @Controller('integrations/github')
-@UseGuards(AuthGuard)
 export class GithubController {
   constructor(private readonly githubService: GithubService) {}
 
@@ -38,7 +37,7 @@ export class GithubController {
     }
 
     return {
-      url: `https://github.com/apps/otto-handler/installations/new?app_id=${githubAppId}`,
+      url: `https://github.com/apps/otto-test-1/installations/new?app_id=${githubAppId}`,
     };
   }
 
@@ -47,6 +46,7 @@ export class GithubController {
    * - GitHub App 설치 후 받은 installationId와 accessToken으로 계정 등록
    * - 등록된 계정의 접근 가능한 레포지토리 목록 반환
    */
+  @UseGuards(AuthGuard)
   @TypedException<HttpException>({
     status: HttpStatus.UNAUTHORIZED,
     description: 'GitHub 인증 실패',
@@ -67,6 +67,7 @@ export class GithubController {
    * 2단계: 레포지토리 목록 조회
    * - 사용자의 등록된 모든 GitHub 계정에서 접근 가능한 레포지토리 목록 조회
    */
+  @UseGuards(AuthGuard)
   @TypedException<HttpException>({
     status: HttpStatus.UNAUTHORIZED,
     description: 'GitHub 계정이 등록되지 않음',
@@ -87,6 +88,7 @@ export class GithubController {
    * - 사용자가 선택한 레포지토리를 프로젝트에 연결
    * - ProjectRepository 테이블에 프로젝트-레포-계정 연결 정보 저장
    */
+  @UseGuards(AuthGuard)
   @TypedException<HttpException>({
     status: HttpStatus.NOT_FOUND,
     description: '프로젝트 또는 레포지토리를 찾을 수 없음',
@@ -112,6 +114,7 @@ export class GithubController {
    * - 선택된 레포지토리의 브랜치 목록 조회
    * - 해당 레포지토리에 접근 권한이 있는 GitHub 계정을 사용
    */
+  @UseGuards(AuthGuard)
   @TypedException<HttpException>({
     status: HttpStatus.NOT_FOUND,
     description: '레포지토리를 찾을 수 없음',
@@ -136,6 +139,7 @@ export class GithubController {
    * 5단계: 브랜치 선택
    * - 선택된 브랜치를 ProjectRepository.selectedBranch에 저장
    */
+  @UseGuards(AuthGuard)
   @TypedException<HttpException>({
     status: HttpStatus.NOT_FOUND,
     description: '프로젝트-레포지토리 연결 또는 브랜치를 찾을 수 없음',
