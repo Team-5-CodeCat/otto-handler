@@ -1,0 +1,187 @@
+# Otto Handler - Cursor AI Rules
+
+## Project Context
+This is Otto Handler, a NestJS-based CI/CD automation platform for teams. It uses PostgreSQL with Prisma, JWT authentication, Docker development environment, and Nestia for type-safe API generation.
+
+## Code Style & Standards
+
+### TypeScript
+- Use strict TypeScript with runtime validation via typia
+- Always define proper types, avoid `any` except where explicitly allowed in eslint config
+- Use Nestia decorators (@TypedRoute, @TypedBody) for API endpoints
+- Follow NestJS module-based architecture patterns
+- Use dependency injection consistently
+
+### Database & Prisma
+- Database schema changes MUST be done through Prisma migrations
+- Use proper Prisma naming conventions: camelCase for fields, PascalCase for models
+- Always include proper indexes for query performance
+- Use cascading deletes appropriately (Cascade for dependent data, Restrict for referenced data)
+- UUIDs for most IDs, ULIDs for Job and Log IDs (use custom generation functions)
+- Use proper enum types defined in schema.prisma
+
+### NestJS Patterns
+- Follow domain-driven module structure: controllers/ services/ dtos/ interfaces/
+- Use proper DTOs for request/response validation
+- Implement guards for authentication/authorization
+- Use interceptors for logging and response transformation
+- Create custom pipes for data validation/transformation
+- Use filters for exception handling
+
+### API Design
+- Follow RESTful conventions
+- Use global prefix `/api/v1` (excludes /health, /docs)
+- Implement proper error handling with meaningful HTTP status codes
+- Use Nestia for type-safe API client generation
+- Include proper Swagger/OpenAPI documentation
+
+## Architecture Patterns
+
+### Module Organization
+```
+src/
+├── auth/           # Authentication (JWT, refresh tokens)
+├── user/           # User management
+├── projects/       # Project and GitHub integration
+├── pipelines/      # CI/CD pipeline management
+├── environments/   # Environment configuration
+├── integrations/   # External services (GitHub, AWS)
+├── database/       # Prisma configuration
+└── common/         # Shared utilities
+```
+
+### Service Layer
+- Keep controllers thin, business logic in services
+- Use transactions for multi-step database operations
+- Implement proper error handling and logging
+- Use dependency injection for external services
+
+### Data Flow
+Follow the hierarchy: User -> Project -> Pipeline -> PipelineRun -> Job -> Log/Error/StatusEvent
+
+## Development Practices
+
+### Environment Setup
+- Direct Node.js execution on EC2 instance
+- Never commit sensitive data (.env files)
+- Configure DATABASE_URL in .env for local PostgreSQL connection
+- Always run `pnpm prisma generate` after schema changes
+
+### Testing
+- Write unit tests for services
+- Write e2e tests for API endpoints  
+- Use Jest testing framework
+- Test database operations with proper cleanup
+- Mock external services (GitHub API, AWS S3)
+
+### Git Workflow
+- Use feature branches
+- Write descriptive commit messages
+- Run linting and tests before commits
+- Include database migrations in commits when schema changes
+
+## Security Guidelines
+
+### Authentication & Authorization
+- Use JWT with refresh tokens
+- Hash passwords with bcrypt
+- Implement proper RBAC with MemberRole enum
+- Validate all user input with typia
+- Use guards for route protection
+
+### Data Protection
+- Never log sensitive information (passwords, tokens)
+- Encrypt sensitive data in database
+- Use environment variables for secrets
+- Implement proper CORS settings
+
+## Performance Considerations
+
+### Database
+- Use proper indexes as defined in schema
+- Use relationJoins preview feature for optimized queries
+- Implement pagination for large datasets
+- Use connection pooling
+
+### API
+- Use Fastify adapter for better performance
+- Implement proper caching strategies with Redis
+- Use streaming for large log outputs
+- Optimize S3 operations for artifact storage
+
+## Integration Guidelines
+
+### GitHub Integration
+- Use GitHub App for authentication
+- Handle webhook events properly
+- Implement retry logic for API calls
+- Store installation IDs securely
+
+### CI/CD Pipeline Execution
+- Support both YAML and block-based pipeline definitions
+- Implement proper job queuing and execution
+- Store artifacts in S3 with proper lifecycle policies
+- Provide real-time log streaming
+
+### AWS Integration
+- Use proper IAM roles and policies
+- Implement S3 operations for artifact storage
+- Handle AWS service errors gracefully
+
+## Common Patterns to Follow
+
+### Error Handling
+```typescript
+try {
+  // operation
+} catch (error) {
+  this.logger.error('Operation failed', error);
+  throw new BadRequestException('User-friendly message');
+}
+```
+
+### Service Injection
+```typescript
+@Injectable()
+export class SomeService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly logger: Logger,
+  ) {}
+}
+```
+
+### DTO Validation
+```typescript
+export class CreateProjectDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+  
+  @IsOptional()
+  @IsString()
+  description?: string;
+}
+```
+
+## Avoid These Patterns
+- Don't use `any` type without ESLint disable comment
+- Don't write database queries in controllers
+- Don't hardcode configuration values
+- Don't skip input validation
+- Don't ignore error handling
+- Don't commit `.env` files or secrets
+- Don't modify Prisma generated files directly
+- Don't skip database migrations for schema changes
+
+## File Naming Conventions
+- Use kebab-case for file names
+- Use proper suffixes: `.service.ts`, `.controller.ts`, `.dto.ts`, `.module.ts`
+- Keep file names descriptive but concise
+- Group related files in appropriate directories
+
+## Documentation
+- Use JSDoc for complex functions
+- Keep README.md updated with setup instructions
+- Document API changes in commit messages
+- Use proper TypeScript types as documentation

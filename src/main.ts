@@ -21,7 +21,7 @@ async function bootstrap() {
       openapi: '3.1',
       servers: [
         {
-          url: `http://localhost:${process.env.PORT ?? 3000}`,
+          url: `http://localhost:${process.env.PORT || 4000}`,
           description: 'Localhost',
         },
       ],
@@ -43,6 +43,6 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1', {
     exclude: ['health', 'docs'],
   });
-  await app.listen(Number(process.env.PORT) || 3000, '0.0.0.0');
+  await app.listen(Number(process.env.PORT) || 4000, '0.0.0.0');
 }
 void bootstrap();

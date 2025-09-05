@@ -10,7 +10,7 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "target": "ES2023",
+    "target": "es2022",
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
@@ -21,7 +21,6 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-
     "plugins": [
       {
         "transform": "@nestia/core/lib/transform",
@@ -58,6 +57,6 @@
   },
   "include": [
     "src/**/*",
-    "src/types/**/*"  // 추가
+    "src/types/**/*" // 추가
   ]
 }
