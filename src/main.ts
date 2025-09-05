@@ -5,15 +5,40 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import fastifyCookie from '@fastify/cookie';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+
+import { NestiaSwaggerComposer } from '@nestia/sdk';
+import { SwaggerModule } from '@nestjs/swagger';
+
 
 async function bootstrap() {
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({
       logger: process.env.NODE_ENV !== 'production',
     }),
   );
+  if (process.env.NODE_ENV !== 'production') {
+    const document = await NestiaSwaggerComposer.document(app, {
+      openapi: '3.1',
+      servers: [
+        {
+          url: `http://localhost:${process.env.PORT ?? 3000}`,
+          description: 'Localhost',
+        },
+      ],
+      security: {
+        bearer: {
+          type: 'apiKey',
+          name: 'Authorization',
+          in: 'header',
+        },
+      },
+    });
+
+    SwaggerModule.setup('docs', app, document as any);
+  }
+
   await app.register(fastifyCookie, {
     secret: process.env.COOKIE_SECRET ?? 'dev-cookie-secret',
   });
@@ -29,16 +54,10 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
 
-  // Swagger 설정
-  const config = new DocumentBuilder()
-    .setTitle('Otto API')
-    .setDescription('Otto 서비스 API 명세')
-    .setVersion('1.0')
-    .addCookieAuth('access_token')
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api-docs', app, document);
+  app.setGlobalPrefix('api/v1', {
+    exclude: ['health', 'docs'],
+  });
+  await app.listen(Number(process.env.PORT) || 3000, '0.0.0.0');
 
-  await app.listen(process.env.PORT ?? 4000, '0.0.0.0');
 }
 void bootstrap();

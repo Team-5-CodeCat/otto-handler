@@ -5,17 +5,24 @@ services:
       context: .
       target: development # 개발 스테이지 사용
     ports:
-      - '${PORT:-4000}:${PORT:-4000}'
+      - "4000:4000"
     env_file:
       - .env
+    environment:
+      - PORT=4000
     volumes:
       - .:/app # 소스코드 마운트
-      - node_modules_volume:/app/node_modules # node_modules를 named volume으로 분리
+      - /app/node_modules # node_modules 제외
     depends_on:
       - postgres
       - redis
     restart: unless-stopped
-    command: pnpm run start:dev # 핫 리로드 명령어
+    tty: false # 대화형 터미널 활성화
+    stdin_open: false # 표준 입력 유지
+    command: >
+      sh -lc "pnpm install &&
+              pnpm prisma generate &&
+              pnpm run start:dev"
 
   postgres:
     container_name: otto-handler-postgres
@@ -42,4 +49,3 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  node_modules_volume:

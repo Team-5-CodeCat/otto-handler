@@ -1,10 +1,12 @@
+
 import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { LoginRequestDto, LoginResponseDto, SignUpRequestDto, SignUpResponseDto } from '../dtos';
 import { AuthErrorEnum, AuthResponseEnum, TOKEN_CONSTANTS } from '../constants';
 import { JwtService } from './jwt.service';
-import { randomBytes, createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
+import type { JwtPayloadType } from '../../common/type';
 
 @Injectable()
 export class AuthService {
@@ -162,7 +164,6 @@ export class AuthService {
       throw new UnauthorizedException(AuthErrorEnum.REFRESH_FAIL);
     }
 
-    // 회전: 기존 토큰 제거 후 새로운 토큰 발급/저장
     await this.prismaService.refreshToken.delete({
       where: { tokenId: existing.tokenId },
     });
@@ -194,5 +195,33 @@ export class AuthService {
       accessTokenExpiresIn,
       refreshTokenExpiresIn,
     };
+  }
+
+  /**
+   * 회원가입
+   */
+  async signUp({
+    email,
+    password,
+    username,
+  }: SignUpRequestDto): Promise<SignUpResponseDto> {
+    const exists = await this.prismaService.user.findUnique({
+      where: { email },
+    });
+    if (exists) {
+      throw new ConflictException(AuthErrorEnum.EMAIL_ALREADY_EXISTS);
+    }
+
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    await this.prismaService.user.create({
+      data: {
+        email,
+        password: passwordHash,
+        name: username,
+      },
+    });
+    return { message: AuthResponseEnum.SIGN_UP_SUCCESS };
   }
 }
