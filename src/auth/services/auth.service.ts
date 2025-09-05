@@ -197,31 +197,4 @@ export class AuthService {
     };
   }
 
-  /**
-   * 회원가입
-   */
-  async signUp({
-    email,
-    password,
-    username,
-  }: SignUpRequestDto): Promise<SignUpResponseDto> {
-    const exists = await this.prismaService.user.findUnique({
-      where: { email },
-    });
-    if (exists) {
-      throw new ConflictException(AuthErrorEnum.EMAIL_ALREADY_EXISTS);
-    }
-
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-
-    await this.prismaService.user.create({
-      data: {
-        email,
-        password: passwordHash,
-        name: username,
-      },
-    });
-    return { message: AuthResponseEnum.SIGN_UP_SUCCESS };
-  }
 }

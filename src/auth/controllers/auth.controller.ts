@@ -14,10 +14,6 @@ import {
 import { TOKEN_CONSTANTS } from '../constants';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthErrorEnum } from '../constants';
-import type {
-  CommonErrorResponseDto,
-  CommonMessageResponseDto,
-} from '../../common/dto';
 
 @Controller('auth')
 export class AuthController {
@@ -45,7 +41,7 @@ export class AuthController {
    * @tag auth
    * 
    */
-  @TypedException<CommonErrorResponseDto>({
+  @TypedException<HttpException>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 실패',
   })
@@ -82,7 +78,7 @@ export class AuthController {
    * @tag auth
    *
    */
-  @TypedException<CommonErrorResponseDto>({
+  @TypedException<HttpException>({
     status: HttpStatus.UNAUTHORIZED,
     description: '리프레시 실패',
   })
@@ -120,7 +116,7 @@ export class AuthController {
    * @tag auth
    *
    */
-  @TypedException<CommonErrorResponseDto>({
+  @TypedException<HttpException>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 실패',
   })
@@ -128,24 +124,10 @@ export class AuthController {
   @TypedRoute.Post('/sign_out')
   authSignOut(
     @Res({ passthrough: true }) res: FastifyReply,
-  ): CommonMessageResponseDto {
+  ): { message: string } {
     res.clearCookie(TOKEN_CONSTANTS.ACCESS_TOKEN_COOKIE);
     res.clearCookie(TOKEN_CONSTANTS.REFRESH_TOKEN_COOKIE);
     return { message: ' 성공' };
   }
 
-  /**
-   * @summary 회원가입
-   * @tag auth
-   *
-   */
-
-  @TypedException<CommonErrorResponseDto>({
-    status: HttpStatus.CONFLICT,
-    description: '이메일 중복',
-  })
-  @TypedRoute.Post('/sign_up')
-  authSignUp(@TypedBody() body: SignUpRequestDto): Promise<SignUpResponseDto> {
-    return this.authService.signUp(body);
-  }
 }

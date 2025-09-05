@@ -23,7 +23,7 @@ CREATE TYPE "public"."TestType" AS ENUM ('UNIT', 'E2E');
 CREATE TABLE "public"."users" (
     "user_id" UUID NOT NULL,
     "email" TEXT NOT NULL,
-    "password" TEXT NOT NULL,
+    "password" TEXT,
     "name" TEXT NOT NULL,
     "member_role" "public"."MemberRole" NOT NULL DEFAULT 'MEMBER',
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -37,20 +37,28 @@ CREATE TABLE "public"."refresh_tokens" (
     "token_id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
     "token" TEXT NOT NULL,
-    "expires_at" TIMESTAMP(3) NOT NULL,
-    "last_used_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expires_at" TIMESTAMPTZ(6) NOT NULL,
+    "last_used_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "refresh_tokens_pkey" PRIMARY KEY ("token_id")
 );
 
 -- CreateTable
-CREATE TABLE "public"."github" (
+CREATE TABLE "public"."github_installations" (
+    "id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
-    "github_id" TEXT NOT NULL,
+    "installation_id" TEXT NOT NULL,
+    "account_login" TEXT,
+    "account_id" BIGINT,
     "access_token" TEXT,
+    "token_expires_at" TIMESTAMPTZ(6),
+    "last_issued_at" TIMESTAMPTZ(6),
+    "last_used_at" TIMESTAMPTZ(6),
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL,
 
-    CONSTRAINT "github_pkey" PRIMARY KEY ("user_id")
+    CONSTRAINT "github_installations_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -63,6 +71,20 @@ CREATE TABLE "public"."projects" (
     "updated_at" TIMESTAMPTZ(6) NOT NULL,
 
     CONSTRAINT "projects_pkey" PRIMARY KEY ("project_id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."project_repositories" (
+    "id" UUID NOT NULL,
+    "project_id" UUID NOT NULL,
+    "repo_full_name" TEXT NOT NULL,
+    "selected_branch" TEXT NOT NULL,
+    "installation_id" TEXT,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL,
+
+    CONSTRAINT "project_repositories_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -92,6 +114,9 @@ CREATE TABLE "public"."pipelines" (
     "owner" TEXT,
     "pipeline_spec" JSONB NOT NULL,
     "is_block_based" BOOLEAN NOT NULL DEFAULT false,
+    "original_spec" TEXT,
+    "normalized_spec" JSONB,
+    "spec_hash" VARCHAR(64),
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL,
 
@@ -116,6 +141,7 @@ CREATE TABLE "public"."pipeline_runs" (
     "labels" JSONB,
     "metadata" JSONB,
     "external_run_key" TEXT,
+    "idempotency_key" TEXT,
 
     CONSTRAINT "pipeline_runs_pkey" PRIMARY KEY ("id")
 );
@@ -193,17 +219,74 @@ CREATE TABLE "public"."logs" (
     CONSTRAINT "logs_pkey" PRIMARY KEY ("log_id")
 );
 
+-- CreateTable
+CREATE TABLE "public"."outbox" (
+    "id" BIGSERIAL NOT NULL,
+    "event_type" TEXT NOT NULL,
+    "payload" JSONB NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "published_at" TIMESTAMPTZ(6),
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "outbox_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "public"."users"("email");
+
+-- CreateIndex
+CREATE INDEX "users_created_at_idx" ON "public"."users"("created_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "refresh_tokens_token_key" ON "public"."refresh_tokens"("token");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "github_github_id_key" ON "public"."github"("github_id");
+CREATE INDEX "refresh_tokens_user_id_idx" ON "public"."refresh_tokens"("user_id");
+
+-- CreateIndex
+CREATE INDEX "refresh_tokens_expires_at_idx" ON "public"."refresh_tokens"("expires_at");
+
+-- CreateIndex
+CREATE INDEX "refresh_tokens_created_at_idx" ON "public"."refresh_tokens"("created_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "github_installations_installation_id_key" ON "public"."github_installations"("installation_id");
+
+-- CreateIndex
+CREATE INDEX "github_installations_user_id_idx" ON "public"."github_installations"("user_id");
+
+-- CreateIndex
+CREATE INDEX "github_installations_account_login_idx" ON "public"."github_installations"("account_login");
+
+-- CreateIndex
+CREATE INDEX "github_installations_account_id_idx" ON "public"."github_installations"("account_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "projects_webhook_url_key" ON "public"."projects"("webhook_url");
+
+-- CreateIndex
+CREATE INDEX "projects_user_id_idx" ON "public"."projects"("user_id");
+
+-- CreateIndex
+CREATE INDEX "projects_created_at_idx" ON "public"."projects"("created_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "projects_user_id_name_key" ON "public"."projects"("user_id", "name");
+
+-- CreateIndex
+CREATE INDEX "project_repositories_project_id_idx" ON "public"."project_repositories"("project_id");
+
+-- CreateIndex
+CREATE INDEX "project_repositories_installation_id_idx" ON "public"."project_repositories"("installation_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "project_repositories_project_id_repo_full_name_key" ON "public"."project_repositories"("project_id", "repo_full_name");
+
+-- CreateIndex
+CREATE INDEX "environments_project_id_idx" ON "public"."environments"("project_id");
+
+-- CreateIndex
+CREATE INDEX "environments_created_at_idx" ON "public"."environments"("created_at");
 
 -- CreateIndex
 CREATE INDEX "pipelines_owner_idx" ON "public"."pipelines"("owner");
@@ -212,67 +295,91 @@ CREATE INDEX "pipelines_owner_idx" ON "public"."pipelines"("owner");
 CREATE INDEX "pipelines_project_id_idx" ON "public"."pipelines"("project_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "pipelines_name_version_key" ON "public"."pipelines"("name", "version");
+CREATE INDEX "pipelines_created_at_idx" ON "public"."pipelines"("created_at");
+
+-- CreateIndex
+CREATE INDEX "pipelines_spec_hash_idx" ON "public"."pipelines"("spec_hash");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "pipelines_project_id_name_version_key" ON "public"."pipelines"("project_id", "name", "version");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "pipeline_runs_external_run_key_key" ON "public"."pipeline_runs"("external_run_key");
 
 -- CreateIndex
-CREATE INDEX "pipeline_runs_pipeline_id_created_at_idx" ON "public"."pipeline_runs"("pipeline_id", "created_at" DESC);
+CREATE UNIQUE INDEX "pipeline_runs_idempotency_key_key" ON "public"."pipeline_runs"("idempotency_key");
 
 -- CreateIndex
-CREATE INDEX "pipeline_runs_status_created_at_idx" ON "public"."pipeline_runs"("status", "created_at" DESC);
+CREATE INDEX "pipeline_runs_pipeline_id_created_at_idx" ON "public"."pipeline_runs"("pipeline_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "pipeline_runs_status_created_at_idx" ON "public"."pipeline_runs"("status", "created_at");
+
+-- CreateIndex
+CREATE INDEX "pipeline_runs_created_at_idx" ON "public"."pipeline_runs"("created_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "jobs_external_job_key_key" ON "public"."jobs"("external_job_key");
 
 -- CreateIndex
-CREATE INDEX "jobs_run_id_created_at_idx" ON "public"."jobs"("run_id", "created_at" DESC);
+CREATE INDEX "jobs_run_id_created_at_idx" ON "public"."jobs"("run_id", "created_at");
 
 -- CreateIndex
-CREATE INDEX "jobs_status_created_at_idx" ON "public"."jobs"("status", "created_at" DESC);
+CREATE INDEX "jobs_status_created_at_idx" ON "public"."jobs"("status", "created_at");
 
 -- CreateIndex
-CREATE INDEX "jobs_type_created_at_idx" ON "public"."jobs"("type", "created_at" DESC);
+CREATE INDEX "jobs_type_created_at_idx" ON "public"."jobs"("type", "created_at");
 
 -- CreateIndex
 CREATE INDEX "jobs_agent_idx" ON "public"."jobs"("agent");
 
 -- CreateIndex
+CREATE INDEX "jobs_created_at_idx" ON "public"."jobs"("created_at");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "jobs_run_id_name_key" ON "public"."jobs"("run_id", "name");
 
 -- CreateIndex
-CREATE INDEX "job_status_events_job_id_at_idx" ON "public"."job_status_events"("job_id", "at" DESC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "job_errors_dedupe_key_key" ON "public"."job_errors"("dedupe_key");
+CREATE INDEX "job_status_events_job_id_at_idx" ON "public"."job_status_events"("job_id", "at");
 
 -- CreateIndex
 CREATE INDEX "job_errors_job_id_attempt_no_idx" ON "public"."job_errors"("job_id", "attempt_no");
 
 -- CreateIndex
-CREATE INDEX "job_errors_occurred_at_idx" ON "public"."job_errors"("occurred_at" DESC);
+CREATE INDEX "job_errors_occurred_at_idx" ON "public"."job_errors"("occurred_at");
 
 -- CreateIndex
 CREATE INDEX "job_errors_error_type_idx" ON "public"."job_errors"("error_type");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "job_errors_job_id_dedupe_key_key" ON "public"."job_errors"("job_id", "dedupe_key");
+
+-- CreateIndex
 CREATE INDEX "logs_job_id_attempt_no_idx" ON "public"."logs"("job_id", "attempt_no");
 
 -- CreateIndex
-CREATE INDEX "logs_created_at_idx" ON "public"."logs"("created_at" DESC);
+CREATE INDEX "logs_created_at_idx" ON "public"."logs"("created_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "logs_job_id_attempt_no_stream_key" ON "public"."logs"("job_id", "attempt_no", "stream");
+
+-- CreateIndex
+CREATE INDEX "outbox_created_at_idx" ON "public"."outbox"("created_at");
+
+-- CreateIndex
+CREATE INDEX "outbox_published_at_idx" ON "public"."outbox"("published_at");
 
 -- AddForeignKey
 ALTER TABLE "public"."refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("user_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."github" ADD CONSTRAINT "github_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("user_id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."github_installations" ADD CONSTRAINT "github_installations_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("user_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."projects" ADD CONSTRAINT "projects_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("user_id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."project_repositories" ADD CONSTRAINT "project_repositories_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("project_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."environments" ADD CONSTRAINT "environments_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("project_id") ON DELETE CASCADE ON UPDATE CASCADE;

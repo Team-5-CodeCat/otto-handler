@@ -1,222 +1,186 @@
-import {
-  Controller,
-  Post,
-  Body,
-  Req,
-  UseGuards,
-  HttpCode,
-  Headers,
-  Logger,
-  Get,
-  Query,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
-import { GithubService } from '@github/services/github.service';
+import { Controller, Get, Post, Body, Query, UseGuards, Req } from '@nestjs/common';
+import { TypedBody, TypedException, TypedRoute, TypedQuery } from '@nestia/core';
+import { AuthGuard } from '@common/guards/auth.guard';
+import { GithubService } from '../services/github.service';
 import type {
   RegisterGithubAppDto,
-  RegisterBranchDto,
-  InstallationCallbackDto,
-} from '@github/dtos';
-import { AuthGuard } from '@common/guards/auth.guard';
+  SelectRepositoryDto,
+  SelectBranchDto,
+} from '../dtos';
+import type {
+  GithubAppRegisterResponseDto,
+  BranchInfoResponseDto,
+  SelectRepositoryResponseDto,
+  SelectBranchResponseDto,
+} from '../dtos';
+import { HttpException, HttpStatus } from '@nestjs/common';
 
 /**
- * 깃허브 앱 연동 컨트롤러
+ * GitHub 통합 컨트롤러
+ * - GitHub 계정 등록 및 관리
+ * - 레포지토리 및 브랜치 선택
+ * - 프로젝트와 GitHub 리소스 연결
  */
 @Controller('integrations/github')
+@UseGuards(AuthGuard)
 export class GithubController {
-  private readonly logger = new Logger(GithubController.name);
-
   constructor(private readonly githubService: GithubService) {}
 
   /**
-   * GitHub 앱 설치 URL 조회
-   * GET /api/integrations/github/install/url
+   * GitHub App 설치 URL 조회
+   * - 프론트엔드에서 GitHub App 설치 페이지로 리다이렉트할 URL 제공
    */
-  @UseGuards(AuthGuard)
-  @Get('install/url')
-  async getInstallationUrl(@Req() req: any) {
-    try {
-      this.logger.log(`GitHub 앱 설치 URL 요청 - 사용자: ${req.user.userID}`);
-
-      const githubAppId = process.env.GITHUB_APP_ID;
-      const callbackUrl = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/github/install/callback`;
-
-      if (!githubAppId) {
-        throw new HttpException(
-          'GitHub App ID가 설정되지 않았습니다.',
-          HttpStatus.INTERNAL_SERVER_ERROR,
-        );
-      }
-
-      const installUrl = `https://github.com/apps/${process.env.GITHUB_APP_NAME || 'otto-handler'}/installations/new?state=${req.user.userID}`;
-
-      this.logger.log(
-        `GitHub 앱 설치 URL 생성 완료 - 사용자: ${req.user.userID}`,
-      );
-
-      return {
-        installUrl,
-        callbackUrl,
-      };
-    } catch (error) {
-      this.logger.error(
-        `GitHub 앱 설치 URL 생성 실패 - 사용자: ${req.user.userID}`,
-        error,
-      );
-      throw error;
+  @TypedRoute.Get('/install/url')
+  getInstallationUrl(): { url: string } {
+    const githubAppId = process.env.GITHUB_APP_ID;
+    if (!githubAppId) {
+      throw new HttpException('GitHub App ID가 설정되지 않았습니다.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+
+    return {
+      url: `https://github.com/apps/otto-handler/installations/new?app_id=${githubAppId}`,
+    };
   }
 
   /**
-   * 깃허브 앱 등록 (로그인 필요)
-   * POST /api/integrations/github/register
+   * 1단계: GitHub 계정 등록
+   * - GitHub App 설치 후 받은 installationId와 accessToken으로 계정 등록
+   * - 등록된 계정의 접근 가능한 레포지토리 목록 반환
    */
-  @UseGuards(AuthGuard)
-  @HttpCode(200)
-  @Post('register')
-  async registerGithubApp(@Body() body: RegisterGithubAppDto, @Req() req: any) {
-    try {
-      this.logger.log(`GitHub 앱 등록 요청 - 사용자: ${req.user.userID}`);
-
-      const result = await this.githubService.registerApp(req.user, body);
-
-      this.logger.log(
-        `GitHub 앱 등록 성공 - 사용자: ${req.user.userID}, 레포지토리 수: ${result.repositories.length}`,
-      );
-
-      return result;
-    } catch (error) {
-      this.logger.error(
-        `GitHub 앱 등록 실패 - 사용자: ${req.user.userID}`,
-        error,
-      );
-      throw error;
-    }
+  @TypedException<HttpException>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'GitHub 인증 실패',
+  })
+  @TypedException<HttpException>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
+  @TypedRoute.Post('/register')
+  async registerGithubApp(
+    @Req() req: any,
+    @TypedBody() body: RegisterGithubAppDto,
+  ): Promise<GithubAppRegisterResponseDto> {
+    return this.githubService.registerGithubApp(req.user, body);
   }
 
   /**
-   * 특정 레포의 브랜치 목록 조회
-   * GET /api/integrations/github/branches?repo=<repo_full_name>
-   * @param repo ex) Team-5-CodeCat/otto-handler
-   * @returns 브랜치 정보 배열
+   * 2단계: 레포지토리 목록 조회
+   * - 사용자의 등록된 모든 GitHub 계정에서 접근 가능한 레포지토리 목록 조회
    */
-  @UseGuards(AuthGuard)
-  @Get('branches')
-  async getBranches(@Req() req: any, @Query('repo') repo: string) {
-    try {
-      if (!repo) {
-        throw new HttpException(
-          'repo 파라미터가 필요합니다.',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      this.logger.log(
-        `브랜치 목록 조회 요청 - 사용자: ${req.user.userID}, 레포: ${repo}`,
-      );
-
-      const branches = await this.githubService.getBranches(req.user, repo);
-
-      this.logger.log(
-        `브랜치 목록 조회 성공 - 사용자: ${req.user.userID}, 레포: ${repo}, 브랜치 수: ${branches.length}`,
-      );
-
-      return branches;
-    } catch (error) {
-      this.logger.error(
-        `브랜치 목록 조회 실패 - 사용자: ${req.user.userID}, 레포: ${repo}`,
-        error,
-      );
-      throw error;
-    }
+  @TypedException<HttpException>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'GitHub 계정이 등록되지 않음',
+  })
+  @TypedException<HttpException>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '레포지토리 목록 조회 실패',
+  })
+  @TypedRoute.Get('/repositories')
+  async getRepositories(
+    @Req() req: any,
+  ): Promise<GithubAppRegisterResponseDto> {
+    return this.githubService.getRepositories(req.user);
   }
 
   /**
-   * 선택한 브랜치 등록 (1개만 등록, 프론트에서 단일 선택 제한)
-   * POST /api/integrations/github/branches
-   * @param repo 레포 전체 이름
-   * @param branch 선택한 브랜치명
+   * 3단계: 레포지토리 선택
+   * - 사용자가 선택한 레포지토리를 프로젝트에 연결
+   * - ProjectRepository 테이블에 프로젝트-레포-계정 연결 정보 저장
    */
-  @UseGuards(AuthGuard)
-  @Post('branches')
-  async registerBranch(@Req() req: any, @Body() body: RegisterBranchDto) {
-    try {
-      if (!body.repo || !body.branch) {
-        throw new HttpException(
-          'repo와 branch 파라미터가 필요합니다.',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      this.logger.log(
-        `브랜치 등록 요청 - 사용자: ${req.user.userID}, 레포: ${body.repo}, 브랜치: ${body.branch}`,
-      );
-
-      const result = await this.githubService.registerBranch(
-        req.user,
-        body.repo,
-        body.branch,
-      );
-
-      this.logger.log(
-        `브랜치 등록 성공 - 사용자: ${req.user.userID}, 레포: ${body.repo}, 브랜치: ${body.branch}`,
-      );
-
-      return result;
-    } catch (error) {
-      this.logger.error(
-        `브랜치 등록 실패 - 사용자: ${req.user.userID}, 레포: ${body.repo}, 브랜치: ${body.branch}`,
-        error,
-      );
-      throw error;
-    }
+  @TypedException<HttpException>({
+    status: HttpStatus.NOT_FOUND,
+    description: '프로젝트 또는 레포지토리를 찾을 수 없음',
+  })
+  @TypedException<HttpException>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'GitHub 설치 정보가 유효하지 않음',
+  })
+  @TypedException<HttpException>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '레포지토리 선택 실패',
+  })
+  @TypedRoute.Post('/repositories/select')
+  async selectRepository(
+    @Req() req: any,
+    @TypedBody() body: SelectRepositoryDto,
+  ): Promise<SelectRepositoryResponseDto> {
+    return this.githubService.selectRepository(req.user, body);
   }
 
   /**
-   * GitHub 앱 설치 콜백 처리
-   * GET /api/integrations/github/install/callback
+   * 4단계: 브랜치 목록 조회
+   * - 선택된 레포지토리의 브랜치 목록 조회
+   * - 해당 레포지토리에 접근 권한이 있는 GitHub 계정을 사용
    */
-  @Get('install/callback')
-  async installationCallback(@Query() query: InstallationCallbackDto) {
-    try {
-      this.logger.log(
-        `GitHub 앱 설치 콜백 수신 - 설치 ID: ${query.installation_id}, 액션: ${query.setup_action}`,
-      );
-
-      // 설치 완료 후 프론트엔드로 리다이렉트
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const redirectUrl = `${frontendUrl}/projects/new?github_installed=true&installation_id=${query.installation_id}`;
-
-      this.logger.log(`프론트엔드로 리다이렉트: ${redirectUrl}`);
-
-      return { redirect: redirectUrl };
-    } catch (error) {
-      this.logger.error(`GitHub 앱 설치 콜백 처리 실패`, error);
-      throw error;
-    }
+  @TypedException<HttpException>({
+    status: HttpStatus.NOT_FOUND,
+    description: '레포지토리를 찾을 수 없음',
+  })
+  @TypedException<HttpException>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: '레포지토리에 접근할 수 있는 GitHub 계정이 없음',
+  })
+  @TypedException<HttpException>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '브랜치 목록 조회 실패',
+  })
+  @TypedRoute.Get('/branches')
+  async getBranches(
+    @Req() req: any,
+    @TypedQuery() query: { repo: string },
+  ): Promise<BranchInfoResponseDto> {
+    return this.githubService.getBranches(req.user, query.repo);
   }
 
   /**
-   * 깃허브 Webhook 이벤트 수신
-   * POST /api/integrations/github/webhook
+   * 5단계: 브랜치 선택
+   * - 선택된 브랜치를 ProjectRepository.selectedBranch에 저장
    */
-  @Post('webhook')
-  async githubWebhook(
-    @Body() event: any,
-    @Headers('x-github-event') eventType: string,
-  ) {
-    try {
-      this.logger.log(`GitHub Webhook 이벤트 수신: ${eventType}`);
+  @TypedException<HttpException>({
+    status: HttpStatus.NOT_FOUND,
+    description: '프로젝트-레포지토리 연결 또는 브랜치를 찾을 수 없음',
+  })
+  @TypedException<HttpException>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '브랜치 선택 실패',
+  })
+  @TypedRoute.Post('/branches/select')
+  async selectBranch(
+    @Req() req: any,
+    @TypedBody() body: SelectBranchDto,
+  ): Promise<SelectBranchResponseDto> {
+    return this.githubService.selectBranch(req.user, body);
+  }
 
-      const result = await this.githubService.handleWebhookEvent(event);
+  /**
+   * GitHub App 설치 콜백
+   * - GitHub App 설치 완료 후 리다이렉트되는 페이지
+   * - 프론트엔드에서 설치 정보를 받아서 /register API 호출
+   */
+  @TypedRoute.Get('/install/callback')
+  installationCallback(
+    @TypedQuery() query: { installation_id: string; setup_action: string },
+  ): { message: string; installationId: string; nextStep: string } {
+    return {
+      message: 'GitHub App 설치가 완료되었습니다.',
+      installationId: query.installation_id,
+      nextStep: '이제 GitHub 계정을 등록해주세요.',
+    };
+  }
 
-      this.logger.log(`GitHub Webhook 이벤트 처리 완료: ${eventType}`);
-
-      return result;
-    } catch (error) {
-      this.logger.error(`GitHub Webhook 이벤트 처리 실패: ${eventType}`, error);
-      throw error;
-    }
+  /**
+   * GitHub Webhook 이벤트 처리
+   * - GitHub에서 발생하는 이벤트를 받아서 처리
+   * - 설치/제거 이벤트, 푸시 이벤트 등 처리
+   */
+  @TypedRoute.Post('/webhook')
+  async handleWebhook(
+    @Req() req: any,
+    @Body() body: any,
+  ): Promise<{ received: boolean }> {
+    // TODO: GitHub Webhook 시크릿 검증
+    // TODO: 이벤트 타입별 처리 로직 구현
+    
+    return { received: true };
   }
 }

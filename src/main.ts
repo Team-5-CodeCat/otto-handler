@@ -43,19 +43,19 @@ async function bootstrap() {
     secret: process.env.COOKIE_SECRET ?? 'dev-cookie-secret',
   });
 
+  
   // 글로벌 프리픽스 설정
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', {
+    exclude: ['health', 'docs'],
+  });
+
 
   // CORS 설정
   app.enableCors({
-    origin: ['http://otto-frontend:3000', 'http://localhost:3000'],
+    origin: ['http://otto-frontend:3004', 'http://localhost:3004'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  });
-
-  app.setGlobalPrefix('api/v1', {
-    exclude: ['health', 'docs'],
   });
   await app.listen(Number(process.env.PORT) || 3000, '0.0.0.0');
 
