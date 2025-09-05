@@ -50,9 +50,11 @@ async function bootstrap() {
   });
 
 
+  const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [];
+
   // CORS 설정
   app.enableCors({
-    origin: ['http://otto-frontend:3004', 'http://localhost:3004'],
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
