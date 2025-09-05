@@ -18,7 +18,7 @@ case "$DEV_NAME" in
         ;;
     "이지윤")
         DEV_NUM=3
-        DEV_ID="leejiyoon"
+        DEV_ID="leejiyun"
         ;;
     "고민지")
         DEV_NUM=4
