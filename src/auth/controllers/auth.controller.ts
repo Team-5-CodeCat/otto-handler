@@ -24,14 +24,13 @@ import type {
 } from '../../common/dto';
 import { SignUpResponseDto } from '../dtos/response/sign-up-response';
 
-@Controller()
+@Controller('/auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
-   * @summary 로그인
    * @tag auth
-   *
+   * @summary 로그인
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -65,10 +64,8 @@ export class AuthController {
   }
 
   /**
-   *
-   * @summary 리프레시 토큰 로그인
    * @tag auth
-   *
+   * @summary 리프레시 토큰 로그인
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -104,9 +101,8 @@ export class AuthController {
   }
 
   /**
-   * @summary 로그아웃
    * @tag auth
-   *
+   * @summary 로그아웃
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -119,12 +115,13 @@ export class AuthController {
   ): CommonMessageResponseDto {
     res.clearCookie(TOKEN_CONSTANTS.ACCESS_TOKEN_COOKIE);
     res.clearCookie(TOKEN_CONSTANTS.REFRESH_TOKEN_COOKIE);
-    return { message: ' 성공' };
+    return { message: '성공' };
   }
 
   /**
-   * @summary 회원가입
    * @tag auth
+   * @summary 회원가입
+   *
    *
    */
 
