@@ -62,7 +62,7 @@ export class ProjectController {
     description: '잘못된 요청',
   })
   @TypedRoute.Post('createProject')
-  async createProject(
+  async projectCreateProject(
     @TypedBody() createProjectDto: CreateProjectRequestDto,
     @Req() req: IRequestType,
   ): Promise<CreateProjectResponseDto> {
@@ -96,7 +96,7 @@ export class ProjectController {
 
   // 2단계: GitHub 설치 등록
   @TypedRoute.Post('github-installations')
-  async registerGithubInstallation(
+  async projectRegisterGithubInstallation(
     @TypedBody() registerDto: RegisterInstallationRequestDto,
     @Req() req: IRequestType,
   ): Promise<RegisterInstallationResponseDto> {
@@ -128,7 +128,7 @@ export class ProjectController {
   })
   // GitHub 설치 목록 조회 (사용자가 등록한 모든 GitHub 계정)
   @TypedRoute.Get('github-installations')
-  async getUserGithubInstallations(
+  async projectGetUserGithubInstallations(
     @Req() req: IRequestType,
   ): Promise<GetUserGithubInstallationsResponseDto> {
     const userId = req.user.user_id;
@@ -156,7 +156,7 @@ export class ProjectController {
   })
   // 3단계: 특정 설치에서 접근 가능한 레포지토리 목록 조회
   @TypedRoute.Get('github-installations/:installationId/repositories')
-  async getAvailableRepositories(
+  async projectGetAvailableRepositories(
     @TypedParam('installationId') installationId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
   ): Promise<GetRepositoriesResponseDto> {
@@ -196,7 +196,7 @@ export class ProjectController {
   })
   // 4단계: 프로젝트에 레포지토리 연결
   @TypedRoute.Post(':projectId/repositories')
-  async connectRepository(
+  async projectConnectRepository(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
     @TypedBody() connectDto: ConnectRepositoryRequestDto,
     @Req() req: IRequestType,
@@ -232,7 +232,7 @@ export class ProjectController {
   })
   // 5단계: 레포지토리의 브랜치 목록 조회
   @TypedRoute.Get(':projectId/repositories/:repositoryId/branches')
-  async getRepositoryBranches(
+  async projectGetRepositoryBranches(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
     @TypedParam('repositoryId') repositoryId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
@@ -284,7 +284,7 @@ export class ProjectController {
   })
   // 6단계: 선택된 브랜치 변경
   @TypedRoute.Patch(':projectId/repositories/:repositoryId/branch')
-  async updateSelectedBranch(
+  async projectUpdateSelectedBranch(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
     @TypedParam('repositoryId') repositoryId: string & tags.Format<'uuid'>,
     @TypedBody() updateDto: UpdateBranchRequestDto,
@@ -319,7 +319,7 @@ export class ProjectController {
     description: '권한 없음',
   })
   @TypedRoute.Get(':projectId')
-  async getProjectDetail(
+  async projectGetProjectDetail(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
   ): Promise<GetProjectDetailResponseDto> {
@@ -347,7 +347,7 @@ export class ProjectController {
     description: '권한 없음',
   })
   @TypedRoute.Get()
-  async getUserProjects(
+  async projectGetUserProjects(
     @Req() req: IRequestType,
   ): Promise<GetUserProjectsResponseDto> {
     const userId = req.user.user_id;
