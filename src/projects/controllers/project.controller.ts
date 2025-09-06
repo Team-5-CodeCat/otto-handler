@@ -1,10 +1,7 @@
 // controllers/project.controller.ts
 import {
   Controller,
-  Body,
-  Param,
   UseGuards,
-  ParseUUIDPipe,
   ForbiddenException,
   NotFoundException,
   BadRequestException,
@@ -15,7 +12,12 @@ import { AuthGuardRole } from '../../common/guards/auth-guard-role.service';
 import { ProjectService } from '../services/project.service';
 import { GithubService } from '../services/github.services';
 import { PrismaService } from '../../database/prisma.service';
-import { TypedBody, TypedException, TypedRoute } from '@nestia/core';
+import {
+  TypedBody,
+  TypedException,
+  TypedParam,
+  TypedRoute,
+} from '@nestia/core';
 import { AuthGuard } from 'src/common/decorators';
 import type { IRequestType } from 'src/common/type';
 import { CommonErrorResponseDto } from 'src/common/dto/response/common-error-response.dto';
@@ -25,6 +27,7 @@ import type {
   ConnectRepositoryDto,
   UpdateBranchDto,
 } from '../dtos/project.dto';
+import { tags } from 'typia';
 
 @Controller('projects')
 @UseGuards(AuthGuardRole) // 모든 엔드포인트에 JWT 인증 적용
@@ -49,6 +52,10 @@ export class ProjectController {
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.FORBIDDEN,
     description: '권한 없음',
+  })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
   })
   @TypedRoute.Post('createProject')
   async createProject(
@@ -77,6 +84,10 @@ export class ProjectController {
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.FORBIDDEN,
     description: '권한 없음',
+  })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
   })
 
   // 2단계: GitHub 설치 등록
@@ -107,6 +118,10 @@ export class ProjectController {
     status: HttpStatus.FORBIDDEN,
     description: '권한 없음',
   })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
   // GitHub 설치 목록 조회 (사용자가 등록한 모든 GitHub 계정)
   @TypedRoute.Get('github-installations')
   async getUserGithubInstallations(@Req() req: IRequestType) {
@@ -129,10 +144,14 @@ export class ProjectController {
     status: HttpStatus.FORBIDDEN,
     description: '권한 없음',
   })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
   // 3단계: 특정 설치에서 접근 가능한 레포지토리 목록 조회
   @TypedRoute.Get('github-installations/:installationId/repositories')
   async getAvailableRepositories(
-    @Param('installationId') installationId: string,
+    @TypedParam('installationId') installationId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
   ) {
     const userId = req.user.user_id;
@@ -165,11 +184,15 @@ export class ProjectController {
     status: HttpStatus.FORBIDDEN,
     description: '권한 없음',
   })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
   // 4단계: 프로젝트에 레포지토리 연결
   @TypedRoute.Post(':projectId/repositories')
   async connectRepository(
-    @Param('projectId', ParseUUIDPipe) projectId: string,
-    @Body() connectDto: ConnectRepositoryDto,
+    @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
+    @TypedBody() connectDto: ConnectRepositoryDto,
     @Req() req: IRequestType,
   ) {
     const userId = req.user.user_id;
@@ -197,11 +220,15 @@ export class ProjectController {
     status: HttpStatus.FORBIDDEN,
     description: '권한 없음',
   })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
   // 5단계: 레포지토리의 브랜치 목록 조회
   @TypedRoute.Get(':projectId/repositories/:repositoryId/branches')
   async getRepositoryBranches(
-    @Param('projectId', ParseUUIDPipe) projectId: string,
-    @Param('repositoryId', ParseUUIDPipe) repositoryId: string,
+    @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
+    @TypedParam('repositoryId') repositoryId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
   ) {
     const userId = req.user.user_id;
@@ -238,6 +265,10 @@ export class ProjectController {
    */
   @AuthGuard()
   @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
+  @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
   })
@@ -248,9 +279,9 @@ export class ProjectController {
   // 6단계: 선택된 브랜치 변경
   @TypedRoute.Patch(':projectId/repositories/:repositoryId/branch')
   async updateSelectedBranch(
-    @Param('projectId', ParseUUIDPipe) projectId: string,
-    @Param('repositoryId', ParseUUIDPipe) repositoryId: string,
-    @Body() updateDto: UpdateBranchDto,
+    @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
+    @TypedParam('repositoryId') repositoryId: string & tags.Format<'uuid'>,
+    @TypedBody() updateDto: UpdateBranchDto,
     @Req() req: IRequestType,
   ) {
     const userId = req.user.user_id;
@@ -270,6 +301,10 @@ export class ProjectController {
    */
   @AuthGuard()
   @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
+  @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
   })
@@ -279,7 +314,7 @@ export class ProjectController {
   })
   @TypedRoute.Get(':projectId')
   async getProjectDetail(
-    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
   ) {
     const userId = req.user.user_id;
@@ -293,6 +328,10 @@ export class ProjectController {
    *@summary 사용자의 모든 프로젝트 목록 조회
    */
   @AuthGuard()
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
