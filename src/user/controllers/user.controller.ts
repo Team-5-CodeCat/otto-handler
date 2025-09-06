@@ -1,10 +1,4 @@
-import {
-  Controller,
-  ForbiddenException,
-  HttpStatus,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, HttpStatus, Req } from '@nestjs/common';
 import { UserService } from '../services';
 import { TypedException, TypedRoute } from '@nestia/core';
 import { AuthGuard } from '../../common/decorators/role-guard';

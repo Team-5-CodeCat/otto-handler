@@ -4,7 +4,7 @@ export interface SignUpRequestDto {
   /**
    * 이메일
    */
-  email: string;
+  email: string & tags.Format<'email'>;
   /**
    * 비밀번호
    */
