@@ -77,24 +77,26 @@ else
     POSTGRES_RUNNING=false
 fi
 
-# Redis 컨테이너 상태 확인
-REDIS_CONTAINER_ID=$(docker ps -aq -f name="redis-$DEV_ID")
-if [ ! -z "$REDIS_CONTAINER_ID" ]; then
-    REDIS_STATUS=$(docker inspect -f '{{.State.Status}}' "$REDIS_CONTAINER_ID")
-    if [ "$REDIS_STATUS" = "running" ]; then
-        echo "✅ Redis 컨테이너가 이미 실행 중입니다 (포트: $REDIS_PORT)"
+# Redis 컨테이너 상태 확인 (otto-handler와 ottoscaler에서 공유)
+REDIS_CONTAINER_NAME="redis-$DEV_ID"
+echo "🔍 Redis 컨테이너 상태 확인 중... ($REDIS_CONTAINER_NAME)"
+
+# 실행 중인 Redis 컨테이너 확인
+if docker ps --filter "name=$REDIS_CONTAINER_NAME" --filter "status=running" -q | grep -q .; then
+    echo "✅ Redis 컨테이너가 이미 실행 중입니다 (포트: $REDIS_PORT)"
+    echo "   → otto-handler와 ottoscaler에서 공유하여 사용합니다"
+    REDIS_RUNNING=true
+# 중지된 Redis 컨테이너 확인 및 재시작
+elif docker ps -a --filter "name=$REDIS_CONTAINER_NAME" -q | grep -q .; then
+    echo "⚠️  Redis 컨테이너가 중지되어 있습니다. 재시작합니다..."
+    docker start "$REDIS_CONTAINER_NAME"
+    if [ $? -eq 0 ]; then
+        echo "✅ Redis 컨테이너 재시작 완료 (포트: $REDIS_PORT)"
         REDIS_RUNNING=true
     else
-        echo "⚠️  Redis 컨테이너가 존재하지만 중지되어 있습니다. 재시작합니다..."
-        docker start "$REDIS_CONTAINER_ID"
-        if [ $? -eq 0 ]; then
-            echo "✅ Redis 컨테이너 재시작 완료 (포트: $REDIS_PORT)"
-            REDIS_RUNNING=true
-        else
-            echo "❌ Redis 컨테이너 재시작 실패, 기존 컨테이너를 삭제하고 새로 생성합니다..."
-            docker rm -f "$REDIS_CONTAINER_ID"
-            REDIS_RUNNING=false
-        fi
+        echo "❌ Redis 컨테이너 재시작 실패, 기존 컨테이너를 삭제하고 새로 생성합니다..."
+        docker rm -f "$REDIS_CONTAINER_NAME"
+        REDIS_RUNNING=false
     fi
 else
     echo "📦 Redis 컨테이너가 존재하지 않습니다. 새로 생성합니다..."
@@ -134,13 +136,15 @@ fi
 # Redis 컨테이너 생성 (필요한 경우에만)
 if [ "$REDIS_RUNNING" = false ]; then
     echo "🔴 Redis 컨테이너를 생성합니다..."
+    echo "   → otto-handler와 ottoscaler에서 공유하여 사용됩니다"
     docker run -d \
-        --name "redis-$DEV_ID" \
+        --name "$REDIS_CONTAINER_NAME" \
         -p "$REDIS_PORT:6379" \
-        redis:7-alpine
+        redis:7-alpine redis-server --appendonly yes
 
     if [ $? -eq 0 ]; then
         echo "✅ Redis 컨테이너 실행 완료 (포트: $REDIS_PORT)"
+        echo "   → 다른 프로젝트(ottoscaler)에서도 이 Redis를 사용할 수 있습니다"
         # 컨테이너가 완전히 시작될 때까지 잠시 대기
         echo "⏳ Redis 초기화를 위해 3초 대기합니다..."
         sleep 3
@@ -183,9 +187,9 @@ fi
 
 # Redis 연결 테스트  
 echo -n "🔴 Redis 연결 테스트: "
-timeout 5 docker exec "redis-$DEV_ID" redis-cli ping >/dev/null 2>&1
+timeout 5 docker exec "$REDIS_CONTAINER_NAME" redis-cli ping >/dev/null 2>&1
 if [ $? -eq 0 ]; then
-    echo "✅ 성공"
+    echo "✅ 성공 (otto-handler와 ottoscaler에서 공유)"
 else
     echo "❌ 실패"
 fi
@@ -203,6 +207,10 @@ echo "📚 Swagger 문서: http://localhost:$APP_PORT/docs"
 echo ""
 echo "컨테이너 관리 명령어:"
 echo "  상태 확인: docker ps -f name=$DEV_ID"
-echo "  중지: docker stop postgres-$DEV_ID redis-$DEV_ID"
-echo "  재시작: docker restart postgres-$DEV_ID redis-$DEV_ID"
-echo "  삭제: docker rm postgres-$DEV_ID redis-$DEV_ID"
+echo "  중지: docker stop postgres-$DEV_ID $REDIS_CONTAINER_NAME"
+echo "  재시작: docker restart postgres-$DEV_ID $REDIS_CONTAINER_NAME"
+echo "  삭제: docker rm postgres-$DEV_ID $REDIS_CONTAINER_NAME"
+echo ""
+echo "⚠️  Redis 주의사항:"
+echo "  - Redis 컨테이너($REDIS_CONTAINER_NAME)는 ottoscaler에서도 사용됩니다"
+echo "  - 삭제 시 ottoscaler 개발환경에도 영향을 줄 수 있습니다"
