@@ -9,7 +9,6 @@ import { NestiaSwaggerComposer } from '@nestia/sdk';
 import { SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
-
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({
@@ -21,7 +20,7 @@ async function bootstrap() {
       openapi: '3.1',
       servers: [
         {
-          url: `http://localhost:${process.env.PORT || 4000}`,
+          url: `http://localhost:${process.env.PORT || 4000}/api/v1`,
           description: 'Localhost',
         },
       ],
