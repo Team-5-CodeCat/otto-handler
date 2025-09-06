@@ -4,5 +4,8 @@ export * from './connect-repository-response.dto';
 export * from './get-repositories-response.dto';
 export * from './get-branches-response.dto';
 export * from './update-branch-response.dto';
+export * from './get-user-projects-response.dto';
+export * from './get-project-detail-response.dto';
+export * from './get-user-github-installations-response.dto';
 
 

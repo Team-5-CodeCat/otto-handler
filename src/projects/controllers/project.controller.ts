@@ -29,6 +29,9 @@ import type {
   ConnectRepositoryResponseDto,
   GetBranchesResponseDto,
   UpdateBranchResponseDto,
+  GetUserGithubInstallationsResponseDto,
+  GetProjectDetailResponseDto,
+  GetUserProjectsResponseDto,
 } from '../dtos';
 import { tags } from 'typia';
 
@@ -125,7 +128,9 @@ export class ProjectController {
   })
   // GitHub 설치 목록 조회 (사용자가 등록한 모든 GitHub 계정)
   @TypedRoute.Get('github-installations')
-  async getUserGithubInstallations(@Req() req: IRequestType) {
+  async getUserGithubInstallations(
+    @Req() req: IRequestType,
+  ): Promise<GetUserGithubInstallationsResponseDto> {
     const userId = req.user.user_id;
 
     return this.projectService.getUserGithubInstallations(userId);
@@ -317,7 +322,7 @@ export class ProjectController {
   async getProjectDetail(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
-  ) {
+  ): Promise<GetProjectDetailResponseDto> {
     const userId = req.user.user_id;
 
     return this.projectService.getProjectDetail(userId, projectId);
@@ -342,7 +347,9 @@ export class ProjectController {
     description: '권한 없음',
   })
   @TypedRoute.Get()
-  async getUserProjects(@Req() req: IRequestType) {
+  async getUserProjects(
+    @Req() req: IRequestType,
+  ): Promise<GetUserProjectsResponseDto> {
     const userId = req.user.user_id;
 
     return this.projectService.getUserProjects(userId);
