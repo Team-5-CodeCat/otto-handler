@@ -7,7 +7,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { GithubService } from './github.services';
+import { GithubService } from './github.service';
 
 @Injectable()
 export class ProjectService {
@@ -105,6 +105,30 @@ export class ProjectService {
     return this.prisma.githubInstallation.findMany({
       where: {
         userID: userId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  /**
+   * 사용자의 모든 프로젝트 목록을 조회합니다
+   */
+  async getUserProjects(userId: string) {
+    return this.prisma.project.findMany({
+      where: {
+        userID: userId,
+      },
+      include: {
+        repositories: {
+          select: {
+            id: true,
+            repoFullName: true,
+            selectedBranch: true,
+            isActive: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',

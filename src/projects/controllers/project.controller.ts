@@ -1,17 +1,14 @@
 // controllers/project.controller.ts
 import {
   Controller,
-  UseGuards,
   ForbiddenException,
   NotFoundException,
   BadRequestException,
   Req,
   HttpStatus,
 } from '@nestjs/common';
-import { AuthGuardRole } from '../../common/guards/auth-guard-role.service';
 import { ProjectService } from '../services/project.service';
-import { GithubService } from '../services/github.services';
-import { PrismaService } from '../../database/prisma.service';
+import { GithubService } from '../services/github.service';
 import {
   TypedBody,
   TypedException,
@@ -22,20 +19,24 @@ import { AuthGuard } from 'src/common/decorators';
 import type { IRequestType } from 'src/common/type';
 import { CommonErrorResponseDto } from 'src/common/dto/response/common-error-response.dto';
 import type {
-  CreateProjectDto,
-  RegisterInstallationDto,
-  ConnectRepositoryDto,
-  UpdateBranchDto,
-} from '../dtos/project.dto';
+  CreateProjectRequestDto,
+  RegisterInstallationRequestDto,
+  ConnectRepositoryRequestDto,
+  UpdateBranchRequestDto,
+  CreateProjectResponseDto,
+  RegisterInstallationResponseDto,
+  GetRepositoriesResponseDto,
+  ConnectRepositoryResponseDto,
+  GetBranchesResponseDto,
+  UpdateBranchResponseDto,
+} from '../dtos';
 import { tags } from 'typia';
 
 @Controller('projects')
-@UseGuards(AuthGuardRole) // 모든 엔드포인트에 JWT 인증 적용
 export class ProjectController {
   constructor(
     private projectService: ProjectService,
     private githubService: GithubService,
-    private prisma: PrismaService,
   ) {}
 
   /**
@@ -59,9 +60,9 @@ export class ProjectController {
   })
   @TypedRoute.Post('createProject')
   async createProject(
-    @TypedBody() createProjectDto: CreateProjectDto,
+    @TypedBody() createProjectDto: CreateProjectRequestDto,
     @Req() req: IRequestType,
-  ) {
+  ): Promise<CreateProjectResponseDto> {
     const userId = req.user.user_id; // JWT 토큰에서 사용자 ID 추출
 
     return this.projectService.createProject(
@@ -93,9 +94,9 @@ export class ProjectController {
   // 2단계: GitHub 설치 등록
   @TypedRoute.Post('github-installations')
   async registerGithubInstallation(
-    @TypedBody() registerDto: RegisterInstallationDto,
+    @TypedBody() registerDto: RegisterInstallationRequestDto,
     @Req() req: IRequestType,
-  ) {
+  ): Promise<RegisterInstallationResponseDto> {
     const userId = req.user.user_id;
 
     return this.projectService.registerGithubInstallation(
@@ -153,7 +154,7 @@ export class ProjectController {
   async getAvailableRepositories(
     @TypedParam('installationId') installationId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
-  ) {
+  ): Promise<GetRepositoriesResponseDto> {
     const userId = req.user.user_id;
 
     // 보안 검증: 이 설치가 현재 사용자 소유인지 확인
@@ -192,9 +193,9 @@ export class ProjectController {
   @TypedRoute.Post(':projectId/repositories')
   async connectRepository(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
-    @TypedBody() connectDto: ConnectRepositoryDto,
+    @TypedBody() connectDto: ConnectRepositoryRequestDto,
     @Req() req: IRequestType,
-  ) {
+  ): Promise<ConnectRepositoryResponseDto> {
     const userId = req.user.user_id;
 
     return this.projectService.connectRepositoryToProject(
@@ -230,7 +231,7 @@ export class ProjectController {
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
     @TypedParam('repositoryId') repositoryId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
-  ) {
+  ): Promise<GetBranchesResponseDto> {
     const userId = req.user.user_id;
 
     // 먼저 이 레포지토리가 사용자의 프로젝트에 속하는지 확인
@@ -281,9 +282,9 @@ export class ProjectController {
   async updateSelectedBranch(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
     @TypedParam('repositoryId') repositoryId: string & tags.Format<'uuid'>,
-    @TypedBody() updateDto: UpdateBranchDto,
+    @TypedBody() updateDto: UpdateBranchRequestDto,
     @Req() req: IRequestType,
-  ) {
+  ): Promise<UpdateBranchResponseDto> {
     const userId = req.user.user_id;
 
     return this.projectService.updateSelectedBranch(
@@ -344,23 +345,6 @@ export class ProjectController {
   async getUserProjects(@Req() req: IRequestType) {
     const userId = req.user.user_id;
 
-    return await this.prisma.project.findMany({
-      where: {
-        userID: userId,
-      },
-      include: {
-        repositories: {
-          select: {
-            id: true,
-            repoFullName: true,
-            selectedBranch: true,
-            isActive: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    return this.projectService.getUserProjects(userId);
   }
 }
