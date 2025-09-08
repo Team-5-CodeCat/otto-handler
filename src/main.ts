@@ -36,9 +36,23 @@ async function bootstrap() {
     SwaggerModule.setup('docs', app, document as any);
   }
 
+  // CORS 설정
+  app.enableCors({
+    origin: [process.env.FRONTEND_URL || 'http://localhost:3000'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+    ],
+  });
+
   await app.register(fastifyCookie, {
     secret: process.env.COOKIE_SECRET ?? 'dev-cookie-secret',
   });
+
   app.setGlobalPrefix('api/v1', {
     exclude: ['health', 'docs'],
   });
