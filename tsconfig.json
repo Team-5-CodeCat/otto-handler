@@ -58,6 +58,7 @@
   "include": [
     "src/**/*",
     "src/types/**/*", // 추가
-    "test/**/*" // 테스트 파일 포함
+    "test/**/*", // 테스트 파일 포함
+    "nestia.config.ts"
   ]
 }
