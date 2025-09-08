@@ -264,10 +264,14 @@ jobs:
             
             # Set up cleanup trap to ensure temp directory is removed
             cleanup() {
-              echo "🧹 Cleaning up temporary directory..."
+              echo "🧹 Cleaning up temporary directory: $TEMP_DIR"
+              cd "$HOME" 2>/dev/null || true
               rm -rf "$TEMP_DIR" 2>/dev/null || true
+              # Also clean any pnpm-lock.yaml in home directory
+              [ -f "$HOME/pnpm-lock.yaml" ] && rm -f "$HOME/pnpm-lock.yaml"
+              [ -f "$HOME/package.json" ] && rm -f "$HOME/package.json"
             }
-            trap cleanup EXIT ERR INT TERM
+            trap cleanup EXIT ERR INT TERM SIGINT SIGTERM
             
             # Use rsync for more efficient copying (excludes unnecessary files)
             mkdir -p "$TEMP_DIR"
@@ -328,19 +332,42 @@ jobs:
             # First, check the current migration status
             echo "🔍 Checking current migration status..."
             set +e  # Don't exit on error for checks
-            MIGRATION_STATUS=$(npx prisma migrate status 2>&1)
+            
+            # Ensure we're in the correct directory and have proper environment
+            cd "$TEMP_DIR"
+            [ -f ".env" ] || { echo "⚠️ .env file not found, using environment variables"; }
+            
+            # Try to check migration status with timeout
+            MIGRATION_STATUS=$(timeout 30 npx prisma migrate status 2>&1)
             STATUS_EXIT_CODE=$?
+            
+            # Debug output
+            echo "Debug: Migration status exit code: $STATUS_EXIT_CODE"
+            if [ -n "$MIGRATION_STATUS" ]; then
+              echo "Debug: Migration status output (first 500 chars): ${MIGRATION_STATUS:0:500}"
+            fi
+            
             set -e  # Re-enable exit on error
             
             # Analyze the status
-            if [ $STATUS_EXIT_CODE -eq 0 ] && echo "$MIGRATION_STATUS" | grep -q "Database schema is up to date"; then
+            if [ $STATUS_EXIT_CODE -eq 124 ]; then
+              echo "⚠️ Migration status check timed out, using db:push instead"
+              npx prisma db:push --skip-generate --accept-data-loss=false || {
+                echo "⚠️ db:push also failed, continuing anyway..."
+              }
+            elif [ $STATUS_EXIT_CODE -eq 0 ] && echo "$MIGRATION_STATUS" | grep -q "Database schema is up to date"; then
               echo "✅ Database schema is already up to date, no migrations needed"
-            elif echo "$MIGRATION_STATUS" | grep -q "P3005" || echo "$MIGRATION_STATUS" | grep -q "database schema is not empty"; then
-              echo "⚠️ Database has existing schema without migration history"
+            elif echo "$MIGRATION_STATUS" | grep -q "P3005" || echo "$MIGRATION_STATUS" | grep -q "database schema is not empty" || echo "$MIGRATION_STATUS" | grep -q "Error:"; then
+              echo "⚠️ Database migration issue detected: P3005 or similar error"
               echo "🔧 Using db:push to synchronize schema..."
               
               # Use db:push to sync without migration history
-              if npx prisma db:push --skip-generate --accept-data-loss=false; then
+              set +e
+              DB_PUSH_OUTPUT=$(npx prisma db:push --skip-generate --accept-data-loss=false 2>&1)
+              DB_PUSH_EXIT=$?
+              set -e
+              
+              if [ $DB_PUSH_EXIT -eq 0 ]; then
                 echo "✅ Schema synchronized with db:push"
                 
                 # Try to create migration baseline for future runs
@@ -354,7 +381,9 @@ jobs:
                   done
                 fi
               else
-                echo "⚠️ db:push failed, but continuing with existing schema..."
+                echo "⚠️ db:push failed with exit code $DB_PUSH_EXIT"
+                echo "Output: ${DB_PUSH_OUTPUT:0:500}"
+                echo "⚠️ Continuing with existing schema anyway..."
               fi
             elif echo "$MIGRATION_STATUS" | grep -q "Following migrations have not yet been applied"; then
               echo "📋 Found pending migrations, applying them..."
@@ -377,26 +406,24 @@ jobs:
               echo "   Please create the database first"
               exit 1
             else
-              echo "⚠️ Unexpected migration status, attempting standard deployment..."
+              echo "⚠️ Unexpected migration status or error, using safe fallback..."
+              echo "Status exit code was: $STATUS_EXIT_CODE"
               
-              # Try standard deployment
+              # Safe fallback: just use db:push
+              echo "🔧 Using db:push for schema synchronization..."
               set +e
-              pnpm db:deploy 2>&1 | tee migration.log
-              DEPLOY_EXIT_CODE=$?
+              npx prisma db:push --skip-generate --accept-data-loss=false 2>&1 | tee db_push.log
+              DB_PUSH_RESULT=$?
               set -e
               
-              if [ $DEPLOY_EXIT_CODE -eq 0 ]; then
-                echo "✅ Migrations deployed successfully"
+              if [ $DB_PUSH_RESULT -eq 0 ]; then
+                echo "✅ Schema synchronized successfully with db:push"
+              elif grep -q "already in sync" db_push.log; then
+                echo "✅ Schema is already in sync"
               else
-                echo "⚠️ Migration deployment failed, using db:push as final fallback..."
-                
-                # Final fallback to db:push
-                if npx prisma db:push --skip-generate --accept-data-loss=false; then
-                  echo "✅ Schema synchronized with db:push"
-                else
-                  echo "⚠️ Could not fully sync schema, but continuing deployment..."
-                  echo "   Manual database intervention may be required"
-                fi
+                echo "⚠️ Schema synchronization had issues, but continuing..."
+                echo "   The application may work if schema is compatible"
+                echo "   Manual database review recommended after deployment"
               fi
             fi
             
@@ -442,6 +469,9 @@ jobs:
               pnpm install --frozen-lockfile
               pnpm db:generate
             }
+            
+            # Ensure we're back in project directory
+            cd "$PROJECT_DIR"
 
             # Temp directory will be cleaned up by trap
 
