@@ -179,6 +179,42 @@ jobs:
             TEMP_DIR="$HOME/otto-temp-$(date +%s)"
             APP_NAME="otto-handler"
             PORT=${{ secrets.PORT }}
+            
+            # Clean up old temporary directories first
+            echo "🧹 Cleaning up old temporary directories..."
+            rm -rf $HOME/otto-temp-* 2>/dev/null || true
+            
+            # Check available disk space
+            AVAILABLE_SPACE=$(df / | awk 'NR==2 {print $4}')
+            echo "💾 Available disk space: ${AVAILABLE_SPACE}KB"
+            
+            # Require at least 2GB free space
+            if [ "$AVAILABLE_SPACE" -lt 2097152 ]; then
+              echo "⚠️ Low disk space detected, performing aggressive cleanup..."
+              
+              # Clean package managers cache
+              npm cache clean --force 2>/dev/null || true
+              pnpm store prune 2>/dev/null || true
+              
+              # Clean PM2 logs if they're large
+              if [ -d "$HOME/.pm2/logs" ]; then
+                find "$HOME/.pm2/logs" -type f -size +50M -delete 2>/dev/null || true
+                pm2 flush 2>/dev/null || true
+              fi
+              
+              # Remove orphaned node_modules in home directory
+              [ -d "$HOME/node_modules" ] && rm -rf "$HOME/node_modules"
+              [ -f "$HOME/package.json" ] && rm -f "$HOME/package.json" "$HOME/pnpm-lock.yaml"
+              
+              # Check space again
+              AVAILABLE_SPACE=$(df / | awk 'NR==2 {print $4}')
+              echo "💾 Available disk space after cleanup: ${AVAILABLE_SPACE}KB"
+              
+              if [ "$AVAILABLE_SPACE" -lt 1048576 ]; then
+                echo "❌ Insufficient disk space (less than 1GB available)"
+                exit 1
+              fi
+            fi
 
             # Ensure project directory exists
             if [ ! -d "$PROJECT_DIR" ]; then
@@ -225,14 +261,32 @@ jobs:
             # ============================================
 
             echo "🏗️ Creating temporary build directory..."
-            cp -r "$PROJECT_DIR" "$TEMP_DIR" || exit 1
+            
+            # Set up cleanup trap to ensure temp directory is removed
+            cleanup() {
+              echo "🧹 Cleaning up temporary directory..."
+              rm -rf "$TEMP_DIR" 2>/dev/null || true
+            }
+            trap cleanup EXIT ERR INT TERM
+            
+            # Use rsync for more efficient copying (excludes unnecessary files)
+            mkdir -p "$TEMP_DIR"
+            rsync -a --exclude='node_modules' \
+                     --exclude='.git' \
+                     --exclude='dist' \
+                     --exclude='logs' \
+                     --exclude='*.log' \
+                     --exclude='.env*' \
+                     "$PROJECT_DIR/" "$TEMP_DIR/" || {
+              echo "❌ Failed to create temporary build directory"
+              exit 1
+            }
             cd "$TEMP_DIR"
 
             # Install dependencies
             echo "📦 Installing dependencies..."
             pnpm install --frozen-lockfile || {
               echo "❌ Failed to install dependencies"
-              rm -rf "$TEMP_DIR"
               exit 1
             }
 
@@ -262,7 +316,6 @@ jobs:
             echo "🗄️ Generating Prisma Client..."
             dotenv -e .env.prod -- pnpm db:generate 2>/dev/null || pnpm db:generate || {
               echo "❌ Prisma generate failed"
-              rm -rf "$TEMP_DIR"
               exit 1
             }
 
@@ -318,12 +371,10 @@ jobs:
             elif echo "$MIGRATION_STATUS" | grep -q "P1001" || echo "$MIGRATION_STATUS" | grep -q "Can't reach database"; then
               echo "❌ Cannot connect to database server"
               echo "   Please check DATABASE_URL and network connectivity"
-              rm -rf "$TEMP_DIR"
               exit 1
             elif echo "$MIGRATION_STATUS" | grep -q "P1009" || echo "$MIGRATION_STATUS" | grep -q "database.*does not exist"; then
               echo "❌ Database does not exist"
               echo "   Please create the database first"
-              rm -rf "$TEMP_DIR"
               exit 1
             else
               echo "⚠️ Unexpected migration status, attempting standard deployment..."
@@ -361,7 +412,6 @@ jobs:
             echo "🏗️ Building NestJS application..."
             pnpm build || {
               echo "❌ Build failed"
-              rm -rf "$TEMP_DIR"
               exit 1
             }
 
@@ -378,7 +428,6 @@ jobs:
               echo "❌ Failed to deploy new build"
               # Restore backup
               [ -d "$PROJECT_DIR/dist.backup" ] && mv "$PROJECT_DIR/dist.backup" "$PROJECT_DIR/dist"
-              rm -rf "$TEMP_DIR"
               exit 1
             }
 
@@ -394,8 +443,7 @@ jobs:
               pnpm db:generate
             }
 
-            # Clean up temp directory
-            rm -rf "$TEMP_DIR"
+            # Temp directory will be cleaned up by trap
 
             # ============================================
             # 7. PM2 Deployment
@@ -547,6 +595,10 @@ jobs:
                 pm2 flush "$APP_NAME"
               fi
             fi
+            
+            # Final cleanup of any remaining temp directories
+            echo "🧹 Final cleanup of temporary files..."
+            find $HOME -maxdepth 1 -name "otto-temp-*" -type d -mtime +1 -exec rm -rf {} \; 2>/dev/null || true
 
             # ============================================
             # 10. Final Status
