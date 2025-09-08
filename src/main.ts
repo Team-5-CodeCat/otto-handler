@@ -5,27 +5,36 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import fastifyCookie from '@fastify/cookie';
+import fastifyCors from '@fastify/cors';
 import { NestiaSwaggerComposer } from '@nestia/sdk';
 import { SwaggerModule, OpenAPIObject } from '@nestjs/swagger';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule,
-    new FastifyAdapter({
-      logger: process.env.NODE_ENV !== 'production',
-    }),
-  );
+  const adapter = new FastifyAdapter({
+    logger: process.env.NODE_ENV !== 'production',
+  });
 
-  // Enable CORS for production
-  app.enableCors({
+  // Register CORS plugin directly on Fastify adapter
+  await adapter.register(fastifyCors, {
     origin:
       process.env.NODE_ENV === 'production'
         ? ['https://codecat-otto.shop', 'https://www.codecat-otto.shop']
         : true,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Cookie',
+      'X-Requested-With',
+    ],
+    exposedHeaders: ['Set-Cookie'],
   });
+
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    adapter,
+  );
   if (process.env.NODE_ENV !== 'production') {
     const document = await NestiaSwaggerComposer.document(app, {
       openapi: '3.1',
