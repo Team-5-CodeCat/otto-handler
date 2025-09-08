@@ -10,5 +10,3 @@ export type GetRepositoriesResponseDto = Array<{
   forksCount: number;
   updatedAt: string;
 }>;
-
-

@@ -10,5 +10,3 @@ export interface CreateProjectResponseDto {
   createdAt: Date;
   updatedAt: Date;
 }
-
-
