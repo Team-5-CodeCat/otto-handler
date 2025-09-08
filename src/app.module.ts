@@ -5,7 +5,9 @@ import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { ConfigModule } from '@nestjs/config';
 import { ProjectsModule } from './projects/projects.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 import { PipelinesModule } from './pipelines/pipelines.module';
+
 
 @Module({
   imports: [
@@ -18,6 +20,7 @@ import { PipelinesModule } from './pipelines/pipelines.module';
         process.env.NODE_ENV === 'production' ? '.env.prod' : '.env.dev',
     }),
     ProjectsModule,
+    WebhooksModule,
     PipelinesModule,
   ],
   controllers: [],
