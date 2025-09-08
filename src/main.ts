@@ -6,7 +6,7 @@ import {
 } from '@nestjs/platform-fastify';
 import fastifyCookie from '@fastify/cookie';
 import { NestiaSwaggerComposer } from '@nestia/sdk';
-import { SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule, OpenAPIObject } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -33,7 +33,7 @@ async function bootstrap() {
       },
     });
 
-    SwaggerModule.setup('docs', app, document as any);
+    SwaggerModule.setup('docs', app, document as OpenAPIObject);
   }
 
   await app.register(fastifyCookie, {
