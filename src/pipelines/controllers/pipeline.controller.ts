@@ -11,6 +11,8 @@ import type { CommonErrorResponseDto } from '../../common/dto';
 import type {
   CreatePipelineRequestDto,
   CreatePipelineResponseDto,
+  GetPipelinesByProjectResponseDto,
+  GetPipelineByIdResponseDto,
   KVType,
 } from '../dtos';
 import { tags } from 'typia';
@@ -72,8 +74,29 @@ export class PipelineController {
   @TypedRoute.Get('/project/:projectID')
   async getPipelinesByProject(
     @TypedParam('projectID') projectID: string & tags.Format<'uuid'>,
-  ) {
-    return await this.pipelineService.getPipelinesByProject(projectID);
+  ): Promise<GetPipelinesByProjectResponseDto> {
+    const pipelines = await this.pipelineService.getPipelinesByProject(projectID);
+    
+    return {
+      pipelines: pipelines.map(pipeline => ({
+        pipelineID: pipeline.pipelineID,
+        name: pipeline.name,
+        version: pipeline.version,
+        active: pipeline.active,
+        projectID: pipeline.projectID,
+        owner: pipeline.owner,
+        pipelineSpec: pipeline.pipelineSpec as KVType,
+        originalSpec: pipeline.originalSpec,
+        normalizedSpec: pipeline.normalizedSpec as KVType | null,
+        specHash: pipeline.specHash,
+        createdAt: pipeline.createdAt.toISOString(),
+        updatedAt: pipeline.updatedAt.toISOString(),
+        project: {
+          projectID: pipeline.project.projectID,
+          name: pipeline.project.name,
+        },
+      })),
+    };
   }
 
   /**
@@ -84,7 +107,45 @@ export class PipelineController {
   @TypedRoute.Get('/:pipelineID')
   async getPipelineById(
     @TypedParam('pipelineID') pipelineID: string & tags.Format<'uuid'>,
-  ) {
-    return await this.pipelineService.getPipelineById(pipelineID);
+  ): Promise<GetPipelineByIdResponseDto> {
+    const pipeline = await this.pipelineService.getPipelineById(pipelineID);
+    
+    return {
+      pipelineID: pipeline.pipelineID,
+      name: pipeline.name,
+      version: pipeline.version,
+      active: pipeline.active,
+      projectID: pipeline.projectID,
+      owner: pipeline.owner,
+      pipelineSpec: pipeline.pipelineSpec as KVType,
+      originalSpec: pipeline.originalSpec,
+      normalizedSpec: pipeline.normalizedSpec as KVType | null,
+      specHash: pipeline.specHash,
+      createdAt: pipeline.createdAt.toISOString(),
+      updatedAt: pipeline.updatedAt.toISOString(),
+      project: {
+        projectID: pipeline.project.projectID,
+        name: pipeline.project.name,
+      },
+      runs: pipeline.runs.map(run => ({
+        id: run.id,
+        pipelineID: run.pipelineID,
+        pipelineVersion: run.pipelineVersion,
+        status: run.status,
+        queuedAt: run.queuedAt?.toISOString() ?? null,
+        startedAt: run.startedAt?.toISOString() ?? null,
+        finishedAt: run.finishedAt?.toISOString() ?? null,
+        exitCode: run.exitCode,
+        owner: run.owner,
+        agent: run.agent,
+        containerImage: run.containerImage,
+        trigger: run.trigger,
+        labels: run.labels as Record<string, unknown> | null,
+        metadata: run.metadata as Record<string, unknown> | null,
+        externalRunKey: run.externalRunKey,
+        idempotencyKey: run.idempotencyKey,
+        createdAt: run.createdAt.toISOString(),
+      })),
+    };
   }
 }
