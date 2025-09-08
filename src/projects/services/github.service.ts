@@ -44,8 +44,8 @@ export class GithubService {
   private privateKey: string;
 
   constructor(private prisma: PrismaService) {
-    this.appId = process.env.GITHUB_APP_ID || '';
-    this.privateKey = process.env.GITHUB_APP_PRIVATE_KEY || '';
+    this.appId = process.env.OTTO_GITHUB_APP_ID || '';
+    this.privateKey = process.env.OTTO_GITHUB_APP_PRIVATE_KEY || '';
 
     if (!this.appId || !this.privateKey) {
       throw new Error('GitHub App ID와 Private Key가 설정되지 않았습니다');
