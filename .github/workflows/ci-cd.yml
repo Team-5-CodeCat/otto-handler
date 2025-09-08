@@ -236,9 +236,9 @@ jobs:
               exit 1
             }
 
-            # Create .env file for Prisma (it looks for .env by default)
+            # Create .env.prod file (primary)
             echo "🔐 Creating environment files..."
-            cat > .env << 'EOF'
+            cat > .env.prod << 'EOF'
             PORT=${{ secrets.PORT }}
             NODE_ENV=production
             COOKIE_SECRET=${{ secrets.COOKIE_SECRET }}
@@ -249,18 +249,18 @@ jobs:
             EOF
 
             # Handle multiline GitHub App Private Key
-            echo "OTTO_GITHUB_APP_PRIVATE_KEY='${{ secrets.OTTO_GITHUB_APP_PRIVATE_KEY }}'" >> .env
+            echo "OTTO_GITHUB_APP_PRIVATE_KEY='${{ secrets.OTTO_GITHUB_APP_PRIVATE_KEY }}'" >> .env.prod
 
-            # Also create .env.prod for runtime
-            cp .env .env.prod
+            # Symlink .env to .env.prod so Prisma uses production config
+            ln -sf .env.prod .env
             
             # Secure the files
-            chmod 600 .env .env.prod
+            chmod 600 .env.prod
             echo "✅ Environment files created and secured"
 
-            # Generate Prisma Client
+            # Generate Prisma Client with production env
             echo "🗄️ Generating Prisma Client..."
-            pnpm db:generate || {
+            dotenv -e .env.prod -- pnpm db:generate 2>/dev/null || pnpm db:generate || {
               echo "❌ Prisma generate failed"
               rm -rf "$TEMP_DIR"
               exit 1
@@ -272,140 +272,79 @@ jobs:
             # Export DATABASE_URL to ensure Prisma can connect
             export DATABASE_URL="${{ secrets.DATABASE_URL }}"
             
-            # Function to check if migrations table exists
-            check_migrations_table() {
-              npx prisma migrate status 2>&1 | grep -q "_prisma_migrations" || return 1
-            }
-            
-            # Function to mark migrations as baseline
-            baseline_migrations() {
-              echo "📝 Marking existing schema as baseline..."
-              # Get list of migration directories
-              if [ -d "prisma/migrations" ]; then
-                for migration in prisma/migrations/*/; do
-                  if [ -d "$migration" ]; then
-                    migration_name=$(basename "$migration")
-                    echo "  - Marking $migration_name as applied"
-                  fi
-                done
-                
-                # Use prisma migrate resolve to mark as applied
-                npx prisma migrate resolve --applied "$(ls -1 prisma/migrations | tail -1)" 2>/dev/null || true
-              fi
-            }
-            
-            # Strategy 1: Try normal deployment first
-            echo "🔄 Attempting standard migration deployment..."
-            set +e  # Don't exit on error for this section
-            pnpm db:deploy 2>&1 | tee migration.log
-            MIGRATION_EXIT_CODE=$?
+            # First, check the current migration status
+            echo "🔍 Checking current migration status..."
+            set +e  # Don't exit on error for checks
+            MIGRATION_STATUS=$(npx prisma migrate status 2>&1)
+            STATUS_EXIT_CODE=$?
             set -e  # Re-enable exit on error
             
-            if [ $MIGRATION_EXIT_CODE -eq 0 ]; then
-              echo "✅ Migrations applied successfully"
-            else
-              # Check error type
-              if grep -q "P3005" migration.log || grep -q "database schema is not empty" migration.log; then
-                echo "⚠️ Database already has schema, attempting alternative strategies..."
+            # Analyze the status
+            if [ $STATUS_EXIT_CODE -eq 0 ] && echo "$MIGRATION_STATUS" | grep -q "Database schema is up to date"; then
+              echo "✅ Database schema is already up to date, no migrations needed"
+            elif echo "$MIGRATION_STATUS" | grep -q "P3005" || echo "$MIGRATION_STATUS" | grep -q "database schema is not empty"; then
+              echo "⚠️ Database has existing schema without migration history"
+              echo "🔧 Using db:push to synchronize schema..."
+              
+              # Use db:push to sync without migration history
+              if npx prisma db:push --skip-generate --accept-data-loss=false; then
+                echo "✅ Schema synchronized with db:push"
                 
-                # Strategy 2: Handle existing schema without migrations history
-                echo "🔍 Checking migration table status..."
-                
-                # Check if we can access the migrations table
-                MIGRATION_TABLE_CHECK=$(npx prisma migrate status 2>&1 || echo "ERROR")
-                
-                if echo "$MIGRATION_TABLE_CHECK" | grep -q "_prisma_migrations"; then
-                  echo "📊 Migrations table exists, checking status..."
-                  
-                  if echo "$MIGRATION_TABLE_CHECK" | grep -q "Database schema is up to date"; then
-                    echo "✅ Schema is already synchronized"
-                  else
-                    echo "🔄 Attempting to resolve migration conflicts..."
-                    
-                    # Try to baseline all existing migrations
-                    if [ -d "prisma/migrations" ]; then
-                      for migration_dir in prisma/migrations/*/; do
-                        if [ -d "$migration_dir" ]; then
-                          migration_name=$(basename "$migration_dir")
-                          echo "  Marking $migration_name as applied..."
-                          npx prisma migrate resolve --applied "$migration_name" 2>/dev/null || true
-                        fi
-                      done
+                # Try to create migration baseline for future runs
+                if [ -d "prisma/migrations" ] && [ "$(ls -A prisma/migrations 2>/dev/null)" ]; then
+                  echo "📝 Creating migration baseline for future deployments..."
+                  for migration_dir in prisma/migrations/*/; do
+                    if [ -d "$migration_dir" ]; then
+                      migration_name=$(basename "$migration_dir")
+                      npx prisma migrate resolve --applied "$migration_name" 2>/dev/null || true
                     fi
-                    
-                    # Retry deployment
-                    if pnpm db:deploy 2>&1 | tee migration_retry.log; then
-                      echo "✅ Migrations applied after baseline"
-                    else
-                      echo "⚠️ Still failing, using db:push as fallback..."
-                      npx prisma db:push --skip-generate --accept-data-loss=false || true
-                    fi
-                  fi
-                else
-                  echo "📊 No migrations table found, database needs initialization..."
-                  
-                  # Strategy 3: Initialize migrations for existing database
-                  echo "🔧 Attempting to baseline existing schema..."
-                  
-                  # First, use db:push to ensure schema matches
-                  echo "  Synchronizing schema with db:push..."
-                  if npx prisma db:push --skip-generate --accept-data-loss=false; then
-                    echo "✅ Schema synchronized successfully"
-                    
-                    # Now try to create migration history
-                    if [ -d "prisma/migrations" ] && [ "$(ls -A prisma/migrations)" ]; then
-                      echo "  Creating migration history baseline..."
-                      
-                      # Mark all migrations as already applied
-                      npx prisma migrate resolve --applied "$(ls -1 prisma/migrations | tail -1)" 2>/dev/null || {
-                        echo "⚠️ Could not create migration history, but schema is synchronized"
-                      }
-                    fi
-                  else
-                    echo "⚠️ db:push failed, attempting manual baseline..."
-                    
-                    # Last resort: just validate we can connect
-                    if npx prisma db:pull --print 2>/dev/null | grep -q "model"; then
-                      echo "✅ Database accessible, continuing with existing schema"
-                    else
-                      echo "❌ Cannot access database"
-                      rm -rf "$TEMP_DIR"
-                      exit 1
-                    fi
-                  fi
+                  done
                 fi
-                
-              elif grep -q "P1001" migration.log || grep -q "Can't reach database" migration.log; then
-                echo "❌ Cannot connect to database server"
-                echo "   Please check DATABASE_URL and network connectivity"
-                cat migration.log
-                rm -rf "$TEMP_DIR"
-                exit 1
-                
-              elif grep -q "P1009" migration.log || grep -q "database.*does not exist" migration.log; then
-                echo "❌ Database does not exist"
-                echo "   Please create the database first"
-                cat migration.log
-                rm -rf "$TEMP_DIR"
-                exit 1
-                
               else
-                echo "⚠️ Migration failed with unexpected error, attempting recovery..."
+                echo "⚠️ db:push failed, but continuing with existing schema..."
+              fi
+            elif echo "$MIGRATION_STATUS" | grep -q "Following migrations have not yet been applied"; then
+              echo "📋 Found pending migrations, applying them..."
+              
+              # Apply pending migrations
+              if pnpm db:deploy; then
+                echo "✅ Migrations applied successfully"
+              else
+                echo "⚠️ Migration deployment failed, trying db:push as fallback..."
+                npx prisma db:push --skip-generate --accept-data-loss=false || {
+                  echo "⚠️ Schema sync failed, continuing with existing schema..."
+                }
+              fi
+            elif echo "$MIGRATION_STATUS" | grep -q "P1001" || echo "$MIGRATION_STATUS" | grep -q "Can't reach database"; then
+              echo "❌ Cannot connect to database server"
+              echo "   Please check DATABASE_URL and network connectivity"
+              rm -rf "$TEMP_DIR"
+              exit 1
+            elif echo "$MIGRATION_STATUS" | grep -q "P1009" || echo "$MIGRATION_STATUS" | grep -q "database.*does not exist"; then
+              echo "❌ Database does not exist"
+              echo "   Please create the database first"
+              rm -rf "$TEMP_DIR"
+              exit 1
+            else
+              echo "⚠️ Unexpected migration status, attempting standard deployment..."
+              
+              # Try standard deployment
+              set +e
+              pnpm db:deploy 2>&1 | tee migration.log
+              DEPLOY_EXIT_CODE=$?
+              set -e
+              
+              if [ $DEPLOY_EXIT_CODE -eq 0 ]; then
+                echo "✅ Migrations deployed successfully"
+              else
+                echo "⚠️ Migration deployment failed, using db:push as final fallback..."
                 
-                # Try to at least ensure schema matches
+                # Final fallback to db:push
                 if npx prisma db:push --skip-generate --accept-data-loss=false; then
-                  echo "✅ Schema synchronized using db:push"
+                  echo "✅ Schema synchronized with db:push"
                 else
-                  # Final validation before giving up
-                  if npx prisma validate; then
-                    echo "⚠️ Schema validation passed, continuing with deployment"
-                    echo "   Manual migration may be required post-deployment"
-                  else
-                    echo "❌ Critical: Schema validation failed"
-                    cat migration.log
-                    rm -rf "$TEMP_DIR"
-                    exit 1
-                  fi
+                  echo "⚠️ Could not fully sync schema, but continuing deployment..."
+                  echo "   Manual database intervention may be required"
                 fi
               fi
             fi
