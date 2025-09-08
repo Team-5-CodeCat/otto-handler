@@ -60,6 +60,7 @@ export class ProjectController {
     status: HttpStatus.BAD_REQUEST,
     description: '잘못된 요청',
   })
+
   @AuthGuard()
   @TypedRoute.Post()
   async createProject(
@@ -93,7 +94,7 @@ export class ProjectController {
   })
   @AuthGuard()
   @TypedRoute.Post('github-installations')
-  async registerGithubInstallation(
+  async projectRegisterGithubInstallation(
     @TypedBody() registerDto: RegisterInstallationRequestDto,
     @Req() req: IRequestType,
   ): Promise<RegisterInstallationResponseDto> {
@@ -123,7 +124,9 @@ export class ProjectController {
   })
   @AuthGuard()
   @TypedRoute.Get('github-installations')
-  async getUserGithubInstallations(@Req() req: IRequestType) {
+  async projectGetUserGithubInstallations(
+    @Req() req: IRequestType,
+  ): Promise<GetUserGithubInstallationsResponseDto> {
     const userId = req.user.user_id;
 
     return this.projectService.getUserGithubInstallations(userId);
@@ -147,7 +150,7 @@ export class ProjectController {
   })
   @AuthGuard()
   @TypedRoute.Get('github-installations/:installationId/repositories')
-  async getAvailableRepositories(
+  async projectGetAvailableRepositories(
     @TypedParam('installationId') installationId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
   ): Promise<GetRepositoriesResponseDto> {
@@ -252,7 +255,7 @@ export class ProjectController {
   })
   @AuthGuard()
   @TypedRoute.Post(':projectId/repositories')
-  async connectRepository(
+  async projectConnectRepository(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
     @TypedBody() connectDto: ConnectRepositoryRequestDto,
     @Req() req: IRequestType,
@@ -286,7 +289,7 @@ export class ProjectController {
   })
   @AuthGuard()
   @TypedRoute.Get(':projectId/repositories/:repositoryId/branches')
-  async getRepositoryBranches(
+  async projectGetRepositoryBranches(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
     @TypedParam('repositoryId') repositoryId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
@@ -336,7 +339,7 @@ export class ProjectController {
   })
   @AuthGuard()
   @TypedRoute.Patch(':projectId/repositories/:repositoryId/branch')
-  async updateSelectedBranch(
+  async projectUpdateSelectedBranch(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
     @TypedParam('repositoryId') repositoryId: string & tags.Format<'uuid'>,
     @TypedBody() updateDto: UpdateBranchRequestDto,
@@ -370,10 +373,10 @@ export class ProjectController {
   })
   @AuthGuard()
   @TypedRoute.Get(':projectId')
-  async getProjectDetail(
+  async projectGetProjectDetail(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
-  ) {
+  ): Promise<GetProjectDetailResponseDto> {
     const userId = req.user.user_id;
 
     return this.projectService.getProjectDetail(userId, projectId);
@@ -461,7 +464,9 @@ export class ProjectController {
   })
   @AuthGuard()
   @TypedRoute.Get()
-  async getUserProjects(@Req() req: IRequestType) {
+  async projectGetUserProjects(
+    @Req() req: IRequestType,
+  ): Promise<GetUserProjectsResponseDto> {
     const userId = req.user.user_id;
 
     return this.projectService.getUserProjects(userId);

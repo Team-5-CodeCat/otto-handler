@@ -6,7 +6,7 @@ import {
 } from '@nestjs/platform-fastify';
 import fastifyCookie from '@fastify/cookie';
 import { NestiaSwaggerComposer } from '@nestia/sdk';
-import { SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule, OpenAPIObject } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -15,6 +15,17 @@ async function bootstrap() {
       logger: process.env.NODE_ENV !== 'production',
     }),
   );
+
+  // Enable CORS for production
+  app.enableCors({
+    origin:
+      process.env.NODE_ENV === 'production'
+        ? ['https://codecat-otto.shop', 'https://www.codecat-otto.shop']
+        : true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  });
   if (process.env.NODE_ENV !== 'production') {
     const document = await NestiaSwaggerComposer.document(app, {
       openapi: '3.1',
@@ -33,7 +44,7 @@ async function bootstrap() {
       },
     });
 
-    SwaggerModule.setup('docs', app, document as any);
+    SwaggerModule.setup('docs', app, document as OpenAPIObject);
   }
 
   // CORS 설정
