@@ -60,7 +60,6 @@ export class ProjectController {
     status: HttpStatus.BAD_REQUEST,
     description: '잘못된 요청',
   })
-
   @AuthGuard()
   @TypedRoute.Post()
   async createProject(

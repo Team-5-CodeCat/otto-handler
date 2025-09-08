@@ -24,7 +24,6 @@ import type {
 } from '../../common/dto';
 import { SignUpResponseDto } from '../dtos/response/sign-up-response';
 
-
 @Controller('/auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
