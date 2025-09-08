@@ -332,11 +332,13 @@ jobs:
             }
 
             # Setup PM2 startup script if not already configured
-            if ! crontab -l 2>/dev/null | grep -q "PM2"; then
+            if ! systemctl is-enabled pm2-$USER &>/dev/null; then
               echo "Setting up PM2 startup script..."
-              pm2 startup systemd -u $USER --hp /home/$USER | tail -n 1 | bash || {
-                echo "Warning: Failed to setup PM2 startup script"
+              pm2 startup systemd -u $USER --hp /home/$USER | tail -n 1 | sudo bash || {
+                echo "Warning: PM2 startup script may require manual setup"
               }
+            else
+              echo "PM2 startup script already configured"
             fi
 
             # Verify the app is running
