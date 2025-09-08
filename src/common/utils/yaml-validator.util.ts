@@ -30,25 +30,28 @@ export class YamlValidatorUtil {
       throw new BadRequestException('유효하지 않은 YAML 형식입니다.');
     }
 
-    let parsedYaml: any;
+    let parsedYaml: unknown;
     try {
       parsedYaml = yaml.load(yamlContent, { schema: yaml.DEFAULT_SCHEMA });
-    } catch (error) {
+    } catch {
       throw new BadRequestException('YAML 파싱에 실패했습니다.');
     }
 
     // build 필드 검증
-    if (!parsedYaml || typeof parsedYaml !== 'object') {
+    if (!parsedYaml || typeof parsedYaml !== 'object' || parsedYaml === null) {
       throw new BadRequestException('YAML은 객체 형태여야 합니다.');
     }
 
-    if (!parsedYaml.build) {
+    const yamlObject = parsedYaml as Record<string, unknown>;
+
+    if (!yamlObject.build) {
       throw new BadRequestException('YAML 파일에 "build" 필드가 필요합니다.');
     }
 
     if (
-      typeof parsedYaml.build !== 'object' ||
-      Array.isArray(parsedYaml.build)
+      typeof yamlObject.build !== 'object' ||
+      Array.isArray(yamlObject.build) ||
+      yamlObject.build === null
     ) {
       throw new BadRequestException('"build" 필드는 객체 형태여야 합니다.');
     }

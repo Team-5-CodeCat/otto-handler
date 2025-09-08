@@ -6,7 +6,12 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs', 'dist/**/*', 'node_modules/**/*', 'test/**/*'],
+    ignores: [
+      'eslint.config.mjs',
+      'dist/**/*',
+      'node_modules/**/*',
+      'test/**/*',
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -36,7 +41,7 @@ export default tseslint.config(
       ],
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      indent: ['error', 2],
+      indent: 'off',
     },
   },
   // test 파일에 대한 특별 설정

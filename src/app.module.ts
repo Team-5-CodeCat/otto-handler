@@ -8,7 +8,6 @@ import { ProjectsModule } from './projects/projects.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { PipelinesModule } from './pipelines/pipelines.module';
 
-
 @Module({
   imports: [
     PrismaModule,
