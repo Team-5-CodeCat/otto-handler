@@ -11,6 +11,7 @@ import type { CommonErrorResponseDto } from '../../common/dto';
 import type {
   CreatePipelineRequestDto,
   CreatePipelineResponseDto,
+  KVType,
 } from '../dtos';
 import { tags } from 'typia';
 
@@ -44,7 +45,6 @@ export class PipelineController {
       createPipelineDto.projectID,
       createPipelineDto.name,
       createPipelineDto.yamlContent,
-      createPipelineDto.isBlockBased ?? false,
       createPipelineDto.version ?? 1,
     );
 
@@ -54,12 +54,11 @@ export class PipelineController {
       version: pipeline.version,
       active: pipeline.active,
       projectID: pipeline.projectID,
-      isBlockBased: pipeline.isBlockBased,
-      owner: pipeline.owner ?? undefined,
-      pipelineSpec: pipeline.pipelineSpec,
-      originalSpec: pipeline.originalSpec ?? undefined,
-      normalizedSpec: pipeline.normalizedSpec ?? undefined,
-      specHash: pipeline.specHash ?? undefined,
+      owner: pipeline.owner ?? null,
+      pipelineSpec: pipeline.pipelineSpec as KVType,
+      originalSpec: pipeline.originalSpec ?? null,
+      normalizedSpec: (pipeline.normalizedSpec as KVType) ?? null,
+      specHash: pipeline.specHash ?? null,
       createdAt: pipeline.createdAt.toISOString(),
       updatedAt: pipeline.updatedAt.toISOString(),
     };

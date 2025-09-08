@@ -19,7 +19,6 @@ export class PipelineService {
     projectID: string,
     name: string,
     yamlContent: string,
-    isBlockBased: boolean = false,
     version: number = 1,
   ) {
     try {
@@ -55,7 +54,6 @@ export class PipelineService {
           name: name.trim(),
           version,
           pipelineSpec: parsedSpec,
-          isBlockBased,
           originalSpec: yamlContent,
           normalizedSpec: parsedSpec,
           specHash,
