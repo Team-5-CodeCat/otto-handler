@@ -16,16 +16,23 @@ async function bootstrap() {
     }),
   );
 
-  // Enable CORS for production
+  // Enable CORS
   app.enableCors({
     origin:
       process.env.NODE_ENV === 'production'
         ? ['https://codecat-otto.shop', 'https://www.codecat-otto.shop']
-        : true,
+        : [process.env.FRONTEND_URL || 'http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Cookie',
+      'X-Requested-With',
+      'Accept',
+    ],
   });
+
   if (process.env.NODE_ENV !== 'production') {
     const document = await NestiaSwaggerComposer.document(app, {
       openapi: '3.1',
@@ -46,19 +53,6 @@ async function bootstrap() {
 
     SwaggerModule.setup('docs', app, document as OpenAPIObject);
   }
-
-  // CORS 설정
-  app.enableCors({
-    origin: [process.env.FRONTEND_URL || 'http://localhost:3000'],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Requested-With',
-      'Accept',
-    ],
-  });
 
   await app.register(fastifyCookie, {
     secret: process.env.COOKIE_SECRET ?? 'dev-cookie-secret',
