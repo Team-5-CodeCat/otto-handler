@@ -124,7 +124,7 @@ echo ""
 # Docker 컨테이너 실행 결정
 if [ "$POSTGRES_RUNNING" = true ] && [ "$REDIS_RUNNING" = true ]; then
     echo "✅ $DEV_NAME 개발자의 모든 컨테이너가 이미 실행 중입니다."
-    echo "   → 컨테이너 생성 단계를 건너뛰고 .env 파일 생성으로 진행합니다."
+    echo "   → 컨테이너 생성 단계를 건너뛰고 .env.dev 파일 생성으로 진행합니다."
     SKIP_CONTAINER_SETUP=true
 else
     echo "🐳 $DEV_NAME 개발자의 필요한 Docker 컨테이너를 실행합니다..."
@@ -177,8 +177,8 @@ elif [ "$REDIS_RUNNING" = true ]; then
     echo "⏭️  Redis 컨테이너는 이미 실행 중이므로 건너뜁니다."
 fi
 
-# .env 파일 생성
-echo "📝 .env 파일을 생성합니다..."
+# .env.dev 파일 생성
+echo "📝 .env.dev 파일을 생성합니다..."
 
 # .env.example 파일이 존재하는지 확인
 if [ ! -f .env.example ]; then
@@ -186,19 +186,19 @@ if [ ! -f .env.example ]; then
     exit 1
 fi
 
-# .env.example 파일을 복사하여 .env 생성
-cp .env.example .env
+# .env.example 파일을 복사하여 .env.dev 생성
+cp .env.example .env.dev
 
 # sed를 사용하여 개발자별 설정으로 값 변경
-sed -i "s/PORT=4000/PORT=$APP_PORT/" .env
-sed -i "s/COOKIE_SECRET=your-cookie-secret-key/COOKIE_SECRET=$DEV_ID-cookie-secret-key-for-development/" .env
-sed -i "s|DATABASE_URL=postgresql://postgres:password@localhost:5432/otto_handler|DATABASE_URL=\"postgresql://postgres:password@localhost:$POSTGRES_PORT/otto_handler?schema=public\"|" .env
-sed -i "s|REDIS_URL=redis://localhost:6379|REDIS_URL=redis://localhost:$REDIS_PORT|" .env
+sed -i "s/PORT=4000/PORT=$APP_PORT/" .env.dev
+sed -i "s/COOKIE_SECRET=your-cookie-secret-key/COOKIE_SECRET=$DEV_ID-cookie-secret-key-for-development/" .env.dev
+sed -i "s|DATABASE_URL=postgresql://postgres:password@localhost:5432/otto_handler|DATABASE_URL=\"postgresql://postgres:password@localhost:$POSTGRES_PORT/otto_handler?schema=public\"|" .env.dev
+sed -i "s|REDIS_URL=redis://localhost:6379|REDIS_URL=redis://localhost:$REDIS_PORT|" .env.dev
 
 # 개발자 이름을 주석에 추가
-sed -i "1i# $DEV_NAME Environment Configuration" .env
+sed -i "1i# $DEV_NAME Environment Configuration" .env.dev
 
-echo "✅ .env 파일 생성 완료 (.env.example 기반)"
+echo "✅ .env.dev 파일 생성 완료 (.env.example 기반)"
 
 # 최종 컨테이너 상태 확인
 echo ""

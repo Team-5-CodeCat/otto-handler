@@ -14,7 +14,8 @@ import { PipelinesModule } from './pipelines/pipelines.module';
     UserModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath:
+        process.env.NODE_ENV === 'production' ? '.env.prod' : '.env.dev',
     }),
     ProjectsModule,
     PipelinesModule,
