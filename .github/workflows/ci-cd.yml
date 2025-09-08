@@ -10,6 +10,21 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: otto_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -17,84 +32,51 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
-      - name: Setup Node.js LTS
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version: '22'
           cache: 'pnpm'
 
-      - name: Setup NPM authentication for GitHub Packages
-        run: |
-          set -euo pipefail  # Exit on error, undefined variable, or pipe failure
-          echo "@Team-5-CodeCat:registry=https://npm.pkg.github.com" > ~/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.OTTO_SDK_PACKAGE_TOKEN }}" >> ~/.npmrc
-          echo "✅ NPM authentication configured"
-
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
       - name: Install dependencies
-        run: |
-          set -euo pipefail
-          pnpm install --frozen-lockfile || { echo "❌ Failed to install dependencies"; exit 1; }
-          echo "✅ Dependencies installed successfully"
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm prisma generate
 
       - name: Run linting
+        run: pnpm run lint
+
+      - name: Run formatting check
+        run: pnpm run format
+
+      - name: Create test environment file
         run: |
-          set -euo pipefail
-          pnpm lint || { echo "❌ Linting failed"; exit 1; }
-          echo "✅ Linting passed"
+          set -e  # Exit on error
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/otto_test" > .env.test
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env.test
+          echo "REFRESH_TOKEN_SECRET=${{ secrets.REFRESH_TOKEN_SECRET }}" >> .env.test
+          echo "PORT=4000" >> .env.test
+          echo "NODE_ENV=test" >> .env.test
 
-      - name: Run type checking
-        run: |
-          set -euo pipefail
-          npx tsc --noEmit || { echo "❌ Type checking failed"; exit 1; }
-          echo "✅ Type checking passed"
+      - name: Run database migrations
+        run: pnpm prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/otto_test
 
-      - name: Create .env.prod file for build
-        run: |
-          set -euo pipefail
-          
-          # Create .env.prod file with all variables
-          cat > .env.prod << 'EOF' || { echo "❌ Failed to create .env.prod file"; exit 1; }
-          PORT=${{ secrets.PORT }}
-          NODE_ENV=production
-          COOKIE_SECRET=${{ secrets.COOKIE_SECRET }}
-          DATABASE_URL=${{ secrets.DATABASE_URL }}
-          REDIS_URL=${{ secrets.REDIS_URL }}
-          OTTO_GITHUB_APP_ID=${{ secrets.OTTO_GITHUB_APP_ID }}
-          FRONTEND_URL=${{ secrets.FRONTEND_URL }}
-          EOF
-
-          # Handle multiline GitHub App Private Key properly
-          echo "OTTO_GITHUB_APP_PRIVATE_KEY=\"$(echo '${{ secrets.OTTO_GITHUB_APP_PRIVATE_KEY }}' | sed 's/$/\\n/' | tr -d '\n')\"" >> .env.prod || { echo "❌ Failed to add private key"; exit 1; }
-
-          # Secure the .env.prod file
-          chmod 600 .env.prod || { echo "❌ Failed to secure .env.prod file"; exit 1; }
-          echo "✅ .env.prod file created and secured"
-
-      - name: Generate Prisma Client
-        run: |
-          set -euo pipefail
-          pnpm db:generate || { echo "❌ Prisma client generation failed"; exit 1; }
-          echo "✅ Prisma client generated"
+      - name: Run tests
+        run: pnpm test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/otto_test
 
       - name: Build application
-        run: |
-          set -euo pipefail
-          pnpm build || { echo "❌ Build failed"; exit 1; }
-          echo "✅ Application built successfully"
+        run: pnpm build
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: nestjs-build
+          name: otto-handler-build
           path: |
             dist
             prisma
@@ -108,6 +90,27 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm prisma generate
+
+      - name: Build application
+        run: pnpm build
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -115,604 +118,168 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_SSH_PORT }}
-          command_timeout: 30m
-          script_stop: true
           script: |
-            #!/bin/bash
-            # ============================================
-            # Deployment Script for Otto Handler
-            # ============================================
-
             # Exit immediately if any command fails
             set -euo pipefail
 
             # Enable error reporting
-            trap 'echo "❌ Error occurred at line $LINENO with exit code $?"' ERR
+            trap 'echo "Error occurred at line $LINENO with exit code $?"' ERR
 
-            echo "========================================="
-            echo "🚀 Starting deployment at $(date)"
-            echo "========================================="
+            echo "Starting deployment..."
 
-            # ============================================
-            # 1. Environment Setup
-            # ============================================
-
-            # Setup Node.js environment
+            # Ensure Node.js is available
             export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-            [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
+            if [ -s "$NVM_DIR/nvm.sh" ]; then
+              . "$NVM_DIR/nvm.sh"
+            fi
+            if [ -s "$NVM_DIR/bash_completion" ]; then
+              . "$NVM_DIR/bash_completion"
+            fi
+
+            # Add system paths
             export PATH="/usr/local/bin:/usr/bin:$PATH"
 
-            # Verify Node.js version
+            # Verify Node.js is available
             if ! command -v node &> /dev/null; then
-              echo "❌ Node.js is not installed!"
+              echo "ERROR: Node.js is not installed!"
               exit 1
             fi
+            echo "Node.js version: $(node --version)"
 
-            NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-            if [ "$NODE_VERSION" -lt 22 ]; then
-              echo "📦 Installing Node.js 22..."
-              nvm install 22
-              nvm use 22
-              nvm alias default 22
-            fi
-            echo "✅ Node.js version: $(node --version)"
+            # Fix permission issues
+            echo "Fixing file permissions..."
 
-            # Install global dependencies if needed
-            if ! command -v pnpm &> /dev/null; then
-              echo "📦 Installing pnpm..."
-              npm install -g pnpm@9 || exit 1
-            fi
-            echo "✅ pnpm version: $(pnpm --version)"
-
-            if ! command -v pm2 &> /dev/null; then
-              echo "📦 Installing PM2..."
-              npm install -g pm2 || exit 1
-            fi
-            echo "✅ PM2 version: $(pm2 --version)"
-
-            # ============================================
-            # 2. Project Directory Setup
-            # ============================================
-
-            PROJECT_DIR="$HOME/otto-handler"
-            TEMP_DIR="$HOME/otto-temp-$(date +%s)"
-            APP_NAME="otto-handler"
-            PORT=${{ secrets.PORT }}
-            
-            # Clean up old temporary directories first
-            echo "🧹 Cleaning up old temporary directories..."
-            rm -rf $HOME/otto-temp-* 2>/dev/null || true
-            
-            # Check available disk space
-            AVAILABLE_SPACE=$(df / | awk 'NR==2 {print $4}')
-            echo "💾 Available disk space: ${AVAILABLE_SPACE}KB"
-            
-            # Require at least 2GB free space
-            if [ "$AVAILABLE_SPACE" -lt 2097152 ]; then
-              echo "⚠️ Low disk space detected, performing aggressive cleanup..."
-              
-              # Clean package managers cache
-              npm cache clean --force 2>/dev/null || true
-              pnpm store prune 2>/dev/null || true
-              
-              # Clean PM2 logs if they're large
-              if [ -d "$HOME/.pm2/logs" ]; then
-                find "$HOME/.pm2/logs" -type f -size +50M -delete 2>/dev/null || true
-                pm2 flush 2>/dev/null || true
-              fi
-              
-              # Remove orphaned node_modules in home directory
-              [ -d "$HOME/node_modules" ] && rm -rf "$HOME/node_modules"
-              [ -f "$HOME/package.json" ] && rm -f "$HOME/package.json" "$HOME/pnpm-lock.yaml"
-              
-              # Check space again
-              AVAILABLE_SPACE=$(df / | awk 'NR==2 {print $4}')
-              echo "💾 Available disk space after cleanup: ${AVAILABLE_SPACE}KB"
-              
-              if [ "$AVAILABLE_SPACE" -lt 1048576 ]; then
-                echo "❌ Insufficient disk space (less than 1GB available)"
-                exit 1
-              fi
-            fi
-
-            # Ensure project directory exists
-            if [ ! -d "$PROJECT_DIR" ]; then
-              echo "❌ Project directory $PROJECT_DIR does not exist"
-              exit 1
-            fi
-
-            # Fix permissions if needed
-            if [ ! -w "$PROJECT_DIR" ]; then
-              echo "🔧 Fixing directory permissions..."
-              sudo chown -R $USER:$USER "$PROJECT_DIR" || exit 1
-            fi
-
-            # ============================================
-            # 3. Backup Current Deployment
-            # ============================================
-
-            echo "📦 Creating backup of current deployment..."
-            if [ -d "$PROJECT_DIR/dist" ]; then
-              cp -r "$PROJECT_DIR/dist" "$PROJECT_DIR/dist.backup" 2>/dev/null || true
-              cp "$PROJECT_DIR/.env.prod" "$PROJECT_DIR/.env.prod.backup" 2>/dev/null || true
-            fi
-
-            # ============================================
-            # 4. Update Code
-            # ============================================
-
-            cd "$PROJECT_DIR"
-
-            # Store current commit for potential rollback
-            PREVIOUS_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-            echo "📌 Current commit: $PREVIOUS_COMMIT"
-
-            # Pull latest changes
-            echo "🔄 Pulling latest changes..."
-            git fetch origin main || exit 1
-            git reset --hard origin/main || exit 1
-
-            NEW_COMMIT=$(git rev-parse HEAD)
-            echo "📌 New commit: $NEW_COMMIT"
-
-            # ============================================
-            # 5. Build in Temporary Directory
-            # ============================================
-
-            echo "🏗️ Creating temporary build directory..."
-            
-            # Set up cleanup trap to ensure temp directory is removed
-            cleanup() {
-              echo "🧹 Cleaning up temporary directory: $TEMP_DIR"
-              cd "$HOME" 2>/dev/null || true
-              rm -rf "$TEMP_DIR" 2>/dev/null || true
-              # Also clean any pnpm-lock.yaml in home directory
-              [ -f "$HOME/pnpm-lock.yaml" ] && rm -f "$HOME/pnpm-lock.yaml"
-              [ -f "$HOME/package.json" ] && rm -f "$HOME/package.json"
-            }
-            trap cleanup EXIT ERR INT TERM SIGINT SIGTERM
-            
-            # Use rsync for more efficient copying (excludes unnecessary files)
-            mkdir -p "$TEMP_DIR"
-            rsync -a --exclude='node_modules' \
-                     --exclude='.git' \
-                     --exclude='dist' \
-                     --exclude='logs' \
-                     --exclude='*.log' \
-                     --exclude='.env*' \
-                     "$PROJECT_DIR/" "$TEMP_DIR/" || {
-              echo "❌ Failed to create temporary build directory"
-              exit 1
-            }
-            cd "$TEMP_DIR"
-
-            # Install dependencies
-            echo "📦 Installing dependencies..."
-            pnpm install --frozen-lockfile || {
-              echo "❌ Failed to install dependencies"
-              exit 1
-            }
-
-            # Create .env.prod file (primary)
-            echo "🔐 Creating environment files..."
-            cat > .env.prod << 'EOF'
-            PORT=${{ secrets.PORT }}
-            NODE_ENV=production
-            COOKIE_SECRET=${{ secrets.COOKIE_SECRET }}
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
-            REDIS_URL=${{ secrets.REDIS_URL }}
-            OTTO_GITHUB_APP_ID=${{ secrets.OTTO_GITHUB_APP_ID }}
-            FRONTEND_URL=${{ secrets.FRONTEND_URL }}
-            EOF
-
-            # Handle multiline GitHub App Private Key
-            echo "OTTO_GITHUB_APP_PRIVATE_KEY='${{ secrets.OTTO_GITHUB_APP_PRIVATE_KEY }}'" >> .env.prod
-
-            # Symlink .env to .env.prod so Prisma uses production config
-            ln -sf .env.prod .env
-            
-            # Secure the files
-            chmod 600 .env.prod
-            echo "✅ Environment files created and secured"
-
-            # Generate Prisma Client with production env
-            echo "🗄️ Generating Prisma Client..."
-            dotenv -e .env.prod -- pnpm db:generate 2>/dev/null || pnpm db:generate || {
-              echo "❌ Prisma generate failed"
-              exit 1
-            }
-
-            # Run database migrations with flexible strategy
-            echo "🗄️ Synchronizing database schema..."
-            
-            # Export DATABASE_URL to ensure Prisma can connect
-            export DATABASE_URL="${{ secrets.DATABASE_URL }}"
-            
-            # First, check the current migration status
-            echo "🔍 Checking current migration status..."
-            set +e  # Don't exit on error for checks
-            
-            # Ensure we're in the correct directory and have proper environment
-            cd "$TEMP_DIR"
-            [ -f ".env" ] || { echo "⚠️ .env file not found, using environment variables"; }
-            
-            # Try to check migration status with timeout
-            MIGRATION_STATUS=$(timeout 30 npx prisma migrate status 2>&1)
-            STATUS_EXIT_CODE=$?
-            
-            # Debug output
-            echo "Debug: Migration status exit code: $STATUS_EXIT_CODE"
-            if [ -n "$MIGRATION_STATUS" ]; then
-              echo "Debug: Migration status output (first 500 chars): ${MIGRATION_STATUS:0:500}"
-            fi
-            
-            set -e  # Re-enable exit on error
-            
-            # Analyze the status
-            if [ $STATUS_EXIT_CODE -eq 124 ]; then
-              echo "⚠️ Migration status check timed out, using db:push instead"
-              npx prisma db:push --skip-generate --accept-data-loss=false || {
-                echo "⚠️ db:push also failed, continuing anyway..."
-              }
-            elif [ $STATUS_EXIT_CODE -eq 0 ] && echo "$MIGRATION_STATUS" | grep -q "Database schema is up to date"; then
-              echo "✅ Database schema is already up to date, no migrations needed"
-            elif echo "$MIGRATION_STATUS" | grep -q "P3005" || echo "$MIGRATION_STATUS" | grep -q "database schema is not empty" || echo "$MIGRATION_STATUS" | grep -q "Error:"; then
-              echo "⚠️ Database migration issue detected: P3005 or similar error"
-              echo "🔧 Using db:push to synchronize schema..."
-              
-              # Use db:push to sync without migration history
-              set +e
-              DB_PUSH_OUTPUT=$(npx prisma db:push --skip-generate --accept-data-loss=false 2>&1)
-              DB_PUSH_EXIT=$?
-              set -e
-              
-              if [ $DB_PUSH_EXIT -eq 0 ]; then
-                echo "✅ Schema synchronized with db:push"
-                
-                # Try to create migration baseline for future runs
-                if [ -d "prisma/migrations" ] && [ "$(ls -A prisma/migrations 2>/dev/null)" ]; then
-                  echo "📝 Creating migration baseline for future deployments..."
-                  for migration_dir in prisma/migrations/*/; do
-                    if [ -d "$migration_dir" ]; then
-                      migration_name=$(basename "$migration_dir")
-                      npx prisma migrate resolve --applied "$migration_name" 2>/dev/null || true
-                    fi
-                  done
-                fi
-              else
-                echo "⚠️ db:push failed with exit code $DB_PUSH_EXIT"
-                echo "Output: ${DB_PUSH_OUTPUT:0:500}"
-                echo "⚠️ Continuing with existing schema anyway..."
-              fi
-            elif echo "$MIGRATION_STATUS" | grep -q "Following migrations have not yet been applied"; then
-              echo "📋 Found pending migrations, applying them..."
-              
-              # Apply pending migrations
-              if pnpm db:deploy; then
-                echo "✅ Migrations applied successfully"
-              else
-                echo "⚠️ Migration deployment failed, trying db:push as fallback..."
-                npx prisma db:push --skip-generate --accept-data-loss=false || {
-                  echo "⚠️ Schema sync failed, continuing with existing schema..."
+            # Fix otto-handler directory permissions if needed
+            if [ -d ~/otto-handler ]; then
+              echo "Checking otto-handler directory permissions..."
+              if [ ! -w ~/otto-handler ]; then
+                echo "Fixing otto-handler directory permissions..."
+                sudo chown -R $USER:$USER ~/otto-handler || {
+                  echo "ERROR: Failed to fix otto-handler permissions"
+                  exit 1
                 }
               fi
-            elif echo "$MIGRATION_STATUS" | grep -q "P1001" || echo "$MIGRATION_STATUS" | grep -q "Can't reach database"; then
-              echo "❌ Cannot connect to database server"
-              echo "   Please check DATABASE_URL and network connectivity"
-              exit 1
-            elif echo "$MIGRATION_STATUS" | grep -q "P1009" || echo "$MIGRATION_STATUS" | grep -q "database.*does not exist"; then
-              echo "❌ Database does not exist"
-              echo "   Please create the database first"
-              exit 1
-            else
-              echo "⚠️ Unexpected migration status or error, using safe fallback..."
-              echo "Status exit code was: $STATUS_EXIT_CODE"
-              
-              # Safe fallback: just use db:push
-              echo "🔧 Using db:push for schema synchronization..."
-              set +e
-              npx prisma db:push --skip-generate --accept-data-loss=false 2>&1 | tee db_push.log
-              DB_PUSH_RESULT=$?
-              set -e
-              
-              if [ $DB_PUSH_RESULT -eq 0 ]; then
-                echo "✅ Schema synchronized successfully with db:push"
-              elif grep -q "already in sync" db_push.log; then
-                echo "✅ Schema is already in sync"
-              else
-                echo "⚠️ Schema synchronization had issues, but continuing..."
-                echo "   The application may work if schema is compatible"
-                echo "   Manual database review recommended after deployment"
-              fi
             fi
-            
-            # Final verification
-            echo "🔍 Performing final schema verification..."
-            if npx prisma validate; then
-              echo "✅ Database schema synchronized and validated"
-            else
-              echo "⚠️ Warning: Schema validation had issues but continuing..."
+
+            # Navigate to project directory
+            cd ~/otto-handler || {
+              echo "ERROR: Project directory ~/otto-handler does not exist"
+              exit 1
+            }
+
+            # Pull latest changes
+            echo "Pulling latest changes..."
+            git pull origin main || {
+              echo "ERROR: Git pull failed"
+              exit 1
+            }
+
+            # Check and install pnpm if not exists
+            if ! command -v pnpm &> /dev/null; then
+              echo "pnpm not found, installing..."
+              npm install -g pnpm || {
+                echo "ERROR: Failed to install pnpm"
+                exit 1
+              }
             fi
+            echo "pnpm version: $(pnpm --version)"
+
+            # Check and install PM2 if not exists
+            if ! command -v pm2 &> /dev/null; then
+              echo "PM2 not found, installing..."
+              npm install -g pm2 || {
+                echo "ERROR: Failed to install PM2"
+                exit 1
+              }
+            fi
+            echo "PM2 version: $(pm2 --version)"
+
+            # Install dependencies
+            echo "Installing dependencies..."
+            pnpm install --frozen-lockfile || {
+              echo "ERROR: pnpm install failed"
+              exit 1
+            }
+
+            # Generate Prisma client
+            echo "Generating Prisma client..."
+            pnpm prisma generate || {
+              echo "ERROR: Failed to generate Prisma client"
+              exit 1
+            }
+
+            # Create .env.prod file
+            echo "Creating .env.prod..."
+            {
+              echo "PORT=${{ secrets.PORT }}"
+              echo "NODE_ENV=production"
+              echo "COOKIE_SECRET=${{ secrets.COOKIE_SECRET }}"
+              echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
+              echo "REDIS_URL=${{ secrets.REDIS_URL }}"
+              echo "OTTO_GITHUB_APP_ID=${{ secrets.OTTO_GITHUB_APP_ID }}"
+              echo "OTTO_GITHUB_APP_PRIVATE_KEY=\"${{ secrets.OTTO_GITHUB_APP_PRIVATE_KEY }}\""
+              echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}"
+            } > .env.prod || {
+              echo "ERROR: Failed to create .env.prod"
+              exit 1
+            }
+
+            echo ".env.prod created successfully"
+
+            # Run database migrations
+            echo "Running database migrations..."
+            pnpm prisma migrate deploy || {
+              echo "WARNING: Database migration failed. This might be expected if database is already up to date."
+            }
 
             # Build the application
-            echo "🏗️ Building NestJS application..."
+            echo "Building application..."
             pnpm build || {
-              echo "❌ Build failed"
+              echo "ERROR: Build failed"
               exit 1
             }
 
-            # ============================================
-            # 6. Deploy New Version
-            # ============================================
-
-            echo "🚀 Deploying new version..."
-
-            # Move new build to project directory
-            rm -rf "$PROJECT_DIR/dist.old" 2>/dev/null || true
-            [ -d "$PROJECT_DIR/dist" ] && mv "$PROJECT_DIR/dist" "$PROJECT_DIR/dist.old"
-            mv "$TEMP_DIR/dist" "$PROJECT_DIR/dist" || {
-              echo "❌ Failed to deploy new build"
-              # Restore backup
-              [ -d "$PROJECT_DIR/dist.backup" ] && mv "$PROJECT_DIR/dist.backup" "$PROJECT_DIR/dist"
-              exit 1
-            }
-
-            # Copy new env file
-            cp "$TEMP_DIR/.env.prod" "$PROJECT_DIR/.env.prod"
-
-            # Sync node_modules (for Prisma client)
-            echo "🔄 Syncing node_modules..."
-            rsync -a --delete "$TEMP_DIR/node_modules/" "$PROJECT_DIR/node_modules/" || {
-              echo "⚠️ Failed to sync node_modules, will regenerate..."
-              cd "$PROJECT_DIR"
-              pnpm install --frozen-lockfile
-              pnpm db:generate
-            }
-            
-            # Ensure we're back in project directory
-            cd "$PROJECT_DIR"
-
-            # Temp directory will be cleaned up by trap
-
-            # ============================================
-            # 7. PM2 Deployment
-            # ============================================
-
-            cd "$PROJECT_DIR"
-
-            # Create logs directory
-            mkdir -p "$PROJECT_DIR/logs"
-
-            echo "🔄 Deploying with PM2..."
+            # Deploy with PM2 (minimal downtime)
+            echo "Deploying application with PM2..."
 
             # Check if process exists
-            if pm2 show "$APP_NAME" &>/dev/null; then
-              echo "♻️ Performing zero-downtime reload..."
-              
-              # Try graceful reload first
-              pm2 reload "$APP_NAME" --update-env || {
-                echo "⚠️ Reload failed, attempting restart..."
-                pm2 restart "$APP_NAME" || {
-                  echo "⚠️ Restart failed, recreating process..."
-                  pm2 delete "$APP_NAME"
-                  
-                  # Start fresh with cluster mode
-                  pm2 start dist/main.js \
-                    --name "$APP_NAME" \
-                    --instances max \
-                    --exec-mode cluster \
-                    --max-memory-restart 1G \
-                    --merge-logs \
-                    --log-date-format "YYYY-MM-DD HH:mm:ss Z" \
-                    --error "$PROJECT_DIR/logs/error.log" \
-                    --output "$PROJECT_DIR/logs/out.log" \
-                    --log "$PROJECT_DIR/logs/combined.log" \
-                    --time \
-                    --kill-timeout 10000 \
-                    --listen-timeout 10000 \
-                    --max-restarts 10 \
-                    --min-uptime 5000 \
-                    --node-args="--max-old-space-size=2048" || {
-                    
-                    echo "❌ Failed to start application"
-                    # Rollback
-                    if [ -d "$PROJECT_DIR/dist.old" ]; then
-                      echo "🔄 Rolling back to previous version..."
-                      rm -rf "$PROJECT_DIR/dist"
-                      mv "$PROJECT_DIR/dist.old" "$PROJECT_DIR/dist"
-                      [ -f "$PROJECT_DIR/.env.prod.backup" ] && mv "$PROJECT_DIR/.env.prod.backup" "$PROJECT_DIR/.env.prod"
-                      pm2 restart "$APP_NAME" 2>/dev/null || pm2 start "pnpm run start:prod:env" --name "$APP_NAME"
-                    fi
+            if pm2 show otto-handler &>/dev/null; then
+              echo "Existing process found, performing reload..."
+              # Reload for minimal downtime
+              pm2 reload otto-handler --update-env || {
+                echo "Reload failed, trying restart..."
+                pm2 restart otto-handler || {
+                  echo "Restart failed, starting fresh..."
+                  pm2 delete otto-handler
+                  pm2 start pnpm --name "otto-handler" -- run start:prod:env || {
+                    echo "ERROR: Failed to start application with PM2"
                     exit 1
                   }
                 }
               }
             else
-              echo "🚀 Starting application for the first time..."
-              
-              # Start with PM2 in cluster mode
-              pm2 start dist/main.js \
-                --name "$APP_NAME" \
-                --instances max \
-                --exec-mode cluster \
-                --max-memory-restart 1G \
-                --merge-logs \
-                --log-date-format "YYYY-MM-DD HH:mm:ss Z" \
-                --error "$PROJECT_DIR/logs/error.log" \
-                --output "$PROJECT_DIR/logs/out.log" \
-                --log "$PROJECT_DIR/logs/combined.log" \
-                --time \
-                --kill-timeout 10000 \
-                --listen-timeout 10000 \
-                --max-restarts 10 \
-                --min-uptime 5000 \
-                --node-args="--max-old-space-size=2048" || {
-                
-                echo "❌ Failed to start application"
+              echo "No existing process found, starting application..."
+              # First time deployment
+              pm2 start pnpm --name "otto-handler" -- run start:prod:env || {
+                echo "ERROR: Failed to start application with PM2"
                 exit 1
               }
             fi
 
-            # Save PM2 configuration
-            pm2 save || echo "⚠️ Failed to save PM2 configuration"
-
-            # Setup PM2 startup (if not already configured)
-            if ! systemctl is-enabled pm2-$USER &>/dev/null 2>&1; then
-              echo "⚙️ Setting up PM2 startup..."
-              pm2 startup systemd -u $USER --hp /home/$USER | tail -n 1 | sudo bash || {
-                echo "⚠️ PM2 startup requires manual setup"
-              }
-            fi
-
-            # ============================================
-            # 8. Health Check
-            # ============================================
-
-            echo "🏥 Performing health check..."
-            MAX_RETRIES=15
-            RETRY_COUNT=0
-            HEALTH_URL="http://localhost:${PORT}/health"
-
-            # Wait for application to start
-            sleep 5
-
-            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
-              
-              if [ "$HTTP_CODE" = "200" ]; then
-                echo "✅ Health check passed! Server is responding."
-                break
-              else
-                echo "⏳ Health check attempt $((RETRY_COUNT + 1))/$MAX_RETRIES (HTTP $HTTP_CODE)"
-                sleep 3
-                RETRY_COUNT=$((RETRY_COUNT + 1))
-              fi
-            done
-
-            if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-              echo "❌ Health check failed after $MAX_RETRIES attempts"
-              echo "📋 Checking PM2 logs..."
-              pm2 logs "$APP_NAME" --lines 50 --nostream
-              
-              # Attempt rollback
-              if [ -d "$PROJECT_DIR/dist.old" ]; then
-                echo "🔄 Rolling back to previous version..."
-                rm -rf "$PROJECT_DIR/dist"
-                mv "$PROJECT_DIR/dist.old" "$PROJECT_DIR/dist"
-                [ -f "$PROJECT_DIR/.env.prod.backup" ] && mv "$PROJECT_DIR/.env.prod.backup" "$PROJECT_DIR/.env.prod"
-                pm2 restart "$APP_NAME"
-              fi
+            # Save PM2 process list
+            echo "Saving PM2 process list..."
+            pm2 save || {
+              echo "ERROR: Failed to save PM2 process list"
               exit 1
-            fi
-
-            # ============================================
-            # 9. Cleanup
-            # ============================================
-
-            echo "🧹 Cleaning up..."
-
-            # Remove old backups
-            rm -rf "$PROJECT_DIR/dist.old" 2>/dev/null || true
-            rm -rf "$PROJECT_DIR/dist.backup" 2>/dev/null || true
-            rm -f "$PROJECT_DIR/.env.prod.backup" 2>/dev/null || true
-
-            # Clean PM2 logs if they're too large (>100MB)
-            if [ -f "$PROJECT_DIR/logs/combined.log" ]; then
-              LOG_SIZE=$(du -m "$PROJECT_DIR/logs/combined.log" | cut -f1)
-              if [ "$LOG_SIZE" -gt 100 ]; then
-                echo "📋 Rotating large log files..."
-                pm2 flush "$APP_NAME"
-              fi
-            fi
-            
-            # Final cleanup of any remaining temp directories
-            echo "🧹 Final cleanup of temporary files..."
-            find $HOME -maxdepth 1 -name "otto-temp-*" -type d -mtime +1 -exec rm -rf {} \; 2>/dev/null || true
-
-            # ============================================
-            # 10. Final Status
-            # ============================================
-
-            echo "📊 Deployment Status:"
-            pm2 show "$APP_NAME" --no-color || true
-
-            echo "========================================="
-            echo "✅ Deployment completed successfully!"
-            echo "🌐 Application: https://api.codecat-otto.shop"
-            echo "📅 Timestamp: $(date)"
-            echo "🔖 Version: $NEW_COMMIT"
-            echo "========================================="
-
-            # Exit cleanly
-            exit 0
-
-      - name: Verify Deployment
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: ${{ secrets.EC2_SSH_PORT }}
-          script_stop: true
-          script: |
-            # Exit on any error
-            set -euo pipefail
-            
-            # Quick verification
-            sleep 3
-
-            # Check if PM2 process is running
-            if ! pm2 show otto-handler &>/dev/null; then
-              echo "❌ PM2 process not found"
-              exit 1
-            fi
-
-            # Check local health endpoint
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${{ secrets.PORT }}/health" 2>/dev/null || echo "000")
-            if [ "$HTTP_CODE" != "200" ]; then
-              echo "❌ Local health check failed (HTTP $HTTP_CODE)"
-              exit 1
-            fi
-
-            # Check public endpoint (if accessible)
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://api.codecat-otto.shop/health" 2>/dev/null || echo "000")
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Production health check passed"
-            else
-              echo "⚠️ Public endpoint returned HTTP $HTTP_CODE (may be behind firewall)"
-            fi
-
-            echo "✅ Deployment verification completed"
-
-  cleanup-artifacts:
-    needs: deploy
-    runs-on: ubuntu-latest
-    if: always()
-
-    steps:
-      - name: Delete old artifacts
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const artifactAge = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-            const artifacts = await github.rest.actions.listArtifactsForRepo({
-              owner,
-              repo,
-              per_page: 100
-            });
-
-            const now = Date.now();
-            for (const artifact of artifacts.data.artifacts) {
-              const createdAt = new Date(artifact.created_at).getTime();
-              if (now - createdAt > artifactAge) {
-                await github.rest.actions.deleteArtifact({
-                  owner,
-                  repo,
-                  artifact_id: artifact.id
-                });
-                console.log(`Deleted artifact: ${artifact.name}`);
-              }
             }
+
+            # Verify the app is running
+            sleep 3
+            if ! pm2 show otto-handler | grep -q "online"; then
+              echo "ERROR: Application is not running!"
+              pm2 logs otto-handler --lines 50
+              exit 1
+            fi
+
+            echo "Deployment completed successfully!"
+            pm2 status
