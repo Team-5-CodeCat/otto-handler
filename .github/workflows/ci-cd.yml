@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  NODE_VERSION: '22.x'
-  PNPM_VERSION: '9'
-
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -20,14 +16,18 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
-      - name: Setup Node.js
+      - name: Setup Node.js LTS
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: 'lts/*'
           cache: 'pnpm'
+
+      - name: Setup NPM authentication for GitHub Packages
+        run: |
+          set -e  # Exit on error
+          echo "@Team-5-CodeCat:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.OTTO_SDK_PACKAGE_TOKEN }}" >> ~/.npmrc
 
       - name: Cache pnpm store
         uses: actions/cache@v4
