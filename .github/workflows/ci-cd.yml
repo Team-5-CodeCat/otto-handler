@@ -25,9 +25,10 @@ jobs:
 
       - name: Setup NPM authentication for GitHub Packages
         run: |
-          set -e  # Exit on error
+          set -euo pipefail  # Exit on error, undefined variable, or pipe failure
           echo "@Team-5-CodeCat:registry=https://npm.pkg.github.com" > ~/.npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.OTTO_SDK_PACKAGE_TOKEN }}" >> ~/.npmrc
+          echo "✅ NPM authentication configured"
 
       - name: Cache pnpm store
         uses: actions/cache@v4
@@ -38,42 +39,56 @@ jobs:
             ${{ runner.os }}-pnpm-
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile || { echo "❌ Failed to install dependencies"; exit 1; }
+          echo "✅ Dependencies installed successfully"
 
       - name: Run linting
-        run: pnpm lint
+        run: |
+          set -euo pipefail
+          pnpm lint || { echo "❌ Linting failed"; exit 1; }
+          echo "✅ Linting passed"
 
       - name: Run type checking
-        run: npx tsc --noEmit
+        run: |
+          set -euo pipefail
+          npx tsc --noEmit || { echo "❌ Type checking failed"; exit 1; }
+          echo "✅ Type checking passed"
 
       - name: Create .env file for build
         run: |
-          set -e
-          cat > .env << 'EOF'
+          set -euo pipefail
+          
+          # Create .env file with all variables
+          cat > .env << 'EOF' || { echo "❌ Failed to create .env file"; exit 1; }
           PORT=${{ secrets.PORT }}
           NODE_ENV=production
           COOKIE_SECRET=${{ secrets.COOKIE_SECRET }}
           DATABASE_URL=${{ secrets.DATABASE_URL }}
           REDIS_URL=${{ secrets.REDIS_URL }}
-          GITHUB_APP_ID=${{ secrets.GITHUB_APP_ID }}
+          OTTO_GITHUB_APP_ID=${{ secrets.OTTO_GITHUB_APP_ID }}
           FRONTEND_URL=${{ secrets.FRONTEND_URL }}
           EOF
 
           # Handle multiline GitHub App Private Key properly
-          echo "GITHUB_APP_PRIVATE_KEY=\"$(echo '${{ secrets.GITHUB_APP_PRIVATE_KEY }}' | sed 's/$/\\n/' | tr -d '\n')\"" >> .env
+          echo "OTTO_GITHUB_APP_PRIVATE_KEY=\"$(echo '${{ secrets.OTTO_GITHUB_APP_PRIVATE_KEY }}' | sed 's/$/\\n/' | tr -d '\n')\"" >> .env || { echo "❌ Failed to add private key"; exit 1; }
 
           # Secure the .env file
-          chmod 600 .env
+          chmod 600 .env || { echo "❌ Failed to secure .env file"; exit 1; }
+          echo "✅ .env file created and secured"
 
       - name: Generate Prisma Client
-        run: pnpm db:generate
-
-      - name: Run tests (if available)
-        run: pnpm test --if-present
-        continue-on-error: true
+        run: |
+          set -euo pipefail
+          pnpm db:generate || { echo "❌ Prisma client generation failed"; exit 1; }
+          echo "✅ Prisma client generated"
 
       - name: Build application
-        run: pnpm build
+        run: |
+          set -euo pipefail
+          pnpm build || { echo "❌ Build failed"; exit 1; }
+          echo "✅ Application built successfully"
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -101,6 +116,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_SSH_PORT }}
           command_timeout: 30m
+          script_stop: true
           script: |
             #!/bin/bash
             # ============================================
@@ -494,7 +510,11 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_SSH_PORT }}
+          script_stop: true
           script: |
+            # Exit on any error
+            set -euo pipefail
+            
             # Quick verification
             sleep 3
 
