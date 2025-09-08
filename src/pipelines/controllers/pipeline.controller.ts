@@ -47,7 +47,7 @@ export class PipelineController {
       createPipelineDto.projectID,
       createPipelineDto.name,
       createPipelineDto.yamlContent,
-      createPipelineDto.version ?? 1,
+      createPipelineDto.version,
     );
 
     return {
@@ -75,10 +75,11 @@ export class PipelineController {
   async pipelineGetByProject(
     @TypedParam('projectID') projectID: string & tags.Format<'uuid'>,
   ): Promise<GetPipelinesByProjectResponseDto> {
-    const pipelines = await this.pipelineService.pipelineGetByProject(projectID);
-    
+    const pipelines =
+      await this.pipelineService.pipelineGetByProject(projectID);
+
     return {
-      pipelines: pipelines.map(pipeline => ({
+      pipelines: pipelines.map((pipeline) => ({
         pipelineID: pipeline.pipelineID,
         name: pipeline.name,
         version: pipeline.version,
@@ -109,7 +110,7 @@ export class PipelineController {
     @TypedParam('pipelineID') pipelineID: string & tags.Format<'uuid'>,
   ): Promise<GetPipelineByIdResponseDto> {
     const pipeline = await this.pipelineService.pipelineGetById(pipelineID);
-    
+
     return {
       pipelineID: pipeline.pipelineID,
       name: pipeline.name,
@@ -127,7 +128,7 @@ export class PipelineController {
         projectID: pipeline.project.projectID,
         name: pipeline.project.name,
       },
-      runs: pipeline.runs.map(run => ({
+      runs: pipeline.runs.map((run) => ({
         id: run.id,
         pipelineID: run.pipelineID,
         pipelineVersion: run.pipelineVersion,
