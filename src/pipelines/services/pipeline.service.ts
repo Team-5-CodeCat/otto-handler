@@ -15,7 +15,7 @@ export class PipelineService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async createPipeline(
+  async pipelineCreate(
     projectID: string,
     name: string,
     yamlContent: string,
@@ -85,7 +85,7 @@ export class PipelineService {
     }
   }
 
-  async getPipelinesByProject(projectID: string) {
+  async pipelineGetByProject(projectID: string) {
     const pipelines = await this.prisma.pipeline.findMany({
       where: { projectID },
       orderBy: { createdAt: 'desc' },
@@ -102,7 +102,7 @@ export class PipelineService {
     return pipelines;
   }
 
-  async getPipelineById(pipelineID: string) {
+  async pipelineGetById(pipelineID: string) {
     const pipeline = await this.prisma.pipeline.findUnique({
       where: { pipelineID },
       include: {
