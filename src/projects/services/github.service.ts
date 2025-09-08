@@ -33,10 +33,10 @@ export class GithubService {
   private privateKey: string;
 
   constructor() {
-    this.appId = String(process.env.GITHUB_APP_ID || '');
+    this.appId = String(process.env.OTTO_GITHUB_APP_ID || '');
 
     // Private Key를 string으로 변환하고 \n을 실제 줄바꿈으로 변환
-    const rawPrivateKey = String(process.env.GITHUB_APP_PRIVATE_KEY || '');
+    const rawPrivateKey = String(process.env.OTTO_GITHUB_APP_PRIVATE_KEY || '');
     this.privateKey = rawPrivateKey.replace(/\\n/g, '\n');
 
     // PEM 형식 확인 및 추가 정규화
