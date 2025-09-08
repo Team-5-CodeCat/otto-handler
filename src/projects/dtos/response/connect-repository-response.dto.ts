@@ -12,5 +12,3 @@ export interface ConnectRepositoryResponseDto {
     name: string;
   };
 }
-
-
