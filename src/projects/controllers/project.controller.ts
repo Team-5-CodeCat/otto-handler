@@ -36,6 +36,9 @@ import { tags } from 'typia';
 import { AuthGuard } from '../../common/decorators';
 import type { IRequestType } from '../../common/type';
 import { CommonErrorResponseDto } from '../../common/dto/response/common-error-response.dto';
+import { GetUserGithubInstallationsResponseDto } from '../dtos/response/get-user-github-installations-response.dto';
+import { GetProjectDetailResponseDto } from '../dtos/response/get-project-detail-response.dto';
+import { GetUserProjectsResponseDto } from '../dtos/response/get-user-projects-response.dto';
 
 @Controller('projects')
 export class ProjectController {
