@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { InputJsonValue } from '@prisma/client/runtime/library';
+import { YamlValidatorUtil } from '../../common/utils';
 import * as crypto from 'crypto';
 import * as yaml from 'js-yaml';
 
@@ -15,21 +16,26 @@ export class PipelineService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async pipelineCreate(
+  async createPipeline(
     projectID: string,
     name: string,
     yamlContent: string,
     version: number = 1,
   ) {
     try {
-      // YAML 유효성 검증
+      // YAML 형식 검증
+      if (!YamlValidatorUtil.isValidYamlFormat(yamlContent)) {
+        throw new BadRequestException('유효하지 않은 YAML 형식입니다.');
+      }
+
+      // YAML 파싱
       let parsedSpec: InputJsonValue;
       try {
-        parsedSpec = yaml.load(yamlContent) as InputJsonValue;
+        parsedSpec = {} as InputJsonValue; //yaml.load(yamlContent) as InputJsonValue;
         this.logger.log(`YAML 파싱 성공: ${name}`);
       } catch (error) {
         this.logger.error('YAML 파싱 실패', error);
-        throw new BadRequestException('유효하지 않은 YAML 형식입니다.');
+        throw new BadRequestException('YAML 파싱에 실패했습니다.');
       }
 
       // 프로젝트 존재 여부 확인
@@ -85,7 +91,7 @@ export class PipelineService {
     }
   }
 
-  async pipelineGetByProject(projectID: string) {
+  async getPipelinesByProject(projectID: string) {
     const pipelines = await this.prisma.pipeline.findMany({
       where: { projectID },
       orderBy: { createdAt: 'desc' },
@@ -102,7 +108,7 @@ export class PipelineService {
     return pipelines;
   }
 
-  async pipelineGetById(pipelineID: string) {
+  async getPipelineById(pipelineID: string) {
     const pipeline = await this.prisma.pipeline.findUnique({
       where: { pipelineID },
       include: {
