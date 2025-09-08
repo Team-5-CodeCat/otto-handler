@@ -117,7 +117,7 @@ model GithubInstallation {
   lastUsedAt     DateTime? @map("last_used_at") @db.Timestamptz(6)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Ti>설mestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userID], references: [userID], onDelete: Cascade)
 
