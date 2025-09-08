@@ -387,4 +387,10 @@ jobs:
             echo "Deployment completed successfully!"
             echo "Application is running at: https://api.codecat-otto.shop"
             echo "========================================="
-            pm2 status
+
+            # Show PM2 status without streaming (important to exit properly)
+            pm2 status --no-daemon
+
+            # Ensure the script exits cleanly
+            echo "Deployment script finished"
+            exit 0
