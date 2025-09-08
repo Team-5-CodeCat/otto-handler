@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { ConfigModule } from '@nestjs/config';
 import { ProjectsModule } from './projects/projects.module';
+import { OttoscalerModule } from './integrations/grpc/ottoscaler.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ProjectsModule } from './projects/projects.module';
       envFilePath: '.env',
     }),
     ProjectsModule,
+    OttoscalerModule,
   ],
   controllers: [],
   providers: [AppService],
