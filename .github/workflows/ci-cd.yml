@@ -56,12 +56,12 @@ jobs:
           npx tsc --noEmit || { echo "❌ Type checking failed"; exit 1; }
           echo "✅ Type checking passed"
 
-      - name: Create .env file for build
+      - name: Create .env.prod file for build
         run: |
           set -euo pipefail
           
-          # Create .env file with all variables
-          cat > .env << 'EOF' || { echo "❌ Failed to create .env file"; exit 1; }
+          # Create .env.prod file with all variables
+          cat > .env.prod << 'EOF' || { echo "❌ Failed to create .env.prod file"; exit 1; }
           PORT=${{ secrets.PORT }}
           NODE_ENV=production
           COOKIE_SECRET=${{ secrets.COOKIE_SECRET }}
@@ -72,11 +72,11 @@ jobs:
           EOF
 
           # Handle multiline GitHub App Private Key properly
-          echo "OTTO_GITHUB_APP_PRIVATE_KEY=\"$(echo '${{ secrets.OTTO_GITHUB_APP_PRIVATE_KEY }}' | sed 's/$/\\n/' | tr -d '\n')\"" >> .env || { echo "❌ Failed to add private key"; exit 1; }
+          echo "OTTO_GITHUB_APP_PRIVATE_KEY=\"$(echo '${{ secrets.OTTO_GITHUB_APP_PRIVATE_KEY }}' | sed 's/$/\\n/' | tr -d '\n')\"" >> .env.prod || { echo "❌ Failed to add private key"; exit 1; }
 
-          # Secure the .env file
-          chmod 600 .env || { echo "❌ Failed to secure .env file"; exit 1; }
-          echo "✅ .env file created and secured"
+          # Secure the .env.prod file
+          chmod 600 .env.prod || { echo "❌ Failed to secure .env.prod file"; exit 1; }
+          echo "✅ .env.prod file created and secured"
 
       - name: Generate Prisma Client
         run: |
@@ -199,7 +199,7 @@ jobs:
             echo "📦 Creating backup of current deployment..."
             if [ -d "$PROJECT_DIR/dist" ]; then
               cp -r "$PROJECT_DIR/dist" "$PROJECT_DIR/dist.backup" 2>/dev/null || true
-              cp "$PROJECT_DIR/.env" "$PROJECT_DIR/.env.backup" 2>/dev/null || true
+              cp "$PROJECT_DIR/.env.prod" "$PROJECT_DIR/.env.prod.backup" 2>/dev/null || true
             fi
 
             # ============================================
@@ -236,9 +236,9 @@ jobs:
               exit 1
             }
 
-            # Create .env file
-            echo "🔐 Creating .env file..."
-            cat > .env << 'EOF'
+            # Create .env.prod file
+            echo "🔐 Creating .env.prod file..."
+            cat > .env.prod << 'EOF'
             PORT=${{ secrets.PORT }}
             NODE_ENV=production
             COOKIE_SECRET=${{ secrets.COOKIE_SECRET }}
@@ -249,11 +249,11 @@ jobs:
             EOF
 
             # Handle multiline GitHub App Private Key
-            echo "OTTO_GITHUB_APP_PRIVATE_KEY='${{ secrets.OTTO_GITHUB_APP_PRIVATE_KEY }}'" >> .env
+            echo "OTTO_GITHUB_APP_PRIVATE_KEY='${{ secrets.OTTO_GITHUB_APP_PRIVATE_KEY }}'" >> .env.prod
 
-            # Secure the .env file
-            chmod 600 .env
-            echo "✅ .env file created and secured"
+            # Secure the .env.prod file
+            chmod 600 .env.prod
+            echo "✅ .env.prod file created and secured"
 
             # Generate Prisma Client
             echo "🗄️ Generating Prisma Client..."
@@ -321,7 +321,7 @@ jobs:
             }
 
             # Copy new env file
-            cp "$TEMP_DIR/.env" "$PROJECT_DIR/.env"
+            cp "$TEMP_DIR/.env.prod" "$PROJECT_DIR/.env.prod"
 
             # Sync node_modules (for Prisma client)
             echo "🔄 Syncing node_modules..."
@@ -381,8 +381,8 @@ jobs:
                       echo "🔄 Rolling back to previous version..."
                       rm -rf "$PROJECT_DIR/dist"
                       mv "$PROJECT_DIR/dist.old" "$PROJECT_DIR/dist"
-                      [ -f "$PROJECT_DIR/.env.backup" ] && mv "$PROJECT_DIR/.env.backup" "$PROJECT_DIR/.env"
-                      pm2 restart "$APP_NAME" 2>/dev/null || pm2 start dist/main.js --name "$APP_NAME"
+                      [ -f "$PROJECT_DIR/.env.prod.backup" ] && mv "$PROJECT_DIR/.env.prod.backup" "$PROJECT_DIR/.env.prod"
+                      pm2 restart "$APP_NAME" 2>/dev/null || pm2 start "pnpm run start:prod:env" --name "$APP_NAME"
                     fi
                     exit 1
                   }
@@ -460,7 +460,7 @@ jobs:
                 echo "🔄 Rolling back to previous version..."
                 rm -rf "$PROJECT_DIR/dist"
                 mv "$PROJECT_DIR/dist.old" "$PROJECT_DIR/dist"
-                [ -f "$PROJECT_DIR/.env.backup" ] && mv "$PROJECT_DIR/.env.backup" "$PROJECT_DIR/.env"
+                [ -f "$PROJECT_DIR/.env.prod.backup" ] && mv "$PROJECT_DIR/.env.prod.backup" "$PROJECT_DIR/.env.prod"
                 pm2 restart "$APP_NAME"
               fi
               exit 1
@@ -475,7 +475,7 @@ jobs:
             # Remove old backups
             rm -rf "$PROJECT_DIR/dist.old" 2>/dev/null || true
             rm -rf "$PROJECT_DIR/dist.backup" 2>/dev/null || true
-            rm -f "$PROJECT_DIR/.env.backup" 2>/dev/null || true
+            rm -f "$PROJECT_DIR/.env.prod.backup" 2>/dev/null || true
 
             # Clean PM2 logs if they're too large (>100MB)
             if [ -f "$PROJECT_DIR/logs/combined.log" ]; then
