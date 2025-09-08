@@ -1,0 +1,388 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linting
+        run: pnpm lint
+
+      - name: Run type checking
+        run: npx tsc --noEmit
+
+      - name: Create .env file
+        run: |
+          set -e  # Exit on error
+          echo "PORT=${{ secrets.PORT }}" > .env
+          echo "NODE_ENV=production" >> .env
+          echo "COOKIE_SECRET=${{ secrets.COOKIE_SECRET }}" >> .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+          echo "REDIS_URL=${{ secrets.REDIS_URL }}" >> .env
+          echo "GITHUB_APP_ID=${{ secrets.GITHUB_APP_ID }}" >> .env
+          echo "GITHUB_APP_PRIVATE_KEY='${{ secrets.GITHUB_APP_PRIVATE_KEY }}'" >> .env
+          echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}" >> .env
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Build application
+        run: pnpm build
+
+      - name: Upload build artifacts
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nestjs-build
+          path: |
+            dist
+            prisma
+            package.json
+            pnpm-lock.yaml
+          retention-days: 7
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_SSH_PORT }}
+          script: |
+            # Exit immediately if any command fails
+            set -euo pipefail
+
+            # Enable error reporting
+            trap 'echo "Error occurred at line $LINENO with exit code $?"' ERR
+
+            echo "Starting deployment..."
+
+            # Ensure Node.js is available
+            export NVM_DIR="$HOME/.nvm"
+            if [ -s "$NVM_DIR/nvm.sh" ]; then
+              . "$NVM_DIR/nvm.sh"
+            fi
+            if [ -s "$NVM_DIR/bash_completion" ]; then
+              . "$NVM_DIR/bash_completion"
+            fi
+
+            # Add system paths
+            export PATH="/usr/local/bin:/usr/bin:$PATH"
+
+            # Verify Node.js is available
+            if ! command -v node &> /dev/null; then
+              echo "ERROR: Node.js is not installed!"
+              exit 1
+            fi
+            echo "Node.js version: $(node --version)"
+
+            # Verify Node.js version >= 22
+            NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
+            if [ "$NODE_VERSION" -lt 22 ]; then
+              echo "ERROR: Node.js version must be >= 22. Current version: $(node -v)"
+              echo "Installing Node.js 22..."
+              nvm install 22
+              nvm use 22
+            fi
+
+            # Fix directory permissions if needed
+            if [ -d ~/otto-handler ]; then
+              echo "Fixing otto-handler directory permissions..."
+              sudo chown -R $USER:$USER ~/otto-handler || {
+                echo "ERROR: Failed to fix otto-handler permissions"
+                exit 1
+              }
+            fi
+
+            # Navigate to project directory
+            cd ~/otto-handler || {
+              echo "ERROR: Project directory ~/otto-handler does not exist"
+              exit 1
+            }
+
+            # Pull latest changes
+            echo "Pulling latest changes..."
+            git pull origin main || {
+              echo "ERROR: Git pull failed"
+              exit 1
+            }
+
+            # Check and install pnpm if not exists
+            if ! command -v pnpm &> /dev/null; then
+              echo "pnpm not found, installing..."
+              npm install -g pnpm || {
+                echo "ERROR: Failed to install pnpm"
+                exit 1
+              }
+            fi
+            echo "pnpm version: $(pnpm --version)"
+
+            # Check and install PM2 if not exists
+            if ! command -v pm2 &> /dev/null; then
+              echo "PM2 not found, installing..."
+              npm install -g pm2 || {
+                echo "ERROR: Failed to install PM2"
+                exit 1
+              }
+            fi
+            echo "PM2 version: $(pm2 --version)"
+
+            # Create temporary build directory
+            echo "Creating temporary build directory..."
+            rm -rf ~/otto-build-temp
+            cp -r ~/otto-handler ~/otto-build-temp || {
+              echo "ERROR: Failed to create temporary build directory"
+              exit 1
+            }
+
+            # Build in temporary directory
+            echo "Building application in temporary directory..."
+            cd ~/otto-build-temp
+
+            # Install dependencies
+            echo "Installing dependencies..."
+            pnpm install --frozen-lockfile || {
+              echo "ERROR: pnpm install failed"
+              cd ~/otto-handler
+              rm -rf ~/otto-build-temp
+              exit 1
+            }
+
+            # Create .env file (standard for @nestjs/config)
+            echo "Creating .env file..."
+            {
+              echo "PORT=${{ secrets.PORT }}"
+              echo "NODE_ENV=production"
+              echo "COOKIE_SECRET=${{ secrets.COOKIE_SECRET }}"
+              echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
+              echo "REDIS_URL=${{ secrets.REDIS_URL }}"
+              echo "GITHUB_APP_ID=${{ secrets.GH_APP_ID }}"
+              echo "GITHUB_APP_PRIVATE_KEY='${{ secrets.GH_APP_PRIVATE_KEY }}'"
+              echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}"
+            } > .env || {
+              echo "ERROR: Failed to create .env file"
+              cd ~/otto-handler
+              rm -rf ~/otto-build-temp
+              exit 1
+            }
+
+            echo ".env file created successfully"
+
+            # Generate Prisma Client
+            echo "Generating Prisma Client..."
+            pnpm db:generate || {
+              echo "ERROR: Prisma generate failed"
+              cd ~/otto-handler
+              rm -rf ~/otto-build-temp
+              exit 1
+            }
+
+            # Run Prisma database push (use db:deploy for production migrations)
+            echo "Running Prisma database deployment..."
+            # Export DATABASE_URL for Prisma
+            export DATABASE_URL="${{ secrets.DATABASE_URL }}"
+            npx prisma db push --skip-generate || {
+              echo "Warning: Prisma db push failed, trying migrate deploy..."
+              pnpm db:deploy || {
+                echo "ERROR: Prisma database deployment failed"
+                cd ~/otto-handler
+                rm -rf ~/otto-build-temp
+                exit 1
+              }
+            }
+            unset DATABASE_URL  # Clean up after use
+
+            # Build the application
+            echo "Building NestJS application..."
+            pnpm build || {
+              echo "ERROR: Build failed"
+              cd ~/otto-handler
+              rm -rf ~/otto-build-temp
+              exit 1
+            }
+
+            # Build successful, swap the artifacts
+            echo "Build successful, swapping artifacts..."
+
+            # Backup current build
+            rm -rf ~/otto-handler/dist.old
+            if [ -d ~/otto-handler/dist ]; then
+              mv ~/otto-handler/dist ~/otto-handler/dist.old
+            fi
+
+            # Move new build
+            mv ~/otto-build-temp/dist ~/otto-handler/dist || {
+              echo "ERROR: Failed to move new build"
+              # Restore old build if move failed
+              if [ -d ~/otto-handler/dist.old ]; then
+                mv ~/otto-handler/dist.old ~/otto-handler/dist
+              fi
+              rm -rf ~/otto-build-temp
+              exit 1
+            }
+
+            # Copy new env file and generated prisma client
+            cp ~/otto-build-temp/.env ~/otto-handler/.env
+
+            # Sync node_modules (including generated Prisma client)
+            echo "Syncing node_modules..."
+            rsync -a --delete ~/otto-build-temp/node_modules/ ~/otto-handler/node_modules/ || {
+              echo "Warning: Failed to sync node_modules, will reinstall in main directory"
+            }
+
+            # Navigate back to main directory
+            cd ~/otto-handler
+
+            # Clean up temporary directory
+            echo "Cleaning up temporary build directory..."
+            rm -rf ~/otto-build-temp
+
+            # If node_modules sync failed, reinstall and regenerate in main directory
+            if [ ! -d ~/otto-handler/node_modules ] || [ ! -f ~/otto-handler/node_modules/.modules.yaml ]; then
+              echo "Reinstalling dependencies in main directory..."
+              
+              # Ensure .npmrc is in main directory
+              if [ -f ~/.npmrc ] && [ ! -f ~/otto-handler/.npmrc ]; then
+                cp ~/.npmrc ~/otto-handler/.npmrc
+              fi
+              
+              pnpm install --frozen-lockfile || {
+                echo "ERROR: Failed to install dependencies"
+                # Restore old build
+                if [ -d ~/otto-handler/dist.old ]; then
+                  rm -rf ~/otto-handler/dist
+                  mv ~/otto-handler/dist.old ~/otto-handler/dist
+                fi
+                exit 1
+              }
+              
+              # Regenerate Prisma Client
+              pnpm db:generate || {
+                echo "ERROR: Failed to generate Prisma client"
+                exit 1
+              }
+            fi
+
+            # Deploy with PM2 (minimal downtime)
+            echo "Deploying application with PM2..."
+
+            # Check if process exists
+            if pm2 show otto-handler &>/dev/null; then
+              echo "Existing process found, performing graceful reload..."
+              
+              # Graceful reload with 0-downtime for clustered apps
+              pm2 reload otto-handler --update-env || {
+                echo "Reload failed, trying restart..."
+                pm2 restart otto-handler || {
+                  echo "Restart failed, starting fresh..."
+                  pm2 delete otto-handler
+                  pm2 start "pnpm start:prod" --name "otto-handler" || {
+                    echo "ERROR: Failed to start application with PM2"
+                    # Restore old build
+                    if [ -d ~/otto-handler/dist.old ]; then
+                      rm -rf ~/otto-handler/dist
+                      mv ~/otto-handler/dist.old ~/otto-handler/dist
+                      pm2 start "pnpm start:prod" --name "otto-handler"
+                    fi
+                    exit 1
+                  }
+                }
+              }
+            else
+              echo "No existing process found, starting application..."
+              # First time deployment
+              pm2 start "pnpm start:prod" --name "otto-handler" || {
+                echo "ERROR: Failed to start application with PM2"
+                exit 1
+              }
+            fi
+
+            # Save PM2 process list
+            echo "Saving PM2 process list..."
+            pm2 save || {
+              echo "ERROR: Failed to save PM2 process list"
+              exit 1
+            }
+
+            # Setup PM2 startup script if not already configured
+            if ! crontab -l 2>/dev/null | grep -q "PM2"; then
+              echo "Setting up PM2 startup script..."
+              pm2 startup systemd -u $USER --hp /home/$USER | tail -n 1 | bash || {
+                echo "Warning: Failed to setup PM2 startup script"
+              }
+            fi
+
+            # Verify the app is running
+            sleep 5
+            if ! pm2 show otto-handler | grep -q "online"; then
+              echo "ERROR: Application is not running!"
+              pm2 logs otto-handler --lines 50
+              
+              # Try to restore old version
+              if [ -d ~/otto-handler/dist.old ]; then
+                echo "Attempting to restore previous version..."
+                rm -rf ~/otto-handler/dist
+                mv ~/otto-handler/dist.old ~/otto-handler/dist
+                pm2 restart otto-handler
+              fi
+              
+              exit 1
+            fi
+
+            # Health check
+            echo "Performing health check..."
+            MAX_RETRIES=10
+            RETRY_COUNT=0
+
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+              if curl -f -s -o /dev/null -w "%{http_code}" http://localhost:${{ secrets.PORT }}/health 2>/dev/null | grep -q "200\|404"; then
+                echo "Server is responding!"
+                break
+              else
+                echo "Health check attempt $((RETRY_COUNT + 1))/$MAX_RETRIES failed, waiting..."
+                sleep 3
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+              fi
+            done
+
+            if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+              echo "Warning: Health check failed after $MAX_RETRIES attempts"
+              echo "Checking PM2 logs for errors..."
+              pm2 logs otto-handler --lines 30
+            fi
+
+            # Cleanup old build if everything is successful
+            rm -rf ~/otto-handler/dist.old
+
+            echo "========================================="
+            echo "Deployment completed successfully!"
+            echo "Application is running at: https://api.codecat-otto.shop"
+            echo "========================================="
+            pm2 status
