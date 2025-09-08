@@ -79,22 +79,38 @@ fi
 
 # Redis 컨테이너 상태 확인 (otto-handler와 ottoscaler에서 공유)
 REDIS_CONTAINER_NAME="redis-$DEV_ID"
-echo "🔍 Redis 컨테이너 상태 확인 중... ($REDIS_CONTAINER_NAME)"
+OTTOSCALER_REDIS_NAME="ottoscaler-redis-$DEV_ID"
+echo "🔍 Redis 컨테이너 상태 확인 중... ($REDIS_CONTAINER_NAME 또는 $OTTOSCALER_REDIS_NAME)"
 
-# 실행 중인 Redis 컨테이너 확인
+# otto-handler용 Redis 컨테이너 확인
 if docker ps --filter "name=$REDIS_CONTAINER_NAME" --filter "status=running" -q | grep -q .; then
-    echo "✅ Redis 컨테이너가 이미 실행 중입니다 (포트: $REDIS_PORT)"
-    echo "   → otto-handler와 ottoscaler에서 공유하여 사용합니다"
+    echo "✅ otto-handler Redis 컨테이너가 이미 실행 중입니다 (포트: $REDIS_PORT)"
     REDIS_RUNNING=true
-# 중지된 Redis 컨테이너 확인 및 재시작
+    REDIS_CONTAINER_NAME="$REDIS_CONTAINER_NAME"
+# ottoscaler Redis 컨테이너 확인 (포트가 같은 경우 재사용)
+elif docker ps --filter "name=$OTTOSCALER_REDIS_NAME" --filter "status=running" -q | grep -q .; then
+    # ottoscaler Redis의 포트 확인
+    EXISTING_PORT=$(docker port "$OTTOSCALER_REDIS_NAME" 6379/tcp | cut -d: -f2)
+    if [ "$EXISTING_PORT" = "$REDIS_PORT" ]; then
+        echo "✅ ottoscaler Redis 컨테이너를 재사용합니다 (포트: $REDIS_PORT)"
+        echo "   → otto-handler와 ottoscaler에서 공유하여 사용합니다"
+        REDIS_RUNNING=true
+        REDIS_CONTAINER_NAME="$OTTOSCALER_REDIS_NAME"
+    else
+        echo "⚠️  ottoscaler Redis가 다른 포트($EXISTING_PORT)를 사용하고 있습니다."
+        echo "   → otto-handler 전용 Redis 컨테이너를 새로 생성합니다..."
+        REDIS_RUNNING=false
+    fi
+# 중지된 otto-handler Redis 컨테이너 확인 및 재시작
 elif docker ps -a --filter "name=$REDIS_CONTAINER_NAME" -q | grep -q .; then
-    echo "⚠️  Redis 컨테이너가 중지되어 있습니다. 재시작합니다..."
+    echo "⚠️  otto-handler Redis 컨테이너가 중지되어 있습니다. 재시작을 시도합니다..."
     docker start "$REDIS_CONTAINER_NAME"
     if [ $? -eq 0 ]; then
         echo "✅ Redis 컨테이너 재시작 완료 (포트: $REDIS_PORT)"
         REDIS_RUNNING=true
+        REDIS_CONTAINER_NAME="$REDIS_CONTAINER_NAME"
     else
-        echo "❌ Redis 컨테이너 재시작 실패, 기존 컨테이너를 삭제하고 새로 생성합니다..."
+        echo "❌ Redis 컨테이너 재시작 실패 (포트 충돌 가능성), 기존 컨테이너를 삭제하고 새로 생성합니다..."
         docker rm -f "$REDIS_CONTAINER_NAME"
         REDIS_RUNNING=false
     fi
@@ -105,15 +121,18 @@ fi
 
 echo ""
 
-# Docker 컨테이너 실행
-if [ "$POSTGRES_RUNNING" = false ] || [ "$REDIS_RUNNING" = false ]; then
-    echo "🐳 필요한 Docker 컨테이너를 실행합니다..."
+# Docker 컨테이너 실행 결정
+if [ "$POSTGRES_RUNNING" = true ] && [ "$REDIS_RUNNING" = true ]; then
+    echo "✅ $DEV_NAME 개발자의 모든 컨테이너가 이미 실행 중입니다."
+    echo "   → 컨테이너 생성 단계를 건너뛰고 .env 파일 생성으로 진행합니다."
+    SKIP_CONTAINER_SETUP=true
 else
-    echo "✅ 모든 컨테이너가 이미 실행 중입니다."
+    echo "🐳 $DEV_NAME 개발자의 필요한 Docker 컨테이너를 실행합니다..."
+    SKIP_CONTAINER_SETUP=false
 fi
 
 # PostgreSQL 컨테이너 생성 (필요한 경우에만)
-if [ "$POSTGRES_RUNNING" = false ]; then
+if [ "$SKIP_CONTAINER_SETUP" = false ] && [ "$POSTGRES_RUNNING" = false ]; then
     echo "🐘 PostgreSQL 컨테이너를 생성합니다..."
     docker run -d \
         --name "postgres-$DEV_ID" \
@@ -131,10 +150,12 @@ if [ "$POSTGRES_RUNNING" = false ]; then
         echo "❌ PostgreSQL 컨테이너 실행 실패"
         exit 1
     fi
+elif [ "$POSTGRES_RUNNING" = true ]; then
+    echo "⏭️  PostgreSQL 컨테이너는 이미 실행 중이므로 건너뜁니다."
 fi
 
 # Redis 컨테이너 생성 (필요한 경우에만)
-if [ "$REDIS_RUNNING" = false ]; then
+if [ "$SKIP_CONTAINER_SETUP" = false ] && [ "$REDIS_RUNNING" = false ]; then
     echo "🔴 Redis 컨테이너를 생성합니다..."
     echo "   → otto-handler와 ottoscaler에서 공유하여 사용됩니다"
     docker run -d \
@@ -152,40 +173,53 @@ if [ "$REDIS_RUNNING" = false ]; then
         echo "❌ Redis 컨테이너 실행 실패"
         exit 1
     fi
+elif [ "$REDIS_RUNNING" = true ]; then
+    echo "⏭️  Redis 컨테이너는 이미 실행 중이므로 건너뜁니다."
 fi
 
 # .env 파일 생성
 echo "📝 .env 파일을 생성합니다..."
 
-cat > .env << EOF
-# $DEV_NAME Environment Configuration
-PORT=$APP_PORT
-NODE_ENV=development
-COOKIE_SECRET=$DEV_ID-cookie-secret-key-for-development
+# .env.example 파일이 존재하는지 확인
+if [ ! -f .env.example ]; then
+    echo "❌ .env.example 파일이 존재하지 않습니다."
+    exit 1
+fi
 
-# Database Configuration ($DEV_NAME PostgreSQL container)
-DATABASE_URL="postgresql://postgres:password@localhost:$POSTGRES_PORT/otto_handler?schema=public"
+# .env.example 파일을 복사하여 .env 생성
+cp .env.example .env
 
-# Redis Configuration ($DEV_NAME Redis container)
-REDIS_URL=redis://localhost:$REDIS_PORT
-EOF
+# sed를 사용하여 개발자별 설정으로 값 변경
+sed -i "s/PORT=4000/PORT=$APP_PORT/" .env
+sed -i "s/COOKIE_SECRET=your-cookie-secret-key/COOKIE_SECRET=$DEV_ID-cookie-secret-key-for-development/" .env
+sed -i "s|DATABASE_URL=postgresql://postgres:password@localhost:5432/otto_handler|DATABASE_URL=\"postgresql://postgres:password@localhost:$POSTGRES_PORT/otto_handler?schema=public\"|" .env
+sed -i "s|REDIS_URL=redis://localhost:6379|REDIS_URL=redis://localhost:$REDIS_PORT|" .env
 
-echo "✅ .env 파일 생성 완료"
+# 개발자 이름을 주석에 추가
+sed -i "1i# $DEV_NAME Environment Configuration" .env
+
+echo "✅ .env 파일 생성 완료 (.env.example 기반)"
 
 # 최종 컨테이너 상태 확인
 echo ""
 echo "🔍 최종 컨테이너 상태 확인..."
 
-# PostgreSQL 연결 테스트
+# PostgreSQL 연결 테스트 (새로 생성된 경우에만 대기 시간 필요)
 echo -n "🐘 PostgreSQL 연결 테스트: "
-timeout 10 docker exec "postgres-$DEV_ID" pg_isready -h localhost -p 5432 >/dev/null 2>&1
+if [ "$POSTGRES_RUNNING" = true ]; then
+    # 이미 실행 중이던 컨테이너는 즉시 테스트
+    timeout 3 docker exec "postgres-$DEV_ID" pg_isready -h localhost -p 5432 >/dev/null 2>&1
+else
+    # 새로 생성된 컨테이너는 좀 더 시간을 줌
+    timeout 10 docker exec "postgres-$DEV_ID" pg_isready -h localhost -p 5432 >/dev/null 2>&1
+fi
 if [ $? -eq 0 ]; then
     echo "✅ 성공"
 else
     echo "❌ 실패 (컨테이너가 아직 초기화 중일 수 있습니다)"
 fi
 
-# Redis 연결 테스트  
+# Redis 연결 테스트
 echo -n "🔴 Redis 연결 테스트: "
 timeout 5 docker exec "$REDIS_CONTAINER_NAME" redis-cli ping >/dev/null 2>&1
 if [ $? -eq 0 ]; then
