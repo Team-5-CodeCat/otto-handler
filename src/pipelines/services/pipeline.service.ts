@@ -23,15 +23,13 @@ export class PipelineService {
     version: number = 1,
   ) {
     try {
-      // YAML 형식 검증
-      if (!YamlValidatorUtil.isValidYamlFormat(yamlContent)) {
-        throw new BadRequestException('유효하지 않은 YAML 형식입니다.');
-      }
+      // YAML 형식 및 build 필드 검증
+      YamlValidatorUtil.validateBuildField(yamlContent);
 
       // YAML 파싱
       let parsedSpec: InputJsonValue;
       try {
-        parsedSpec = {} as InputJsonValue; //yaml.load(yamlContent) as InputJsonValue;
+        parsedSpec = yaml.load(yamlContent) as InputJsonValue;
         this.logger.log(`YAML 파싱 성공: ${name}`);
       } catch (error) {
         this.logger.error('YAML 파싱 실패', error);
