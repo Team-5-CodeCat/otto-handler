@@ -18,28 +18,15 @@ async function bootstrap() {
     adapter,
   );
 
-  // Configure CORS for production
-  const allowedOrigins = [
-    'https://codecat-otto.shop',
-    'https://www.codecat-otto.shop',
-  ];
-
+  // Enable CORS for production
   app.enableCors({
-    origin: process.env.NODE_ENV === 'production' ? allowedOrigins : true,
+    origin:
+      process.env.NODE_ENV === 'production'
+        ? ['https://codecat-otto.shop', 'https://www.codecat-otto.shop']
+        : true,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'Cookie',
-      'X-Requested-With',
-      'Accept',
-      'Origin',
-    ],
-    exposedHeaders: ['Set-Cookie'],
-    maxAge: 86400,
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
   });
   if (process.env.NODE_ENV !== 'production') {
     const document = await NestiaSwaggerComposer.document(app, {
