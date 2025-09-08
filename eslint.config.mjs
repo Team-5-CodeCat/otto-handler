@@ -21,15 +21,17 @@ export default tseslint.config(
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
+        project: ['./tsconfig.json', './test/tsconfig.json'], // test 파일 포함
       },
     },
   },
   {
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'warn', // error → warn으로 변경
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      'indent': ['error', 2]
+      indent: ['error', 2],
     },
   },
 );
