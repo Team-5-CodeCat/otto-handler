@@ -4,6 +4,16 @@ export interface GithubWebhookRequestDto {
   action?: string;
   installation?: {
     id: number;
+    account?: {
+      login: string;
+      id: number;
+      type: 'User' | 'Organization';
+      avatar_url?: string & tags.Format<'uri'>;
+      html_url?: string & tags.Format<'uri'>;
+    };
+    repository_selection?: 'selected' | 'all';
+    created_at?: string & tags.Format<'date-time'>;
+    updated_at?: string & tags.Format<'date-time'>;
   };
   repository?: {
     id: number;

@@ -48,8 +48,8 @@ export class ProjectController {
   ) {}
 
   /**
-   * @summary 새 프로젝트 생성
    * @tag project
+   * @summary 새 프로젝트 생성
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -79,8 +79,8 @@ export class ProjectController {
   }
 
   /**
-   * @summary GitHub app 설치 등록
    * @tag project
+   * @summary GitHub app 설치 등록
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -109,8 +109,8 @@ export class ProjectController {
   }
 
   /**
-   * @summary GitHub 설치 목록 조회 (사용자가 등록한 모든 GitHub 계정)
    * @tag project
+   * @summary GitHub 설치 목록 조회 (사용자가 등록한 모든 GitHub 계정)
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -135,8 +135,8 @@ export class ProjectController {
   }
 
   /**
-   * @summary 특정 설치에서 접근 가능한 레포지토리 목록 조회
    * @tag project
+   * @summary 특정 설치에서 접근 가능한 레포지토리 목록 조회
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -184,8 +184,8 @@ export class ProjectController {
   }
 
   /**
-   * @summary GitHub Installation의 특정 레포지토리 브랜치 목록 조회
    * @tag project
+   * @summary GitHub Installation의 특정 레포지토리 브랜치 목록 조회
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -240,8 +240,8 @@ export class ProjectController {
   }
 
   /**
-   * @summary 프로젝트에 레포지토리 연결
    * @tag project
+   * @summary 프로젝트에 레포지토리 연결
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -274,8 +274,8 @@ export class ProjectController {
   }
 
   /**
-   * @summary 레포지토리의 브랜치 목록 조회
    * @tag project
+   * @summary 레포지토리의 브랜치 목록 조회
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -324,8 +324,8 @@ export class ProjectController {
   }
 
   /**
-   * @summary 선택된 브랜치 변경
    * @tag project
+   * @summary 선택된 브랜치 변경
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -358,8 +358,8 @@ export class ProjectController {
   }
 
   /**
-   * @summary 프로젝트 상세 정보 조회 (연결된 레포지토리들과 함께)
    * @tag project
+   * @summary 프로젝트 상세 정보 조회 (연결된 레포지토리들과 함께)
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -385,8 +385,8 @@ export class ProjectController {
   }
 
   /**
-   * @summary GitHub App 설치 URL 생성
    * @tag project
+   * @summary GitHub App 설치 URL 생성
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -422,8 +422,8 @@ export class ProjectController {
   }
 
   /**
-   * @summary 사용자의 GitHub 설치 상태 확인
    * @tag project
+   * @summary 사용자의 GitHub 설치 상태 확인
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -435,22 +435,28 @@ export class ProjectController {
     @Req() req: IRequestType,
   ): Promise<GithubStatusResponseDto> {
     const userId = req.user.user_id;
-    const installations =
-      await this.projectService.getUserGithubInstallations(userId);
+    const status =
+      await this.projectService.getGitHubInstallationStatus(userId);
+
     return {
-      hasInstallation: installations.length > 0,
-      installations: installations.map((i) => ({
-        id: i.id,
-        installationId: i.installationId,
-        accountLogin: i.accountLogin,
-        createdAt: i.createdAt.toISOString(),
+      hasInstallation: status.hasInstallations,
+      totalInstallations: status.totalInstallations,
+      totalConnectedRepositories: status.totalConnectedRepositories,
+      installations: status.installations.map((installation) => ({
+        id: installation.id,
+        installationId: installation.installationId,
+        accountLogin: installation.accountLogin || 'Unknown',
+        accountId: installation.accountId || 'Unknown',
+        connectedRepositories: installation.connectedRepositories,
+        installedAt: installation.installedAt,
+        lastUsedAt: installation.lastUsedAt,
       })),
     };
   }
 
   /**
-   * @summary 사용자의 모든 프로젝트 목록 조회
    * @tag project
+   * @summary 사용자의 모든 프로젝트 목록 조회
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
@@ -475,8 +481,8 @@ export class ProjectController {
   }
 
   /**
-   * @summary GitHub App 설치 콜백 처리 (프론트엔드 리다이렉트)
    * @tag project
+   * @summary GitHub App 설치 콜백 처리 (프론트엔드 리다이렉트)
    */
   @TypedRoute.Get('github/callback')
   @Redirect()
@@ -580,8 +586,8 @@ export class ProjectController {
   }
 
   /**
-   * @summary GitHub 연동 프로젝트 생성 (원스톱)
    * @tag project
+   * @summary GitHub 연동 프로젝트 생성 (원스톱)
    */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
