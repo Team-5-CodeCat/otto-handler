@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OTTOSCALER_GRPC_TOKEN, OTTOSCALER_GRPC_URL_ENV } from './ottoscaler.constants';
+import {
+  OTTOSCALER_GRPC_TOKEN,
+  OTTOSCALER_GRPC_URL_ENV,
+} from './ottoscaler.constants';
 import { createOttoscalerGrpcClients } from './ottoscaler.provider.js';
 import { OttoscalerService } from './ottoscaler.service';
 
@@ -12,7 +15,9 @@ import { OttoscalerService } from './ottoscaler.service';
       useFactory: async (config: ConfigService) => {
         const targetUrl = config.get<string>(OTTOSCALER_GRPC_URL_ENV);
         if (!targetUrl) {
-          throw new Error(`Missing environment variable: ${OTTOSCALER_GRPC_URL_ENV}`);
+          throw new Error(
+            `Missing environment variable: ${OTTOSCALER_GRPC_URL_ENV}`,
+          );
         }
         return createOttoscalerGrpcClients(targetUrl);
       },
@@ -22,5 +27,3 @@ import { OttoscalerService } from './ottoscaler.service';
   exports: [OTTOSCALER_GRPC_TOKEN, OttoscalerService],
 })
 export class OttoscalerModule {}
-
-
