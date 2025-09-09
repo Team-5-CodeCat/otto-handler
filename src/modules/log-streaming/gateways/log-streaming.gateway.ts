@@ -1,3 +1,4 @@
+/*
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -17,7 +18,7 @@ import type { ILogStreamingGateway } from '../interfaces/log-streaming.interface
 import type { LogFilter, LogStreamSession } from '../types/log-streaming.types';
 import type { WorkerLogEntry, PipelineProgress } from '../../../generated/otto';
 
-/**
+/!**
  * 🔌 LogStreamingGateway
  *
  * 📋 목적:
@@ -42,7 +43,7 @@ import type { WorkerLogEntry, PipelineProgress } from '../../../generated/otto';
  * - Room 기반 브로드캐스트: 효율적인 메시지 배포
  * - 자동 재연결: 네트워크 장애 시 클라이언트 자동 복구
  * - 압축 지원: 대용량 로그 데이터 효율적 전송
- */
+ *!/
 @WebSocketGateway({
   // 🌐 WebSocket 서버 설정
   port: 3001,
@@ -53,7 +54,7 @@ import type { WorkerLogEntry, PipelineProgress } from '../../../generated/otto';
     origin: [
       'http://localhost:3000', // React 개발 서버
       'http://localhost:3001', // Next.js 개발 서버
-      'https://*.otto-ci.com', // 운영 도메인
+      'https://!*.otto-ci.com', // 운영 도메인
     ],
     methods: ['GET', 'POST'],
     allowedHeaders: ['Authorization'],
@@ -93,14 +94,14 @@ export class LogStreamingGateway
     }
   }
 
-  /**
+  /!**
    * 👥 클라이언트 세션 관리
    *
    * 🔧 기술적 구현:
    * - socketId → LogStreamSession 매핑
    * - 각 클라이언트별 구독 상태, 필터 설정 추적
    * - 메모리 기반 저장 (운영환경: Redis 권장)
-   */
+   *!/
   private readonly clientSessions = new Map<
     string,
     {
@@ -116,14 +117,14 @@ export class LogStreamingGateway
     private readonly jwtService: JwtService,
   ) {}
 
-  /**
+  /!**
    * 🚀 WebSocket 게이트웨이 초기화
    *
    * 💼 비즈니스 목적:
    * - 서버 시작 시 WebSocket 서버 준비 완료 로깅
    * - 연결 통계 초기화 및 모니터링 준비
    * - 필요시 외부 시스템과의 연동 초기화
-   */
+   *!/
   afterInit(_server: Server) {
     this.logger.log('LogStreaming WebSocket 게이트웨이가 초기화되었습니다');
     this.logger.log(`WebSocket 서버가 포트 3001에서 실행 중입니다`);
@@ -137,7 +138,7 @@ export class LogStreamingGateway
     }
   }
 
-  /**
+  /!**
    * 🤝 클라이언트 연결 이벤트 처리
    *
    * 💼 비즈니스 프로세스:
@@ -150,7 +151,7 @@ export class LogStreamingGateway
    * - JWT 토큰 파싱 및 유효성 검사
    * - 클라이언트별 고유 세션 생성
    * - Socket.IO room 기반 그룹 관리 준비
-   */
+   *!/
   async handleConnection(client: Socket, authToken?: string): Promise<void> {
     try {
       this.logger.log(`새 WebSocket 연결: ${client.id}`);
@@ -215,7 +216,7 @@ export class LogStreamingGateway
     }
   }
 
-  /**
+  /!**
    * 👋 클라이언트 연결 종료 이벤트 처리
    *
    * 💼 비즈니스 프로세스:
@@ -223,7 +224,7 @@ export class LogStreamingGateway
    * 2. 구독 중이던 모든 로그 스트림에서 클라이언트 제거
    * 3. 서버 메모리에서 세션 정보 제거
    * 4. 연결 통계 업데이트
-   */
+   *!/
   async handleDisconnect(client: Socket): Promise<void> {
     return this.handleDisconnection(client);
   }
@@ -260,7 +261,7 @@ export class LogStreamingGateway
     }
   }
 
-  /**
+  /!**
    * 📝 로그 구독 요청 처리
    *
    * 🌐 WebSocket 이벤트: 'subscribe-to-logs'
@@ -281,7 +282,7 @@ export class LogStreamingGateway
    *   }
    * });
    * ```
-   */
+   *!/
   @SubscribeMessage('subscribe-to-logs')
   async handleSubscribeToLogs(
     @ConnectedSocket() client: Socket,
@@ -350,7 +351,7 @@ export class LogStreamingGateway
     }
   }
 
-  /**
+  /!**
    * 🚫 로그 구독 해제 처리
    *
    * 🌐 WebSocket 이벤트: 'unsubscribe-from-logs'
@@ -360,7 +361,7 @@ export class LogStreamingGateway
    * 2. Socket.IO room에서 제거하여 더 이상 로그 수신하지 않음
    * 3. 불필요한 네트워크 트래픽 및 서버 리소스 절약
    * 4. 클라이언트 세션에서 구독 정보 제거
-   */
+   *!/
   @SubscribeMessage('unsubscribe-from-logs')
   async handleUnsubscribeFromLogs(
     @ConnectedSocket() client: Socket,
@@ -420,7 +421,7 @@ export class LogStreamingGateway
     }
   }
 
-  /**
+  /!**
    * 🎛 실시간 필터 업데이트 처리
    *
    * 🌐 WebSocket 이벤트: 'update-log-filter'
@@ -430,7 +431,7 @@ export class LogStreamingGateway
    * 2. 로그 레벨, 키워드, Worker ID 등을 동적으로 수정
    * 3. 기존 구독을 유지하면서 새로운 필터만 적용
    * 4. 변경된 필터로 향후 로그부터 영향
-   */
+   *!/
   @SubscribeMessage('update-log-filter')
   async handleUpdateLogFilter(
     @ConnectedSocket() client: Socket,
@@ -485,7 +486,7 @@ export class LogStreamingGateway
     }
   }
 
-  /**
+  /!**
    * 📡 실시간 로그 브로드캐스트
    *
    * 💼 비즈니스 프로세스:
@@ -498,7 +499,7 @@ export class LogStreamingGateway
    * - Socket.IO to().emit() 을 통한 room 브로드캐스트
    * - 비동기 처리로 성능 최적화
    * - 에러 발생 시에도 다른 클라이언트에게 영향 없음
-   */
+   *!/
   broadcastLog(taskId: string, logEntry: WorkerLogEntry): void {
     try {
       const roomName = `task:${taskId}`;
@@ -532,7 +533,7 @@ export class LogStreamingGateway
     }
   }
 
-  /**
+  /!**
    * 📊 파이프라인 상태 브로드캐스트
    *
    * 💼 비즈니스 프로세스:
@@ -540,7 +541,7 @@ export class LogStreamingGateway
    * 2. 프로젝트 관리자, 개발팀이 빌드 상태를 실시간으로 공유
    * 3. 각 스테이지별 완료 상태, 진행률, 에러 정보 전파
    * 4. 대시보드 UI의 실시간 업데이트 지원
-   */
+   *!/
   broadcastPipelineProgress(
     pipelineId: string,
     progress: PipelineProgress,
@@ -582,7 +583,7 @@ export class LogStreamingGateway
     }
   }
 
-  /**
+  /!**
    * 📊 파이프라인 구독 요청 처리
    *
    * 🌐 WebSocket 이벤트: 'subscribe-to-pipeline'
@@ -591,7 +592,7 @@ export class LogStreamingGateway
    * - 클라이언트가 특정 파이프라인의 진행 상황을 구독
    * - 대시보드에서 여러 파이프라인을 동시에 모니터링
    * - 파이프라인 완료 시까지 실시간 상태 업데이트 수신
-   */
+   *!/
   @SubscribeMessage('subscribe-to-pipeline')
   async handleSubscribeToPipeline(
     @ConnectedSocket() client: Socket,
@@ -648,7 +649,7 @@ export class LogStreamingGateway
     }
   }
 
-  /**
+  /!**
    * 📊 실시간 서버 통계 정보 제공
    *
    * 🌐 WebSocket 이벤트: 'get-server-stats'
@@ -657,7 +658,7 @@ export class LogStreamingGateway
    * - 관리자가 서버 상태를 실시간으로 모니터링
    * - 현재 연결 수, 활성 구독 수 등 운영 지표 제공
    * - 성능 튜닝 및 용량 계획을 위한 데이터 수집
-   */
+   *!/
   @SubscribeMessage('get-server-stats')
   async handleGetServerStats(@ConnectedSocket() client: Socket): Promise<void> {
     try {
@@ -686,3 +687,4 @@ export class LogStreamingGateway
     }
   }
 }
+*/

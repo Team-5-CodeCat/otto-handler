@@ -21,7 +21,6 @@ export { LogStreamingService } from './services/log-streaming.service';
 
 // 🌐 컨트롤러 및 게이트웨이
 export { LogStreamingController } from './controllers/log-streaming.controller';
-export { LogStreamingGateway } from './gateways/log-streaming.gateway';
 
 // 🏷 타입 정의
 export type {
