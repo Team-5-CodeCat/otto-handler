@@ -12,5 +12,5 @@ export interface ConnectRepositoryRequestDto {
   /**
    * 설치 ID (선택)
    */
-  installationId?: string & tags.Format<'uuid'>;
+  installationId?: string;
 }
