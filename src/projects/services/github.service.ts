@@ -184,10 +184,22 @@ export class GithubService {
     const octokit = await this.getInstallationOctokit(installationId);
 
     try {
+      console.log('[GitHub Service] Fetching branches:', {
+        installationId,
+        repoFullName,
+        owner,
+        repo,
+      });
+
       const { data } = await octokit.rest.repos.listBranches({
         owner,
         repo,
         per_page: 100,
+      });
+
+      console.log('[GitHub Service] Branches fetched successfully:', {
+        repoFullName,
+        branchCount: data.length,
       });
 
       const branches = data as unknown as GitHubBranch[];
@@ -199,9 +211,23 @@ export class GithubService {
           url: branch.commit.url,
         },
       }));
-    } catch {
+    } catch (error: unknown) {
+      console.error('[GitHub Service] Error fetching branches:', {
+        installationId,
+        repoFullName,
+        owner,
+        repo,
+        error:
+          error instanceof Error
+            ? {
+                message: error.message,
+                name: error.name,
+                stack: error.stack?.substring(0, 500),
+              }
+            : error,
+      });
       throw new BadRequestException(
-        `${repoFullName}의 브랜치 목록을 가져오는데 실패했습니다`,
+        `${repoFullName}의 브랜치 목록을 가져오는데 실패했습니다: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }

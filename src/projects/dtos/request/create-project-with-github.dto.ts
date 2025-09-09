@@ -6,9 +6,9 @@ export interface CreateProjectWithGithubDto {
    */
   name: string & tags.MinLength<1> & tags.MaxLength<100>;
   /**
-   * GitHub Installation UUID
+   * GitHub Installation ID
    */
-  installationId: string & tags.Format<'uuid'>;
+  installationId: string;
   /**
    * 레포지토리 전체 이름
    */

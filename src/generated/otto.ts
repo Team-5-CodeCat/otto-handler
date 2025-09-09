@@ -20,11 +20,11 @@ import {
   Metadata,
   type ServiceError,
   type UntypedServiceImplementation,
-} from "@grpc/grpc-js";
-import Long from "long";
-import _m0 from "protobufjs/minimal";
+} from '@grpc/grpc-js';
+import Long from 'long';
+import _m0 from 'protobufjs/minimal';
 
-export const protobufPackage = "ottoscaler.v1";
+export const protobufPackage = 'ottoscaler.v1';
 
 /** StageType - Pipeline Stage의 타입을 정의하는 Enum */
 export enum StageType {
@@ -181,9 +181,7 @@ export interface WorkerRegistration {
   /** Task identifier this worker is handling */
   taskId: string;
   /** Worker pod metadata */
-  metadata:
-    | WorkerMetadata
-    | undefined;
+  metadata: WorkerMetadata | undefined;
   /** NestJS server endpoint (for health checks) */
   serverEndpoint: string;
 }
@@ -362,9 +360,7 @@ export interface WorkerLogEntry {
   /** 실제 로그 메시지 내용 */
   message: string;
   /** Pod 관련 메타데이터 */
-  podMetadata:
-    | WorkerMetadata
-    | undefined;
+  podMetadata: WorkerMetadata | undefined;
   /** 추가 메타데이터 */
   metadata: { [key: string]: string };
 }
@@ -554,37 +550,52 @@ export interface StageMetrics {
 }
 
 function createBaseLogEntry(): LogEntry {
-  return { workerId: "", taskId: "", timestamp: "", level: "", source: "", message: "", metadata: {} };
+  return {
+    workerId: '',
+    taskId: '',
+    timestamp: '',
+    level: '',
+    source: '',
+    message: '',
+    metadata: {},
+  };
 }
 
 export const LogEntry = {
-  encode(message: LogEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.workerId !== "") {
+  encode(
+    message: LogEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.workerId !== '') {
       writer.uint32(10).string(message.workerId);
     }
-    if (message.taskId !== "") {
+    if (message.taskId !== '') {
       writer.uint32(18).string(message.taskId);
     }
-    if (message.timestamp !== "") {
+    if (message.timestamp !== '') {
       writer.uint32(26).string(message.timestamp);
     }
-    if (message.level !== "") {
+    if (message.level !== '') {
       writer.uint32(34).string(message.level);
     }
-    if (message.source !== "") {
+    if (message.source !== '') {
       writer.uint32(42).string(message.source);
     }
-    if (message.message !== "") {
+    if (message.message !== '') {
       writer.uint32(50).string(message.message);
     }
     Object.entries(message.metadata).forEach(([key, value]) => {
-      LogEntry_MetadataEntry.encode({ key: key as any, value }, writer.uint32(58).fork()).ldelim();
+      LogEntry_MetadataEntry.encode(
+        { key: key as any, value },
+        writer.uint32(58).fork(),
+      ).ldelim();
     });
     return writer;
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): LogEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseLogEntry();
     while (reader.pos < end) {
@@ -656,13 +667,15 @@ export const LogEntry = {
   },
   fromPartial(object: DeepPartial<LogEntry>): LogEntry {
     const message = createBaseLogEntry();
-    message.workerId = object.workerId ?? "";
-    message.taskId = object.taskId ?? "";
-    message.timestamp = object.timestamp ?? "";
-    message.level = object.level ?? "";
-    message.source = object.source ?? "";
-    message.message = object.message ?? "";
-    message.metadata = Object.entries(object.metadata ?? {}).reduce<{ [key: string]: string }>((acc, [key, value]) => {
+    message.workerId = object.workerId ?? '';
+    message.taskId = object.taskId ?? '';
+    message.timestamp = object.timestamp ?? '';
+    message.level = object.level ?? '';
+    message.source = object.source ?? '';
+    message.message = object.message ?? '';
+    message.metadata = Object.entries(object.metadata ?? {}).reduce<{
+      [key: string]: string;
+    }>((acc, [key, value]) => {
       if (value !== undefined) {
         acc[key] = globalThis.String(value);
       }
@@ -673,22 +686,29 @@ export const LogEntry = {
 };
 
 function createBaseLogEntry_MetadataEntry(): LogEntry_MetadataEntry {
-  return { key: "", value: "" };
+  return { key: '', value: '' };
 }
 
 export const LogEntry_MetadataEntry = {
-  encode(message: LogEntry_MetadataEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.key !== "") {
+  encode(
+    message: LogEntry_MetadataEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.key !== '') {
       writer.uint32(10).string(message.key);
     }
-    if (message.value !== "") {
+    if (message.value !== '') {
       writer.uint32(18).string(message.value);
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): LogEntry_MetadataEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): LogEntry_MetadataEntry {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseLogEntry_MetadataEntry();
     while (reader.pos < end) {
@@ -720,24 +740,29 @@ export const LogEntry_MetadataEntry = {
   create(base?: DeepPartial<LogEntry_MetadataEntry>): LogEntry_MetadataEntry {
     return LogEntry_MetadataEntry.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<LogEntry_MetadataEntry>): LogEntry_MetadataEntry {
+  fromPartial(
+    object: DeepPartial<LogEntry_MetadataEntry>,
+  ): LogEntry_MetadataEntry {
     const message = createBaseLogEntry_MetadataEntry();
-    message.key = object.key ?? "";
-    message.value = object.value ?? "";
+    message.key = object.key ?? '';
+    message.value = object.value ?? '';
     return message;
   },
 };
 
 function createBaseLogResponse(): LogResponse {
-  return { status: 0, message: "", sequence: 0 };
+  return { status: 0, message: '', sequence: 0 };
 }
 
 export const LogResponse = {
-  encode(message: LogResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: LogResponse,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.status !== 0) {
       writer.uint32(8).int32(message.status);
     }
-    if (message.message !== "") {
+    if (message.message !== '') {
       writer.uint32(18).string(message.message);
     }
     if (message.sequence !== 0) {
@@ -747,7 +772,8 @@ export const LogResponse = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): LogResponse {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseLogResponse();
     while (reader.pos < end) {
@@ -789,35 +815,42 @@ export const LogResponse = {
   fromPartial(object: DeepPartial<LogResponse>): LogResponse {
     const message = createBaseLogResponse();
     message.status = object.status ?? 0;
-    message.message = object.message ?? "";
+    message.message = object.message ?? '';
     message.sequence = object.sequence ?? 0;
     return message;
   },
 };
 
 function createBaseWorkerRegistration(): WorkerRegistration {
-  return { workerId: "", taskId: "", metadata: undefined, serverEndpoint: "" };
+  return { workerId: '', taskId: '', metadata: undefined, serverEndpoint: '' };
 }
 
 export const WorkerRegistration = {
-  encode(message: WorkerRegistration, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.workerId !== "") {
+  encode(
+    message: WorkerRegistration,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.workerId !== '') {
       writer.uint32(10).string(message.workerId);
     }
-    if (message.taskId !== "") {
+    if (message.taskId !== '') {
       writer.uint32(18).string(message.taskId);
     }
     if (message.metadata !== undefined) {
-      WorkerMetadata.encode(message.metadata, writer.uint32(26).fork()).ldelim();
+      WorkerMetadata.encode(
+        message.metadata,
+        writer.uint32(26).fork(),
+      ).ldelim();
     }
-    if (message.serverEndpoint !== "") {
+    if (message.serverEndpoint !== '') {
       writer.uint32(34).string(message.serverEndpoint);
     }
     return writer;
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): WorkerRegistration {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseWorkerRegistration();
     while (reader.pos < end) {
@@ -865,42 +898,56 @@ export const WorkerRegistration = {
   },
   fromPartial(object: DeepPartial<WorkerRegistration>): WorkerRegistration {
     const message = createBaseWorkerRegistration();
-    message.workerId = object.workerId ?? "";
-    message.taskId = object.taskId ?? "";
-    message.metadata = (object.metadata !== undefined && object.metadata !== null)
-      ? WorkerMetadata.fromPartial(object.metadata)
-      : undefined;
-    message.serverEndpoint = object.serverEndpoint ?? "";
+    message.workerId = object.workerId ?? '';
+    message.taskId = object.taskId ?? '';
+    message.metadata =
+      object.metadata !== undefined && object.metadata !== null
+        ? WorkerMetadata.fromPartial(object.metadata)
+        : undefined;
+    message.serverEndpoint = object.serverEndpoint ?? '';
     return message;
   },
 };
 
 function createBaseWorkerMetadata(): WorkerMetadata {
-  return { podName: "", namespace: "", nodeName: "", createdAt: "", labels: {} };
+  return {
+    podName: '',
+    namespace: '',
+    nodeName: '',
+    createdAt: '',
+    labels: {},
+  };
 }
 
 export const WorkerMetadata = {
-  encode(message: WorkerMetadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.podName !== "") {
+  encode(
+    message: WorkerMetadata,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.podName !== '') {
       writer.uint32(10).string(message.podName);
     }
-    if (message.namespace !== "") {
+    if (message.namespace !== '') {
       writer.uint32(18).string(message.namespace);
     }
-    if (message.nodeName !== "") {
+    if (message.nodeName !== '') {
       writer.uint32(26).string(message.nodeName);
     }
-    if (message.createdAt !== "") {
+    if (message.createdAt !== '') {
       writer.uint32(34).string(message.createdAt);
     }
     Object.entries(message.labels).forEach(([key, value]) => {
-      WorkerMetadata_LabelsEntry.encode({ key: key as any, value }, writer.uint32(42).fork()).ldelim();
+      WorkerMetadata_LabelsEntry.encode(
+        { key: key as any, value },
+        writer.uint32(42).fork(),
+      ).ldelim();
     });
     return writer;
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): WorkerMetadata {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseWorkerMetadata();
     while (reader.pos < end) {
@@ -939,7 +986,10 @@ export const WorkerMetadata = {
             break;
           }
 
-          const entry5 = WorkerMetadata_LabelsEntry.decode(reader, reader.uint32());
+          const entry5 = WorkerMetadata_LabelsEntry.decode(
+            reader,
+            reader.uint32(),
+          );
           if (entry5.value !== undefined) {
             message.labels[entry5.key] = entry5.value;
           }
@@ -958,11 +1008,13 @@ export const WorkerMetadata = {
   },
   fromPartial(object: DeepPartial<WorkerMetadata>): WorkerMetadata {
     const message = createBaseWorkerMetadata();
-    message.podName = object.podName ?? "";
-    message.namespace = object.namespace ?? "";
-    message.nodeName = object.nodeName ?? "";
-    message.createdAt = object.createdAt ?? "";
-    message.labels = Object.entries(object.labels ?? {}).reduce<{ [key: string]: string }>((acc, [key, value]) => {
+    message.podName = object.podName ?? '';
+    message.namespace = object.namespace ?? '';
+    message.nodeName = object.nodeName ?? '';
+    message.createdAt = object.createdAt ?? '';
+    message.labels = Object.entries(object.labels ?? {}).reduce<{
+      [key: string]: string;
+    }>((acc, [key, value]) => {
       if (value !== undefined) {
         acc[key] = globalThis.String(value);
       }
@@ -973,22 +1025,29 @@ export const WorkerMetadata = {
 };
 
 function createBaseWorkerMetadata_LabelsEntry(): WorkerMetadata_LabelsEntry {
-  return { key: "", value: "" };
+  return { key: '', value: '' };
 }
 
 export const WorkerMetadata_LabelsEntry = {
-  encode(message: WorkerMetadata_LabelsEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.key !== "") {
+  encode(
+    message: WorkerMetadata_LabelsEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.key !== '') {
       writer.uint32(10).string(message.key);
     }
-    if (message.value !== "") {
+    if (message.value !== '') {
       writer.uint32(18).string(message.value);
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): WorkerMetadata_LabelsEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): WorkerMetadata_LabelsEntry {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseWorkerMetadata_LabelsEntry();
     while (reader.pos < end) {
@@ -1017,30 +1076,37 @@ export const WorkerMetadata_LabelsEntry = {
     return message;
   },
 
-  create(base?: DeepPartial<WorkerMetadata_LabelsEntry>): WorkerMetadata_LabelsEntry {
+  create(
+    base?: DeepPartial<WorkerMetadata_LabelsEntry>,
+  ): WorkerMetadata_LabelsEntry {
     return WorkerMetadata_LabelsEntry.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<WorkerMetadata_LabelsEntry>): WorkerMetadata_LabelsEntry {
+  fromPartial(
+    object: DeepPartial<WorkerMetadata_LabelsEntry>,
+  ): WorkerMetadata_LabelsEntry {
     const message = createBaseWorkerMetadata_LabelsEntry();
-    message.key = object.key ?? "";
-    message.value = object.value ?? "";
+    message.key = object.key ?? '';
+    message.value = object.value ?? '';
     return message;
   },
 };
 
 function createBaseRegistrationResponse(): RegistrationResponse {
-  return { status: 0, message: "", sessionId: "", config: undefined };
+  return { status: 0, message: '', sessionId: '', config: undefined };
 }
 
 export const RegistrationResponse = {
-  encode(message: RegistrationResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: RegistrationResponse,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.status !== 0) {
       writer.uint32(8).int32(message.status);
     }
-    if (message.message !== "") {
+    if (message.message !== '') {
       writer.uint32(18).string(message.message);
     }
-    if (message.sessionId !== "") {
+    if (message.sessionId !== '') {
       writer.uint32(26).string(message.sessionId);
     }
     if (message.config !== undefined) {
@@ -1049,8 +1115,12 @@ export const RegistrationResponse = {
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): RegistrationResponse {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): RegistrationResponse {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseRegistrationResponse();
     while (reader.pos < end) {
@@ -1099,21 +1169,30 @@ export const RegistrationResponse = {
   fromPartial(object: DeepPartial<RegistrationResponse>): RegistrationResponse {
     const message = createBaseRegistrationResponse();
     message.status = object.status ?? 0;
-    message.message = object.message ?? "";
-    message.sessionId = object.sessionId ?? "";
-    message.config = (object.config !== undefined && object.config !== null)
-      ? LoggingConfig.fromPartial(object.config)
-      : undefined;
+    message.message = object.message ?? '';
+    message.sessionId = object.sessionId ?? '';
+    message.config =
+      object.config !== undefined && object.config !== null
+        ? LoggingConfig.fromPartial(object.config)
+        : undefined;
     return message;
   },
 };
 
 function createBaseLoggingConfig(): LoggingConfig {
-  return { rateLimit: 0, bufferSize: 0, maxMessageSize: 0, includeMetadata: false };
+  return {
+    rateLimit: 0,
+    bufferSize: 0,
+    maxMessageSize: 0,
+    includeMetadata: false,
+  };
 }
 
 export const LoggingConfig = {
-  encode(message: LoggingConfig, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: LoggingConfig,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.rateLimit !== 0) {
       writer.uint32(8).int32(message.rateLimit);
     }
@@ -1130,7 +1209,8 @@ export const LoggingConfig = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): LoggingConfig {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseLoggingConfig();
     while (reader.pos < end) {
@@ -1188,48 +1268,58 @@ export const LoggingConfig = {
 
 function createBaseScaleRequest(): ScaleRequest {
   return {
-    taskId: "",
-    repository: "",
-    commitSha: "",
+    taskId: '',
+    repository: '',
+    commitSha: '',
     workerCount: 0,
     buildConfig: {},
-    triggeredBy: "",
-    reason: "",
+    triggeredBy: '',
+    reason: '',
     metadata: {},
   };
 }
 
 export const ScaleRequest = {
-  encode(message: ScaleRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.taskId !== "") {
+  encode(
+    message: ScaleRequest,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.taskId !== '') {
       writer.uint32(10).string(message.taskId);
     }
-    if (message.repository !== "") {
+    if (message.repository !== '') {
       writer.uint32(18).string(message.repository);
     }
-    if (message.commitSha !== "") {
+    if (message.commitSha !== '') {
       writer.uint32(26).string(message.commitSha);
     }
     if (message.workerCount !== 0) {
       writer.uint32(32).int32(message.workerCount);
     }
     Object.entries(message.buildConfig).forEach(([key, value]) => {
-      ScaleRequest_BuildConfigEntry.encode({ key: key as any, value }, writer.uint32(42).fork()).ldelim();
+      ScaleRequest_BuildConfigEntry.encode(
+        { key: key as any, value },
+        writer.uint32(42).fork(),
+      ).ldelim();
     });
-    if (message.triggeredBy !== "") {
+    if (message.triggeredBy !== '') {
       writer.uint32(50).string(message.triggeredBy);
     }
-    if (message.reason !== "") {
+    if (message.reason !== '') {
       writer.uint32(58).string(message.reason);
     }
     Object.entries(message.metadata).forEach(([key, value]) => {
-      ScaleRequest_MetadataEntry.encode({ key: key as any, value }, writer.uint32(66).fork()).ldelim();
+      ScaleRequest_MetadataEntry.encode(
+        { key: key as any, value },
+        writer.uint32(66).fork(),
+      ).ldelim();
     });
     return writer;
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): ScaleRequest {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseScaleRequest();
     while (reader.pos < end) {
@@ -1268,7 +1358,10 @@ export const ScaleRequest = {
             break;
           }
 
-          const entry5 = ScaleRequest_BuildConfigEntry.decode(reader, reader.uint32());
+          const entry5 = ScaleRequest_BuildConfigEntry.decode(
+            reader,
+            reader.uint32(),
+          );
           if (entry5.value !== undefined) {
             message.buildConfig[entry5.key] = entry5.value;
           }
@@ -1292,7 +1385,10 @@ export const ScaleRequest = {
             break;
           }
 
-          const entry8 = ScaleRequest_MetadataEntry.decode(reader, reader.uint32());
+          const entry8 = ScaleRequest_MetadataEntry.decode(
+            reader,
+            reader.uint32(),
+          );
           if (entry8.value !== undefined) {
             message.metadata[entry8.key] = entry8.value;
           }
@@ -1311,22 +1407,23 @@ export const ScaleRequest = {
   },
   fromPartial(object: DeepPartial<ScaleRequest>): ScaleRequest {
     const message = createBaseScaleRequest();
-    message.taskId = object.taskId ?? "";
-    message.repository = object.repository ?? "";
-    message.commitSha = object.commitSha ?? "";
+    message.taskId = object.taskId ?? '';
+    message.repository = object.repository ?? '';
+    message.commitSha = object.commitSha ?? '';
     message.workerCount = object.workerCount ?? 0;
-    message.buildConfig = Object.entries(object.buildConfig ?? {}).reduce<{ [key: string]: string }>(
-      (acc, [key, value]) => {
-        if (value !== undefined) {
-          acc[key] = globalThis.String(value);
-        }
-        return acc;
-      },
-      {},
-    );
-    message.triggeredBy = object.triggeredBy ?? "";
-    message.reason = object.reason ?? "";
-    message.metadata = Object.entries(object.metadata ?? {}).reduce<{ [key: string]: string }>((acc, [key, value]) => {
+    message.buildConfig = Object.entries(object.buildConfig ?? {}).reduce<{
+      [key: string]: string;
+    }>((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = globalThis.String(value);
+      }
+      return acc;
+    }, {});
+    message.triggeredBy = object.triggeredBy ?? '';
+    message.reason = object.reason ?? '';
+    message.metadata = Object.entries(object.metadata ?? {}).reduce<{
+      [key: string]: string;
+    }>((acc, [key, value]) => {
       if (value !== undefined) {
         acc[key] = globalThis.String(value);
       }
@@ -1337,22 +1434,29 @@ export const ScaleRequest = {
 };
 
 function createBaseScaleRequest_BuildConfigEntry(): ScaleRequest_BuildConfigEntry {
-  return { key: "", value: "" };
+  return { key: '', value: '' };
 }
 
 export const ScaleRequest_BuildConfigEntry = {
-  encode(message: ScaleRequest_BuildConfigEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.key !== "") {
+  encode(
+    message: ScaleRequest_BuildConfigEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.key !== '') {
       writer.uint32(10).string(message.key);
     }
-    if (message.value !== "") {
+    if (message.value !== '') {
       writer.uint32(18).string(message.value);
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): ScaleRequest_BuildConfigEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): ScaleRequest_BuildConfigEntry {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseScaleRequest_BuildConfigEntry();
     while (reader.pos < end) {
@@ -1381,34 +1485,45 @@ export const ScaleRequest_BuildConfigEntry = {
     return message;
   },
 
-  create(base?: DeepPartial<ScaleRequest_BuildConfigEntry>): ScaleRequest_BuildConfigEntry {
+  create(
+    base?: DeepPartial<ScaleRequest_BuildConfigEntry>,
+  ): ScaleRequest_BuildConfigEntry {
     return ScaleRequest_BuildConfigEntry.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<ScaleRequest_BuildConfigEntry>): ScaleRequest_BuildConfigEntry {
+  fromPartial(
+    object: DeepPartial<ScaleRequest_BuildConfigEntry>,
+  ): ScaleRequest_BuildConfigEntry {
     const message = createBaseScaleRequest_BuildConfigEntry();
-    message.key = object.key ?? "";
-    message.value = object.value ?? "";
+    message.key = object.key ?? '';
+    message.value = object.value ?? '';
     return message;
   },
 };
 
 function createBaseScaleRequest_MetadataEntry(): ScaleRequest_MetadataEntry {
-  return { key: "", value: "" };
+  return { key: '', value: '' };
 }
 
 export const ScaleRequest_MetadataEntry = {
-  encode(message: ScaleRequest_MetadataEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.key !== "") {
+  encode(
+    message: ScaleRequest_MetadataEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.key !== '') {
       writer.uint32(10).string(message.key);
     }
-    if (message.value !== "") {
+    if (message.value !== '') {
       writer.uint32(18).string(message.value);
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): ScaleRequest_MetadataEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): ScaleRequest_MetadataEntry {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseScaleRequest_MetadataEntry();
     while (reader.pos < end) {
@@ -1437,27 +1552,41 @@ export const ScaleRequest_MetadataEntry = {
     return message;
   },
 
-  create(base?: DeepPartial<ScaleRequest_MetadataEntry>): ScaleRequest_MetadataEntry {
+  create(
+    base?: DeepPartial<ScaleRequest_MetadataEntry>,
+  ): ScaleRequest_MetadataEntry {
     return ScaleRequest_MetadataEntry.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<ScaleRequest_MetadataEntry>): ScaleRequest_MetadataEntry {
+  fromPartial(
+    object: DeepPartial<ScaleRequest_MetadataEntry>,
+  ): ScaleRequest_MetadataEntry {
     const message = createBaseScaleRequest_MetadataEntry();
-    message.key = object.key ?? "";
-    message.value = object.value ?? "";
+    message.key = object.key ?? '';
+    message.value = object.value ?? '';
     return message;
   },
 };
 
 function createBaseScaleResponse(): ScaleResponse {
-  return { status: 0, message: "", processedCount: 0, workerPodNames: [], startedAt: "", completedAt: "" };
+  return {
+    status: 0,
+    message: '',
+    processedCount: 0,
+    workerPodNames: [],
+    startedAt: '',
+    completedAt: '',
+  };
 }
 
 export const ScaleResponse = {
-  encode(message: ScaleResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: ScaleResponse,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.status !== 0) {
       writer.uint32(8).int32(message.status);
     }
-    if (message.message !== "") {
+    if (message.message !== '') {
       writer.uint32(18).string(message.message);
     }
     if (message.processedCount !== 0) {
@@ -1466,17 +1595,18 @@ export const ScaleResponse = {
     for (const v of message.workerPodNames) {
       writer.uint32(34).string(v!);
     }
-    if (message.startedAt !== "") {
+    if (message.startedAt !== '') {
       writer.uint32(42).string(message.startedAt);
     }
-    if (message.completedAt !== "") {
+    if (message.completedAt !== '') {
       writer.uint32(50).string(message.completedAt);
     }
     return writer;
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): ScaleResponse {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseScaleResponse();
     while (reader.pos < end) {
@@ -1539,35 +1669,39 @@ export const ScaleResponse = {
   fromPartial(object: DeepPartial<ScaleResponse>): ScaleResponse {
     const message = createBaseScaleResponse();
     message.status = object.status ?? 0;
-    message.message = object.message ?? "";
+    message.message = object.message ?? '';
     message.processedCount = object.processedCount ?? 0;
     message.workerPodNames = object.workerPodNames?.map((e) => e) || [];
-    message.startedAt = object.startedAt ?? "";
-    message.completedAt = object.completedAt ?? "";
+    message.startedAt = object.startedAt ?? '';
+    message.completedAt = object.completedAt ?? '';
     return message;
   },
 };
 
 function createBaseWorkerStatusRequest(): WorkerStatusRequest {
-  return { taskId: "", workerPodName: "", statusFilter: "" };
+  return { taskId: '', workerPodName: '', statusFilter: '' };
 }
 
 export const WorkerStatusRequest = {
-  encode(message: WorkerStatusRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.taskId !== "") {
+  encode(
+    message: WorkerStatusRequest,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.taskId !== '') {
       writer.uint32(10).string(message.taskId);
     }
-    if (message.workerPodName !== "") {
+    if (message.workerPodName !== '') {
       writer.uint32(18).string(message.workerPodName);
     }
-    if (message.statusFilter !== "") {
+    if (message.statusFilter !== '') {
       writer.uint32(26).string(message.statusFilter);
     }
     return writer;
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): WorkerStatusRequest {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseWorkerStatusRequest();
     while (reader.pos < end) {
@@ -1608,19 +1742,29 @@ export const WorkerStatusRequest = {
   },
   fromPartial(object: DeepPartial<WorkerStatusRequest>): WorkerStatusRequest {
     const message = createBaseWorkerStatusRequest();
-    message.taskId = object.taskId ?? "";
-    message.workerPodName = object.workerPodName ?? "";
-    message.statusFilter = object.statusFilter ?? "";
+    message.taskId = object.taskId ?? '';
+    message.workerPodName = object.workerPodName ?? '';
+    message.statusFilter = object.statusFilter ?? '';
     return message;
   },
 };
 
 function createBaseWorkerStatusResponse(): WorkerStatusResponse {
-  return { totalCount: 0, runningCount: 0, pendingCount: 0, succeededCount: 0, failedCount: 0, workers: [] };
+  return {
+    totalCount: 0,
+    runningCount: 0,
+    pendingCount: 0,
+    succeededCount: 0,
+    failedCount: 0,
+    workers: [],
+  };
 }
 
 export const WorkerStatusResponse = {
-  encode(message: WorkerStatusResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: WorkerStatusResponse,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.totalCount !== 0) {
       writer.uint32(8).int32(message.totalCount);
     }
@@ -1642,8 +1786,12 @@ export const WorkerStatusResponse = {
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): WorkerStatusResponse {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): WorkerStatusResponse {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseWorkerStatusResponse();
     while (reader.pos < end) {
@@ -1710,63 +1858,71 @@ export const WorkerStatusResponse = {
     message.pendingCount = object.pendingCount ?? 0;
     message.succeededCount = object.succeededCount ?? 0;
     message.failedCount = object.failedCount ?? 0;
-    message.workers = object.workers?.map((e) => WorkerPodStatus.fromPartial(e)) || [];
+    message.workers =
+      object.workers?.map((e) => WorkerPodStatus.fromPartial(e)) || [];
     return message;
   },
 };
 
 function createBaseWorkerPodStatus(): WorkerPodStatus {
   return {
-    podName: "",
-    taskId: "",
-    status: "",
-    createdAt: "",
-    startedAt: "",
-    completedAt: "",
-    nodeName: "",
-    podIp: "",
+    podName: '',
+    taskId: '',
+    status: '',
+    createdAt: '',
+    startedAt: '',
+    completedAt: '',
+    nodeName: '',
+    podIp: '',
     labels: {},
-    errorMessage: "",
+    errorMessage: '',
   };
 }
 
 export const WorkerPodStatus = {
-  encode(message: WorkerPodStatus, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.podName !== "") {
+  encode(
+    message: WorkerPodStatus,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.podName !== '') {
       writer.uint32(10).string(message.podName);
     }
-    if (message.taskId !== "") {
+    if (message.taskId !== '') {
       writer.uint32(18).string(message.taskId);
     }
-    if (message.status !== "") {
+    if (message.status !== '') {
       writer.uint32(26).string(message.status);
     }
-    if (message.createdAt !== "") {
+    if (message.createdAt !== '') {
       writer.uint32(34).string(message.createdAt);
     }
-    if (message.startedAt !== "") {
+    if (message.startedAt !== '') {
       writer.uint32(42).string(message.startedAt);
     }
-    if (message.completedAt !== "") {
+    if (message.completedAt !== '') {
       writer.uint32(50).string(message.completedAt);
     }
-    if (message.nodeName !== "") {
+    if (message.nodeName !== '') {
       writer.uint32(58).string(message.nodeName);
     }
-    if (message.podIp !== "") {
+    if (message.podIp !== '') {
       writer.uint32(66).string(message.podIp);
     }
     Object.entries(message.labels).forEach(([key, value]) => {
-      WorkerPodStatus_LabelsEntry.encode({ key: key as any, value }, writer.uint32(74).fork()).ldelim();
+      WorkerPodStatus_LabelsEntry.encode(
+        { key: key as any, value },
+        writer.uint32(74).fork(),
+      ).ldelim();
     });
-    if (message.errorMessage !== "") {
+    if (message.errorMessage !== '') {
       writer.uint32(82).string(message.errorMessage);
     }
     return writer;
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): WorkerPodStatus {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseWorkerPodStatus();
     while (reader.pos < end) {
@@ -1833,7 +1989,10 @@ export const WorkerPodStatus = {
             break;
           }
 
-          const entry9 = WorkerPodStatus_LabelsEntry.decode(reader, reader.uint32());
+          const entry9 = WorkerPodStatus_LabelsEntry.decode(
+            reader,
+            reader.uint32(),
+          );
           if (entry9.value !== undefined) {
             message.labels[entry9.key] = entry9.value;
           }
@@ -1859,42 +2018,51 @@ export const WorkerPodStatus = {
   },
   fromPartial(object: DeepPartial<WorkerPodStatus>): WorkerPodStatus {
     const message = createBaseWorkerPodStatus();
-    message.podName = object.podName ?? "";
-    message.taskId = object.taskId ?? "";
-    message.status = object.status ?? "";
-    message.createdAt = object.createdAt ?? "";
-    message.startedAt = object.startedAt ?? "";
-    message.completedAt = object.completedAt ?? "";
-    message.nodeName = object.nodeName ?? "";
-    message.podIp = object.podIp ?? "";
-    message.labels = Object.entries(object.labels ?? {}).reduce<{ [key: string]: string }>((acc, [key, value]) => {
+    message.podName = object.podName ?? '';
+    message.taskId = object.taskId ?? '';
+    message.status = object.status ?? '';
+    message.createdAt = object.createdAt ?? '';
+    message.startedAt = object.startedAt ?? '';
+    message.completedAt = object.completedAt ?? '';
+    message.nodeName = object.nodeName ?? '';
+    message.podIp = object.podIp ?? '';
+    message.labels = Object.entries(object.labels ?? {}).reduce<{
+      [key: string]: string;
+    }>((acc, [key, value]) => {
       if (value !== undefined) {
         acc[key] = globalThis.String(value);
       }
       return acc;
     }, {});
-    message.errorMessage = object.errorMessage ?? "";
+    message.errorMessage = object.errorMessage ?? '';
     return message;
   },
 };
 
 function createBaseWorkerPodStatus_LabelsEntry(): WorkerPodStatus_LabelsEntry {
-  return { key: "", value: "" };
+  return { key: '', value: '' };
 }
 
 export const WorkerPodStatus_LabelsEntry = {
-  encode(message: WorkerPodStatus_LabelsEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.key !== "") {
+  encode(
+    message: WorkerPodStatus_LabelsEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.key !== '') {
       writer.uint32(10).string(message.key);
     }
-    if (message.value !== "") {
+    if (message.value !== '') {
       writer.uint32(18).string(message.value);
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): WorkerPodStatus_LabelsEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): WorkerPodStatus_LabelsEntry {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseWorkerPodStatus_LabelsEntry();
     while (reader.pos < end) {
@@ -1923,61 +2091,75 @@ export const WorkerPodStatus_LabelsEntry = {
     return message;
   },
 
-  create(base?: DeepPartial<WorkerPodStatus_LabelsEntry>): WorkerPodStatus_LabelsEntry {
+  create(
+    base?: DeepPartial<WorkerPodStatus_LabelsEntry>,
+  ): WorkerPodStatus_LabelsEntry {
     return WorkerPodStatus_LabelsEntry.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<WorkerPodStatus_LabelsEntry>): WorkerPodStatus_LabelsEntry {
+  fromPartial(
+    object: DeepPartial<WorkerPodStatus_LabelsEntry>,
+  ): WorkerPodStatus_LabelsEntry {
     const message = createBaseWorkerPodStatus_LabelsEntry();
-    message.key = object.key ?? "";
-    message.value = object.value ?? "";
+    message.key = object.key ?? '';
+    message.value = object.value ?? '';
     return message;
   },
 };
 
 function createBaseWorkerLogEntry(): WorkerLogEntry {
   return {
-    workerId: "",
-    taskId: "",
-    timestamp: "",
-    level: "",
-    source: "",
-    message: "",
+    workerId: '',
+    taskId: '',
+    timestamp: '',
+    level: '',
+    source: '',
+    message: '',
     podMetadata: undefined,
     metadata: {},
   };
 }
 
 export const WorkerLogEntry = {
-  encode(message: WorkerLogEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.workerId !== "") {
+  encode(
+    message: WorkerLogEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.workerId !== '') {
       writer.uint32(10).string(message.workerId);
     }
-    if (message.taskId !== "") {
+    if (message.taskId !== '') {
       writer.uint32(18).string(message.taskId);
     }
-    if (message.timestamp !== "") {
+    if (message.timestamp !== '') {
       writer.uint32(26).string(message.timestamp);
     }
-    if (message.level !== "") {
+    if (message.level !== '') {
       writer.uint32(34).string(message.level);
     }
-    if (message.source !== "") {
+    if (message.source !== '') {
       writer.uint32(42).string(message.source);
     }
-    if (message.message !== "") {
+    if (message.message !== '') {
       writer.uint32(50).string(message.message);
     }
     if (message.podMetadata !== undefined) {
-      WorkerMetadata.encode(message.podMetadata, writer.uint32(58).fork()).ldelim();
+      WorkerMetadata.encode(
+        message.podMetadata,
+        writer.uint32(58).fork(),
+      ).ldelim();
     }
     Object.entries(message.metadata).forEach(([key, value]) => {
-      WorkerLogEntry_MetadataEntry.encode({ key: key as any, value }, writer.uint32(66).fork()).ldelim();
+      WorkerLogEntry_MetadataEntry.encode(
+        { key: key as any, value },
+        writer.uint32(66).fork(),
+      ).ldelim();
     });
     return writer;
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): WorkerLogEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseWorkerLogEntry();
     while (reader.pos < end) {
@@ -2037,7 +2219,10 @@ export const WorkerLogEntry = {
             break;
           }
 
-          const entry8 = WorkerLogEntry_MetadataEntry.decode(reader, reader.uint32());
+          const entry8 = WorkerLogEntry_MetadataEntry.decode(
+            reader,
+            reader.uint32(),
+          );
           if (entry8.value !== undefined) {
             message.metadata[entry8.key] = entry8.value;
           }
@@ -2056,16 +2241,19 @@ export const WorkerLogEntry = {
   },
   fromPartial(object: DeepPartial<WorkerLogEntry>): WorkerLogEntry {
     const message = createBaseWorkerLogEntry();
-    message.workerId = object.workerId ?? "";
-    message.taskId = object.taskId ?? "";
-    message.timestamp = object.timestamp ?? "";
-    message.level = object.level ?? "";
-    message.source = object.source ?? "";
-    message.message = object.message ?? "";
-    message.podMetadata = (object.podMetadata !== undefined && object.podMetadata !== null)
-      ? WorkerMetadata.fromPartial(object.podMetadata)
-      : undefined;
-    message.metadata = Object.entries(object.metadata ?? {}).reduce<{ [key: string]: string }>((acc, [key, value]) => {
+    message.workerId = object.workerId ?? '';
+    message.taskId = object.taskId ?? '';
+    message.timestamp = object.timestamp ?? '';
+    message.level = object.level ?? '';
+    message.source = object.source ?? '';
+    message.message = object.message ?? '';
+    message.podMetadata =
+      object.podMetadata !== undefined && object.podMetadata !== null
+        ? WorkerMetadata.fromPartial(object.podMetadata)
+        : undefined;
+    message.metadata = Object.entries(object.metadata ?? {}).reduce<{
+      [key: string]: string;
+    }>((acc, [key, value]) => {
       if (value !== undefined) {
         acc[key] = globalThis.String(value);
       }
@@ -2076,22 +2264,29 @@ export const WorkerLogEntry = {
 };
 
 function createBaseWorkerLogEntry_MetadataEntry(): WorkerLogEntry_MetadataEntry {
-  return { key: "", value: "" };
+  return { key: '', value: '' };
 }
 
 export const WorkerLogEntry_MetadataEntry = {
-  encode(message: WorkerLogEntry_MetadataEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.key !== "") {
+  encode(
+    message: WorkerLogEntry_MetadataEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.key !== '') {
       writer.uint32(10).string(message.key);
     }
-    if (message.value !== "") {
+    if (message.value !== '') {
       writer.uint32(18).string(message.value);
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): WorkerLogEntry_MetadataEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): WorkerLogEntry_MetadataEntry {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseWorkerLogEntry_MetadataEntry();
     while (reader.pos < end) {
@@ -2120,27 +2315,34 @@ export const WorkerLogEntry_MetadataEntry = {
     return message;
   },
 
-  create(base?: DeepPartial<WorkerLogEntry_MetadataEntry>): WorkerLogEntry_MetadataEntry {
+  create(
+    base?: DeepPartial<WorkerLogEntry_MetadataEntry>,
+  ): WorkerLogEntry_MetadataEntry {
     return WorkerLogEntry_MetadataEntry.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<WorkerLogEntry_MetadataEntry>): WorkerLogEntry_MetadataEntry {
+  fromPartial(
+    object: DeepPartial<WorkerLogEntry_MetadataEntry>,
+  ): WorkerLogEntry_MetadataEntry {
     const message = createBaseWorkerLogEntry_MetadataEntry();
-    message.key = object.key ?? "";
-    message.value = object.value ?? "";
+    message.key = object.key ?? '';
+    message.value = object.value ?? '';
     return message;
   },
 };
 
 function createBaseLogForwardResponse(): LogForwardResponse {
-  return { status: 0, message: "", sequence: 0, throttleMs: 0 };
+  return { status: 0, message: '', sequence: 0, throttleMs: 0 };
 }
 
 export const LogForwardResponse = {
-  encode(message: LogForwardResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: LogForwardResponse,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.status !== 0) {
       writer.uint32(8).int32(message.status);
     }
-    if (message.message !== "") {
+    if (message.message !== '') {
       writer.uint32(18).string(message.message);
     }
     if (message.sequence !== 0) {
@@ -2153,7 +2355,8 @@ export const LogForwardResponse = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): LogForwardResponse {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseLogForwardResponse();
     while (reader.pos < end) {
@@ -2202,7 +2405,7 @@ export const LogForwardResponse = {
   fromPartial(object: DeepPartial<LogForwardResponse>): LogForwardResponse {
     const message = createBaseLogForwardResponse();
     message.status = object.status ?? 0;
-    message.message = object.message ?? "";
+    message.message = object.message ?? '';
     message.sequence = object.sequence ?? 0;
     message.throttleMs = object.throttleMs ?? 0;
     return message;
@@ -2210,34 +2413,51 @@ export const LogForwardResponse = {
 };
 
 function createBaseWorkerStatusNotification(): WorkerStatusNotification {
-  return { workerId: "", taskId: "", status: 0, timestamp: "", reason: "", metadata: {} };
+  return {
+    workerId: '',
+    taskId: '',
+    status: 0,
+    timestamp: '',
+    reason: '',
+    metadata: {},
+  };
 }
 
 export const WorkerStatusNotification = {
-  encode(message: WorkerStatusNotification, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.workerId !== "") {
+  encode(
+    message: WorkerStatusNotification,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.workerId !== '') {
       writer.uint32(10).string(message.workerId);
     }
-    if (message.taskId !== "") {
+    if (message.taskId !== '') {
       writer.uint32(18).string(message.taskId);
     }
     if (message.status !== 0) {
       writer.uint32(24).int32(message.status);
     }
-    if (message.timestamp !== "") {
+    if (message.timestamp !== '') {
       writer.uint32(34).string(message.timestamp);
     }
-    if (message.reason !== "") {
+    if (message.reason !== '') {
       writer.uint32(42).string(message.reason);
     }
     Object.entries(message.metadata).forEach(([key, value]) => {
-      WorkerStatusNotification_MetadataEntry.encode({ key: key as any, value }, writer.uint32(50).fork()).ldelim();
+      WorkerStatusNotification_MetadataEntry.encode(
+        { key: key as any, value },
+        writer.uint32(50).fork(),
+      ).ldelim();
     });
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): WorkerStatusNotification {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): WorkerStatusNotification {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseWorkerStatusNotification();
     while (reader.pos < end) {
@@ -2283,7 +2503,10 @@ export const WorkerStatusNotification = {
             break;
           }
 
-          const entry6 = WorkerStatusNotification_MetadataEntry.decode(reader, reader.uint32());
+          const entry6 = WorkerStatusNotification_MetadataEntry.decode(
+            reader,
+            reader.uint32(),
+          );
           if (entry6.value !== undefined) {
             message.metadata[entry6.key] = entry6.value;
           }
@@ -2297,17 +2520,23 @@ export const WorkerStatusNotification = {
     return message;
   },
 
-  create(base?: DeepPartial<WorkerStatusNotification>): WorkerStatusNotification {
+  create(
+    base?: DeepPartial<WorkerStatusNotification>,
+  ): WorkerStatusNotification {
     return WorkerStatusNotification.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<WorkerStatusNotification>): WorkerStatusNotification {
+  fromPartial(
+    object: DeepPartial<WorkerStatusNotification>,
+  ): WorkerStatusNotification {
     const message = createBaseWorkerStatusNotification();
-    message.workerId = object.workerId ?? "";
-    message.taskId = object.taskId ?? "";
+    message.workerId = object.workerId ?? '';
+    message.taskId = object.taskId ?? '';
     message.status = object.status ?? 0;
-    message.timestamp = object.timestamp ?? "";
-    message.reason = object.reason ?? "";
-    message.metadata = Object.entries(object.metadata ?? {}).reduce<{ [key: string]: string }>((acc, [key, value]) => {
+    message.timestamp = object.timestamp ?? '';
+    message.reason = object.reason ?? '';
+    message.metadata = Object.entries(object.metadata ?? {}).reduce<{
+      [key: string]: string;
+    }>((acc, [key, value]) => {
       if (value !== undefined) {
         acc[key] = globalThis.String(value);
       }
@@ -2318,22 +2547,29 @@ export const WorkerStatusNotification = {
 };
 
 function createBaseWorkerStatusNotification_MetadataEntry(): WorkerStatusNotification_MetadataEntry {
-  return { key: "", value: "" };
+  return { key: '', value: '' };
 }
 
 export const WorkerStatusNotification_MetadataEntry = {
-  encode(message: WorkerStatusNotification_MetadataEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.key !== "") {
+  encode(
+    message: WorkerStatusNotification_MetadataEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.key !== '') {
       writer.uint32(10).string(message.key);
     }
-    if (message.value !== "") {
+    if (message.value !== '') {
       writer.uint32(18).string(message.value);
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): WorkerStatusNotification_MetadataEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): WorkerStatusNotification_MetadataEntry {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseWorkerStatusNotification_MetadataEntry();
     while (reader.pos < end) {
@@ -2362,34 +2598,42 @@ export const WorkerStatusNotification_MetadataEntry = {
     return message;
   },
 
-  create(base?: DeepPartial<WorkerStatusNotification_MetadataEntry>): WorkerStatusNotification_MetadataEntry {
+  create(
+    base?: DeepPartial<WorkerStatusNotification_MetadataEntry>,
+  ): WorkerStatusNotification_MetadataEntry {
     return WorkerStatusNotification_MetadataEntry.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<WorkerStatusNotification_MetadataEntry>): WorkerStatusNotification_MetadataEntry {
+  fromPartial(
+    object: DeepPartial<WorkerStatusNotification_MetadataEntry>,
+  ): WorkerStatusNotification_MetadataEntry {
     const message = createBaseWorkerStatusNotification_MetadataEntry();
-    message.key = object.key ?? "";
-    message.value = object.value ?? "";
+    message.key = object.key ?? '';
+    message.value = object.value ?? '';
     return message;
   },
 };
 
 function createBaseWorkerStatusAck(): WorkerStatusAck {
-  return { status: 0, message: "" };
+  return { status: 0, message: '' };
 }
 
 export const WorkerStatusAck = {
-  encode(message: WorkerStatusAck, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: WorkerStatusAck,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.status !== 0) {
       writer.uint32(8).int32(message.status);
     }
-    if (message.message !== "") {
+    if (message.message !== '') {
       writer.uint32(18).string(message.message);
     }
     return writer;
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): WorkerStatusAck {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseWorkerStatusAck();
     while (reader.pos < end) {
@@ -2424,43 +2668,58 @@ export const WorkerStatusAck = {
   fromPartial(object: DeepPartial<WorkerStatusAck>): WorkerStatusAck {
     const message = createBaseWorkerStatusAck();
     message.status = object.status ?? 0;
-    message.message = object.message ?? "";
+    message.message = object.message ?? '';
     return message;
   },
 };
 
 function createBasePipelineRequest(): PipelineRequest {
-  return { pipelineId: "", name: "", stages: [], repository: "", commitSha: "", triggeredBy: "", metadata: {} };
+  return {
+    pipelineId: '',
+    name: '',
+    stages: [],
+    repository: '',
+    commitSha: '',
+    triggeredBy: '',
+    metadata: {},
+  };
 }
 
 export const PipelineRequest = {
-  encode(message: PipelineRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.pipelineId !== "") {
+  encode(
+    message: PipelineRequest,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.pipelineId !== '') {
       writer.uint32(10).string(message.pipelineId);
     }
-    if (message.name !== "") {
+    if (message.name !== '') {
       writer.uint32(18).string(message.name);
     }
     for (const v of message.stages) {
       PipelineStage.encode(v!, writer.uint32(26).fork()).ldelim();
     }
-    if (message.repository !== "") {
+    if (message.repository !== '') {
       writer.uint32(34).string(message.repository);
     }
-    if (message.commitSha !== "") {
+    if (message.commitSha !== '') {
       writer.uint32(42).string(message.commitSha);
     }
-    if (message.triggeredBy !== "") {
+    if (message.triggeredBy !== '') {
       writer.uint32(50).string(message.triggeredBy);
     }
     Object.entries(message.metadata).forEach(([key, value]) => {
-      PipelineRequest_MetadataEntry.encode({ key: key as any, value }, writer.uint32(58).fork()).ldelim();
+      PipelineRequest_MetadataEntry.encode(
+        { key: key as any, value },
+        writer.uint32(58).fork(),
+      ).ldelim();
     });
     return writer;
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): PipelineRequest {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBasePipelineRequest();
     while (reader.pos < end) {
@@ -2513,7 +2772,10 @@ export const PipelineRequest = {
             break;
           }
 
-          const entry7 = PipelineRequest_MetadataEntry.decode(reader, reader.uint32());
+          const entry7 = PipelineRequest_MetadataEntry.decode(
+            reader,
+            reader.uint32(),
+          );
           if (entry7.value !== undefined) {
             message.metadata[entry7.key] = entry7.value;
           }
@@ -2532,13 +2794,16 @@ export const PipelineRequest = {
   },
   fromPartial(object: DeepPartial<PipelineRequest>): PipelineRequest {
     const message = createBasePipelineRequest();
-    message.pipelineId = object.pipelineId ?? "";
-    message.name = object.name ?? "";
-    message.stages = object.stages?.map((e) => PipelineStage.fromPartial(e)) || [];
-    message.repository = object.repository ?? "";
-    message.commitSha = object.commitSha ?? "";
-    message.triggeredBy = object.triggeredBy ?? "";
-    message.metadata = Object.entries(object.metadata ?? {}).reduce<{ [key: string]: string }>((acc, [key, value]) => {
+    message.pipelineId = object.pipelineId ?? '';
+    message.name = object.name ?? '';
+    message.stages =
+      object.stages?.map((e) => PipelineStage.fromPartial(e)) || [];
+    message.repository = object.repository ?? '';
+    message.commitSha = object.commitSha ?? '';
+    message.triggeredBy = object.triggeredBy ?? '';
+    message.metadata = Object.entries(object.metadata ?? {}).reduce<{
+      [key: string]: string;
+    }>((acc, [key, value]) => {
       if (value !== undefined) {
         acc[key] = globalThis.String(value);
       }
@@ -2549,22 +2814,29 @@ export const PipelineRequest = {
 };
 
 function createBasePipelineRequest_MetadataEntry(): PipelineRequest_MetadataEntry {
-  return { key: "", value: "" };
+  return { key: '', value: '' };
 }
 
 export const PipelineRequest_MetadataEntry = {
-  encode(message: PipelineRequest_MetadataEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.key !== "") {
+  encode(
+    message: PipelineRequest_MetadataEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.key !== '') {
       writer.uint32(10).string(message.key);
     }
-    if (message.value !== "") {
+    if (message.value !== '') {
       writer.uint32(18).string(message.value);
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): PipelineRequest_MetadataEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): PipelineRequest_MetadataEntry {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBasePipelineRequest_MetadataEntry();
     while (reader.pos < end) {
@@ -2593,26 +2865,30 @@ export const PipelineRequest_MetadataEntry = {
     return message;
   },
 
-  create(base?: DeepPartial<PipelineRequest_MetadataEntry>): PipelineRequest_MetadataEntry {
+  create(
+    base?: DeepPartial<PipelineRequest_MetadataEntry>,
+  ): PipelineRequest_MetadataEntry {
     return PipelineRequest_MetadataEntry.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<PipelineRequest_MetadataEntry>): PipelineRequest_MetadataEntry {
+  fromPartial(
+    object: DeepPartial<PipelineRequest_MetadataEntry>,
+  ): PipelineRequest_MetadataEntry {
     const message = createBasePipelineRequest_MetadataEntry();
-    message.key = object.key ?? "";
-    message.value = object.value ?? "";
+    message.key = object.key ?? '';
+    message.value = object.value ?? '';
     return message;
   },
 };
 
 function createBasePipelineStage(): PipelineStage {
   return {
-    stageId: "",
+    stageId: '',
     type: 0,
-    name: "",
+    name: '',
     workerCount: 0,
     dependsOn: [],
     config: {},
-    image: "",
+    image: '',
     command: [],
     args: [],
     timeoutSeconds: 0,
@@ -2621,14 +2897,17 @@ function createBasePipelineStage(): PipelineStage {
 }
 
 export const PipelineStage = {
-  encode(message: PipelineStage, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.stageId !== "") {
+  encode(
+    message: PipelineStage,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.stageId !== '') {
       writer.uint32(10).string(message.stageId);
     }
     if (message.type !== 0) {
       writer.uint32(16).int32(message.type);
     }
-    if (message.name !== "") {
+    if (message.name !== '') {
       writer.uint32(26).string(message.name);
     }
     if (message.workerCount !== 0) {
@@ -2638,9 +2917,12 @@ export const PipelineStage = {
       writer.uint32(42).string(v!);
     }
     Object.entries(message.config).forEach(([key, value]) => {
-      PipelineStage_ConfigEntry.encode({ key: key as any, value }, writer.uint32(50).fork()).ldelim();
+      PipelineStage_ConfigEntry.encode(
+        { key: key as any, value },
+        writer.uint32(50).fork(),
+      ).ldelim();
     });
-    if (message.image !== "") {
+    if (message.image !== '') {
       writer.uint32(58).string(message.image);
     }
     for (const v of message.command) {
@@ -2653,13 +2935,17 @@ export const PipelineStage = {
       writer.uint32(80).int32(message.timeoutSeconds);
     }
     if (message.retryPolicy !== undefined) {
-      RetryPolicy.encode(message.retryPolicy, writer.uint32(90).fork()).ldelim();
+      RetryPolicy.encode(
+        message.retryPolicy,
+        writer.uint32(90).fork(),
+      ).ldelim();
     }
     return writer;
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): PipelineStage {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBasePipelineStage();
     while (reader.pos < end) {
@@ -2705,7 +2991,10 @@ export const PipelineStage = {
             break;
           }
 
-          const entry6 = PipelineStage_ConfigEntry.decode(reader, reader.uint32());
+          const entry6 = PipelineStage_ConfigEntry.decode(
+            reader,
+            reader.uint32(),
+          );
           if (entry6.value !== undefined) {
             message.config[entry6.key] = entry6.value;
           }
@@ -2759,45 +3048,55 @@ export const PipelineStage = {
   },
   fromPartial(object: DeepPartial<PipelineStage>): PipelineStage {
     const message = createBasePipelineStage();
-    message.stageId = object.stageId ?? "";
+    message.stageId = object.stageId ?? '';
     message.type = object.type ?? 0;
-    message.name = object.name ?? "";
+    message.name = object.name ?? '';
     message.workerCount = object.workerCount ?? 0;
     message.dependsOn = object.dependsOn?.map((e) => e) || [];
-    message.config = Object.entries(object.config ?? {}).reduce<{ [key: string]: string }>((acc, [key, value]) => {
+    message.config = Object.entries(object.config ?? {}).reduce<{
+      [key: string]: string;
+    }>((acc, [key, value]) => {
       if (value !== undefined) {
         acc[key] = globalThis.String(value);
       }
       return acc;
     }, {});
-    message.image = object.image ?? "";
+    message.image = object.image ?? '';
     message.command = object.command?.map((e) => e) || [];
     message.args = object.args?.map((e) => e) || [];
     message.timeoutSeconds = object.timeoutSeconds ?? 0;
-    message.retryPolicy = (object.retryPolicy !== undefined && object.retryPolicy !== null)
-      ? RetryPolicy.fromPartial(object.retryPolicy)
-      : undefined;
+    message.retryPolicy =
+      object.retryPolicy !== undefined && object.retryPolicy !== null
+        ? RetryPolicy.fromPartial(object.retryPolicy)
+        : undefined;
     return message;
   },
 };
 
 function createBasePipelineStage_ConfigEntry(): PipelineStage_ConfigEntry {
-  return { key: "", value: "" };
+  return { key: '', value: '' };
 }
 
 export const PipelineStage_ConfigEntry = {
-  encode(message: PipelineStage_ConfigEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.key !== "") {
+  encode(
+    message: PipelineStage_ConfigEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.key !== '') {
       writer.uint32(10).string(message.key);
     }
-    if (message.value !== "") {
+    if (message.value !== '') {
       writer.uint32(18).string(message.value);
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): PipelineStage_ConfigEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): PipelineStage_ConfigEntry {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBasePipelineStage_ConfigEntry();
     while (reader.pos < end) {
@@ -2826,13 +3125,17 @@ export const PipelineStage_ConfigEntry = {
     return message;
   },
 
-  create(base?: DeepPartial<PipelineStage_ConfigEntry>): PipelineStage_ConfigEntry {
+  create(
+    base?: DeepPartial<PipelineStage_ConfigEntry>,
+  ): PipelineStage_ConfigEntry {
     return PipelineStage_ConfigEntry.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<PipelineStage_ConfigEntry>): PipelineStage_ConfigEntry {
+  fromPartial(
+    object: DeepPartial<PipelineStage_ConfigEntry>,
+  ): PipelineStage_ConfigEntry {
     const message = createBasePipelineStage_ConfigEntry();
-    message.key = object.key ?? "";
-    message.value = object.value ?? "";
+    message.key = object.key ?? '';
+    message.value = object.value ?? '';
     return message;
   },
 };
@@ -2842,7 +3145,10 @@ function createBaseRetryPolicy(): RetryPolicy {
 }
 
 export const RetryPolicy = {
-  encode(message: RetryPolicy, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: RetryPolicy,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.maxAttempts !== 0) {
       writer.uint32(8).int32(message.maxAttempts);
     }
@@ -2856,7 +3162,8 @@ export const RetryPolicy = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): RetryPolicy {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseRetryPolicy();
     while (reader.pos < end) {
@@ -2906,32 +3213,35 @@ export const RetryPolicy = {
 
 function createBasePipelineProgress(): PipelineProgress {
   return {
-    pipelineId: "",
-    stageId: "",
+    pipelineId: '',
+    stageId: '',
     status: 0,
-    message: "",
+    message: '',
     workerPodNames: [],
     progressPercentage: 0,
-    timestamp: "",
-    startedAt: "",
-    completedAt: "",
-    errorMessage: "",
+    timestamp: '',
+    startedAt: '',
+    completedAt: '',
+    errorMessage: '',
     metrics: undefined,
   };
 }
 
 export const PipelineProgress = {
-  encode(message: PipelineProgress, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.pipelineId !== "") {
+  encode(
+    message: PipelineProgress,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.pipelineId !== '') {
       writer.uint32(10).string(message.pipelineId);
     }
-    if (message.stageId !== "") {
+    if (message.stageId !== '') {
       writer.uint32(18).string(message.stageId);
     }
     if (message.status !== 0) {
       writer.uint32(24).int32(message.status);
     }
-    if (message.message !== "") {
+    if (message.message !== '') {
       writer.uint32(34).string(message.message);
     }
     for (const v of message.workerPodNames) {
@@ -2940,16 +3250,16 @@ export const PipelineProgress = {
     if (message.progressPercentage !== 0) {
       writer.uint32(48).int32(message.progressPercentage);
     }
-    if (message.timestamp !== "") {
+    if (message.timestamp !== '') {
       writer.uint32(58).string(message.timestamp);
     }
-    if (message.startedAt !== "") {
+    if (message.startedAt !== '') {
       writer.uint32(66).string(message.startedAt);
     }
-    if (message.completedAt !== "") {
+    if (message.completedAt !== '') {
       writer.uint32(74).string(message.completedAt);
     }
-    if (message.errorMessage !== "") {
+    if (message.errorMessage !== '') {
       writer.uint32(82).string(message.errorMessage);
     }
     if (message.metrics !== undefined) {
@@ -2959,7 +3269,8 @@ export const PipelineProgress = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): PipelineProgress {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBasePipelineProgress();
     while (reader.pos < end) {
@@ -3056,19 +3367,20 @@ export const PipelineProgress = {
   },
   fromPartial(object: DeepPartial<PipelineProgress>): PipelineProgress {
     const message = createBasePipelineProgress();
-    message.pipelineId = object.pipelineId ?? "";
-    message.stageId = object.stageId ?? "";
+    message.pipelineId = object.pipelineId ?? '';
+    message.stageId = object.stageId ?? '';
     message.status = object.status ?? 0;
-    message.message = object.message ?? "";
+    message.message = object.message ?? '';
     message.workerPodNames = object.workerPodNames?.map((e) => e) || [];
     message.progressPercentage = object.progressPercentage ?? 0;
-    message.timestamp = object.timestamp ?? "";
-    message.startedAt = object.startedAt ?? "";
-    message.completedAt = object.completedAt ?? "";
-    message.errorMessage = object.errorMessage ?? "";
-    message.metrics = (object.metrics !== undefined && object.metrics !== null)
-      ? StageMetrics.fromPartial(object.metrics)
-      : undefined;
+    message.timestamp = object.timestamp ?? '';
+    message.startedAt = object.startedAt ?? '';
+    message.completedAt = object.completedAt ?? '';
+    message.errorMessage = object.errorMessage ?? '';
+    message.metrics =
+      object.metrics !== undefined && object.metrics !== null
+        ? StageMetrics.fromPartial(object.metrics)
+        : undefined;
     return message;
   },
 };
@@ -3085,7 +3397,10 @@ function createBaseStageMetrics(): StageMetrics {
 }
 
 export const StageMetrics = {
-  encode(message: StageMetrics, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: StageMetrics,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.durationSeconds !== 0) {
       writer.uint32(8).int32(message.durationSeconds);
     }
@@ -3108,7 +3423,8 @@ export const StageMetrics = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): StageMetrics {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseStageMetrics();
     while (reader.pos < end) {
@@ -3203,12 +3519,14 @@ export const OttoscalerServiceService = {
    * - 생성된 Worker Pod 정보를 응답으로 반환
    */
   scaleUp: {
-    path: "/ottoscaler.v1.OttoscalerService/ScaleUp",
+    path: '/ottoscaler.v1.OttoscalerService/ScaleUp',
     requestStream: false,
     responseStream: false,
-    requestSerialize: (value: ScaleRequest) => Buffer.from(ScaleRequest.encode(value).finish()),
+    requestSerialize: (value: ScaleRequest) =>
+      Buffer.from(ScaleRequest.encode(value).finish()),
     requestDeserialize: (value: Buffer) => ScaleRequest.decode(value),
-    responseSerialize: (value: ScaleResponse) => Buffer.from(ScaleResponse.encode(value).finish()),
+    responseSerialize: (value: ScaleResponse) =>
+      Buffer.from(ScaleResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer) => ScaleResponse.decode(value),
   },
   /**
@@ -3219,12 +3537,14 @@ export const OttoscalerServiceService = {
    * - Ottoscaler가 지정된 Worker Pod들을 정리
    */
   scaleDown: {
-    path: "/ottoscaler.v1.OttoscalerService/ScaleDown",
+    path: '/ottoscaler.v1.OttoscalerService/ScaleDown',
     requestStream: false,
     responseStream: false,
-    requestSerialize: (value: ScaleRequest) => Buffer.from(ScaleRequest.encode(value).finish()),
+    requestSerialize: (value: ScaleRequest) =>
+      Buffer.from(ScaleRequest.encode(value).finish()),
     requestDeserialize: (value: Buffer) => ScaleRequest.decode(value),
-    responseSerialize: (value: ScaleResponse) => Buffer.from(ScaleResponse.encode(value).finish()),
+    responseSerialize: (value: ScaleResponse) =>
+      Buffer.from(ScaleResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer) => ScaleResponse.decode(value),
   },
   /**
@@ -3235,12 +3555,14 @@ export const OttoscalerServiceService = {
    * - 활성 상태인 Worker Pod 목록과 상태 정보 반환
    */
   getWorkerStatus: {
-    path: "/ottoscaler.v1.OttoscalerService/GetWorkerStatus",
+    path: '/ottoscaler.v1.OttoscalerService/GetWorkerStatus',
     requestStream: false,
     responseStream: false,
-    requestSerialize: (value: WorkerStatusRequest) => Buffer.from(WorkerStatusRequest.encode(value).finish()),
+    requestSerialize: (value: WorkerStatusRequest) =>
+      Buffer.from(WorkerStatusRequest.encode(value).finish()),
     requestDeserialize: (value: Buffer) => WorkerStatusRequest.decode(value),
-    responseSerialize: (value: WorkerStatusResponse) => Buffer.from(WorkerStatusResponse.encode(value).finish()),
+    responseSerialize: (value: WorkerStatusResponse) =>
+      Buffer.from(WorkerStatusResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer) => WorkerStatusResponse.decode(value),
   },
   /**
@@ -3252,12 +3574,14 @@ export const OttoscalerServiceService = {
    * - 실시간 진행 상황을 스트리밍으로 반환
    */
   executePipeline: {
-    path: "/ottoscaler.v1.OttoscalerService/ExecutePipeline",
+    path: '/ottoscaler.v1.OttoscalerService/ExecutePipeline',
     requestStream: false,
     responseStream: true,
-    requestSerialize: (value: PipelineRequest) => Buffer.from(PipelineRequest.encode(value).finish()),
+    requestSerialize: (value: PipelineRequest) =>
+      Buffer.from(PipelineRequest.encode(value).finish()),
     requestDeserialize: (value: Buffer) => PipelineRequest.decode(value),
-    responseSerialize: (value: PipelineProgress) => Buffer.from(PipelineProgress.encode(value).finish()),
+    responseSerialize: (value: PipelineProgress) =>
+      Buffer.from(PipelineProgress.encode(value).finish()),
     responseDeserialize: (value: Buffer) => PipelineProgress.decode(value),
   },
 } as const;
@@ -3354,18 +3678,27 @@ export interface OttoscalerServiceClient extends Client {
    */
   getWorkerStatus(
     request: WorkerStatusRequest,
-    callback: (error: ServiceError | null, response: WorkerStatusResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: WorkerStatusResponse,
+    ) => void,
   ): ClientUnaryCall;
   getWorkerStatus(
     request: WorkerStatusRequest,
     metadata: Metadata,
-    callback: (error: ServiceError | null, response: WorkerStatusResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: WorkerStatusResponse,
+    ) => void,
   ): ClientUnaryCall;
   getWorkerStatus(
     request: WorkerStatusRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: WorkerStatusResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: WorkerStatusResponse,
+    ) => void,
   ): ClientUnaryCall;
   /**
    * ExecutePipeline - CI/CD Pipeline 실행
@@ -3375,7 +3708,10 @@ export interface OttoscalerServiceClient extends Client {
    * - Ottoscaler가 Stage 의존성을 파악하여 순차/병렬 실행
    * - 실시간 진행 상황을 스트리밍으로 반환
    */
-  executePipeline(request: PipelineRequest, options?: Partial<CallOptions>): ClientReadableStream<PipelineProgress>;
+  executePipeline(
+    request: PipelineRequest,
+    options?: Partial<CallOptions>,
+  ): ClientReadableStream<PipelineProgress>;
   executePipeline(
     request: PipelineRequest,
     metadata?: Metadata,
@@ -3385,9 +3721,13 @@ export interface OttoscalerServiceClient extends Client {
 
 export const OttoscalerServiceClient = makeGenericClientConstructor(
   OttoscalerServiceService,
-  "ottoscaler.v1.OttoscalerService",
+  'ottoscaler.v1.OttoscalerService',
 ) as unknown as {
-  new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): OttoscalerServiceClient;
+  new (
+    address: string,
+    credentials: ChannelCredentials,
+    options?: Partial<ClientOptions>,
+  ): OttoscalerServiceClient;
   service: typeof OttoscalerServiceService;
   serviceName: string;
 };
@@ -3420,12 +3760,14 @@ export const OttoHandlerLogServiceService = {
    * 4. Worker 작업 완료 시 스트림 종료
    */
   forwardWorkerLogs: {
-    path: "/ottoscaler.v1.OttoHandlerLogService/ForwardWorkerLogs",
+    path: '/ottoscaler.v1.OttoHandlerLogService/ForwardWorkerLogs',
     requestStream: true,
     responseStream: true,
-    requestSerialize: (value: WorkerLogEntry) => Buffer.from(WorkerLogEntry.encode(value).finish()),
+    requestSerialize: (value: WorkerLogEntry) =>
+      Buffer.from(WorkerLogEntry.encode(value).finish()),
     requestDeserialize: (value: Buffer) => WorkerLogEntry.decode(value),
-    responseSerialize: (value: LogForwardResponse) => Buffer.from(LogForwardResponse.encode(value).finish()),
+    responseSerialize: (value: LogForwardResponse) =>
+      Buffer.from(LogForwardResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer) => LogForwardResponse.decode(value),
   },
   /**
@@ -3436,17 +3778,21 @@ export const OttoHandlerLogServiceService = {
    * - Otto-handler에서 상태를 받아 UI 업데이트
    */
   notifyWorkerStatus: {
-    path: "/ottoscaler.v1.OttoHandlerLogService/NotifyWorkerStatus",
+    path: '/ottoscaler.v1.OttoHandlerLogService/NotifyWorkerStatus',
     requestStream: false,
     responseStream: false,
-    requestSerialize: (value: WorkerStatusNotification) => Buffer.from(WorkerStatusNotification.encode(value).finish()),
-    requestDeserialize: (value: Buffer) => WorkerStatusNotification.decode(value),
-    responseSerialize: (value: WorkerStatusAck) => Buffer.from(WorkerStatusAck.encode(value).finish()),
+    requestSerialize: (value: WorkerStatusNotification) =>
+      Buffer.from(WorkerStatusNotification.encode(value).finish()),
+    requestDeserialize: (value: Buffer) =>
+      WorkerStatusNotification.decode(value),
+    responseSerialize: (value: WorkerStatusAck) =>
+      Buffer.from(WorkerStatusAck.encode(value).finish()),
     responseDeserialize: (value: Buffer) => WorkerStatusAck.decode(value),
   },
 } as const;
 
-export interface OttoHandlerLogServiceServer extends UntypedServiceImplementation {
+export interface OttoHandlerLogServiceServer
+  extends UntypedServiceImplementation {
   /**
    * ForwardWorkerLogs - Worker Pod 로그를 Otto-handler로 전달
    *
@@ -3460,7 +3806,10 @@ export interface OttoHandlerLogServiceServer extends UntypedServiceImplementatio
    * 3. Otto-handler가 LogForwardResponse로 ACK/RETRY 응답
    * 4. Worker 작업 완료 시 스트림 종료
    */
-  forwardWorkerLogs: handleBidiStreamingCall<WorkerLogEntry, LogForwardResponse>;
+  forwardWorkerLogs: handleBidiStreamingCall<
+    WorkerLogEntry,
+    LogForwardResponse
+  >;
   /**
    * NotifyWorkerStatus - Worker Pod 상태 변경 알림
    *
@@ -3468,7 +3817,10 @@ export interface OttoHandlerLogServiceServer extends UntypedServiceImplementatio
    * - Ottoscaler에서 Worker Pod 상태 변경 시 호출
    * - Otto-handler에서 상태를 받아 UI 업데이트
    */
-  notifyWorkerStatus: handleUnaryCall<WorkerStatusNotification, WorkerStatusAck>;
+  notifyWorkerStatus: handleUnaryCall<
+    WorkerStatusNotification,
+    WorkerStatusAck
+  >;
 }
 
 export interface OttoHandlerLogServiceClient extends Client {
@@ -3486,7 +3838,9 @@ export interface OttoHandlerLogServiceClient extends Client {
    * 4. Worker 작업 완료 시 스트림 종료
    */
   forwardWorkerLogs(): ClientDuplexStream<WorkerLogEntry, LogForwardResponse>;
-  forwardWorkerLogs(options: Partial<CallOptions>): ClientDuplexStream<WorkerLogEntry, LogForwardResponse>;
+  forwardWorkerLogs(
+    options: Partial<CallOptions>,
+  ): ClientDuplexStream<WorkerLogEntry, LogForwardResponse>;
   forwardWorkerLogs(
     metadata: Metadata,
     options?: Partial<CallOptions>,
@@ -3517,9 +3871,13 @@ export interface OttoHandlerLogServiceClient extends Client {
 
 export const OttoHandlerLogServiceClient = makeGenericClientConstructor(
   OttoHandlerLogServiceService,
-  "ottoscaler.v1.OttoHandlerLogService",
+  'ottoscaler.v1.OttoHandlerLogService',
 ) as unknown as {
-  new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): OttoHandlerLogServiceClient;
+  new (
+    address: string,
+    credentials: ChannelCredentials,
+    options?: Partial<ClientOptions>,
+  ): OttoHandlerLogServiceClient;
   service: typeof OttoHandlerLogServiceService;
   serviceName: string;
 };
@@ -3541,12 +3899,14 @@ export const LogStreamingServiceService = {
    * 4. Worker 작업 완료 시 스트림 종료
    */
   streamLogs: {
-    path: "/ottoscaler.v1.LogStreamingService/StreamLogs",
+    path: '/ottoscaler.v1.LogStreamingService/StreamLogs',
     requestStream: true,
     responseStream: true,
-    requestSerialize: (value: LogEntry) => Buffer.from(LogEntry.encode(value).finish()),
+    requestSerialize: (value: LogEntry) =>
+      Buffer.from(LogEntry.encode(value).finish()),
     requestDeserialize: (value: Buffer) => LogEntry.decode(value),
-    responseSerialize: (value: LogResponse) => Buffer.from(LogResponse.encode(value).finish()),
+    responseSerialize: (value: LogResponse) =>
+      Buffer.from(LogResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer) => LogResponse.decode(value),
   },
   /**
@@ -3559,17 +3919,20 @@ export const LogStreamingServiceService = {
    * 4. 이후 StreamLogs에서 세션 ID 사용
    */
   registerWorker: {
-    path: "/ottoscaler.v1.LogStreamingService/RegisterWorker",
+    path: '/ottoscaler.v1.LogStreamingService/RegisterWorker',
     requestStream: false,
     responseStream: false,
-    requestSerialize: (value: WorkerRegistration) => Buffer.from(WorkerRegistration.encode(value).finish()),
+    requestSerialize: (value: WorkerRegistration) =>
+      Buffer.from(WorkerRegistration.encode(value).finish()),
     requestDeserialize: (value: Buffer) => WorkerRegistration.decode(value),
-    responseSerialize: (value: RegistrationResponse) => Buffer.from(RegistrationResponse.encode(value).finish()),
+    responseSerialize: (value: RegistrationResponse) =>
+      Buffer.from(RegistrationResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer) => RegistrationResponse.decode(value),
   },
 } as const;
 
-export interface LogStreamingServiceServer extends UntypedServiceImplementation {
+export interface LogStreamingServiceServer
+  extends UntypedServiceImplementation {
   /**
    * StreamLogs - 양방향 스트리밍 RPC로 로그 전송
    *
@@ -3613,8 +3976,13 @@ export interface LogStreamingServiceClient extends Client {
    * 4. Worker 작업 완료 시 스트림 종료
    */
   streamLogs(): ClientDuplexStream<LogEntry, LogResponse>;
-  streamLogs(options: Partial<CallOptions>): ClientDuplexStream<LogEntry, LogResponse>;
-  streamLogs(metadata: Metadata, options?: Partial<CallOptions>): ClientDuplexStream<LogEntry, LogResponse>;
+  streamLogs(
+    options: Partial<CallOptions>,
+  ): ClientDuplexStream<LogEntry, LogResponse>;
+  streamLogs(
+    metadata: Metadata,
+    options?: Partial<CallOptions>,
+  ): ClientDuplexStream<LogEntry, LogResponse>;
   /**
    * RegisterWorker - Worker Pod 시작 시 서버에 등록
    *
@@ -3626,45 +3994,72 @@ export interface LogStreamingServiceClient extends Client {
    */
   registerWorker(
     request: WorkerRegistration,
-    callback: (error: ServiceError | null, response: RegistrationResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: RegistrationResponse,
+    ) => void,
   ): ClientUnaryCall;
   registerWorker(
     request: WorkerRegistration,
     metadata: Metadata,
-    callback: (error: ServiceError | null, response: RegistrationResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: RegistrationResponse,
+    ) => void,
   ): ClientUnaryCall;
   registerWorker(
     request: WorkerRegistration,
     metadata: Metadata,
     options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: RegistrationResponse) => void,
+    callback: (
+      error: ServiceError | null,
+      response: RegistrationResponse,
+    ) => void,
   ): ClientUnaryCall;
 }
 
 export const LogStreamingServiceClient = makeGenericClientConstructor(
   LogStreamingServiceService,
-  "ottoscaler.v1.LogStreamingService",
+  'ottoscaler.v1.LogStreamingService',
 ) as unknown as {
-  new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): LogStreamingServiceClient;
+  new (
+    address: string,
+    credentials: ChannelCredentials,
+    options?: Partial<ClientOptions>,
+  ): LogStreamingServiceClient;
   service: typeof LogStreamingServiceService;
   serviceName: string;
 };
 
-type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
+type Builtin =
+  | Date
+  | Function
+  | Uint8Array
+  | string
+  | number
+  | boolean
+  | undefined;
 
-export type DeepPartial<T> = T extends Builtin ? T
-  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
-  : T extends { $case: string } ? { [K in keyof Omit<T, "$case">]?: DeepPartial<T[K]> } & { $case: T["$case"] }
-  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+export type DeepPartial<T> = T extends Builtin
+  ? T
+  : T extends globalThis.Array<infer U>
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends { $case: string }
+        ? { [K in keyof Omit<T, '$case'>]?: DeepPartial<T[K]> } & {
+            $case: T['$case'];
+          }
+        : T extends {}
+          ? { [K in keyof T]?: DeepPartial<T[K]> }
+          : Partial<T>;
 
 function longToNumber(long: Long): number {
   if (long.gt(globalThis.Number.MAX_SAFE_INTEGER)) {
-    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
+    throw new globalThis.Error('Value is larger than Number.MAX_SAFE_INTEGER');
   }
   if (long.lt(globalThis.Number.MIN_SAFE_INTEGER)) {
-    throw new globalThis.Error("Value is smaller than Number.MIN_SAFE_INTEGER");
+    throw new globalThis.Error('Value is smaller than Number.MIN_SAFE_INTEGER');
   }
   return long.toNumber();
 }
