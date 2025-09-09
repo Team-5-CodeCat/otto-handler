@@ -195,6 +195,20 @@ sed -i "s/COOKIE_SECRET=your-cookie-secret-key/COOKIE_SECRET=$DEV_ID-cookie-secr
 sed -i "s|DATABASE_URL=postgresql://postgres:password@localhost:5432/otto_handler|DATABASE_URL=\"postgresql://postgres:password@localhost:$POSTGRES_PORT/otto_handler?schema=public\"|" .env.dev
 sed -i "s|REDIS_URL=redis://localhost:6379|REDIS_URL=redis://localhost:$REDIS_PORT|" .env.dev
 
+# 개발자별 Frontend URL 설정 (Frontend 포트 계산)
+FRONTEND_PORT=$((2999 + $DEV_NUM))
+sed -i "s|FRONTEND_URL=http://localhost:3000|FRONTEND_URL=http://localhost:$FRONTEND_PORT|" .env.dev
+
+# JWT 관련 개발자별 설정
+sed -i "s/JWT_SECRET=jwt-secret-example/JWT_SECRET=$DEV_ID-jwt-secret-for-development/" .env.dev
+
+# OTTOSCALER gRPC URL 설정 (개발자별 포트)
+GRPC_PORT=$((50050 + $DEV_NUM))
+sed -i "s|OTTOSCALER_GRPC_URL=localhost:50051|OTTOSCALER_GRPC_URL=localhost:$GRPC_PORT|" .env.dev
+
+# GitHub 관련 설정 (개발자별 webhook secret)
+sed -i "s/OTTO_GITHUB_WEBHOOK_SECRET=otto-github-webhook-secret-example/OTTO_GITHUB_WEBHOOK_SECRET=$DEV_ID-github-webhook-secret/" .env.dev
+
 # 개발자 이름을 주석에 추가
 sed -i "1i# $DEV_NAME Environment Configuration" .env.dev
 
