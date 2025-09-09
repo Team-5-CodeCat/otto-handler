@@ -24,6 +24,77 @@ export class ProjectService {
   ) {}
 
   /**
+   * 객체가 특정 속성을 가지고 있는지 확인하는 타입 가드
+   */
+  private hasProperty<T extends string>(
+    obj: unknown,
+    prop: T,
+  ): obj is Record<T, unknown> {
+    return typeof obj === 'object' && obj !== null && prop in obj;
+  }
+
+  /**
+   * 안전하게 문자열 값을 추출하는 헬퍼
+   */
+  private getStringValue(obj: unknown, key: string): string | undefined {
+    if (this.hasProperty(obj, key) && typeof obj[key] === 'string') {
+      return obj[key];
+    }
+    return undefined;
+  }
+
+  /**
+   * 안전하게 숫자 값을 추출하는 헬퍼
+   */
+  private getNumberValue(obj: unknown, key: string): number | undefined {
+    if (this.hasProperty(obj, key) && typeof obj[key] === 'number') {
+      return obj[key];
+    }
+    return undefined;
+  }
+
+  /**
+   * 안전하게 객체 값을 추출하는 헬퍼
+   */
+  private getObjectValue(
+    obj: unknown,
+    key: string,
+  ): Record<string, unknown> | undefined {
+    if (
+      this.hasProperty(obj, key) &&
+      typeof obj[key] === 'object' &&
+      obj[key] !== null
+    ) {
+      return obj[key] as Record<string, unknown>;
+    }
+    return undefined;
+  }
+
+  /**
+   * 안전하게 배열 값을 추출하는 헬퍼
+   */
+  private getArrayValue(obj: unknown, key: string): unknown[] | undefined {
+    if (this.hasProperty(obj, key) && Array.isArray(obj[key])) {
+      return obj[key] as unknown[];
+    }
+    return undefined;
+  }
+
+  /**
+   * Date 객체를 안전하게 생성하는 헬퍼
+   */
+  private safeCreateDate(value: unknown): Date | undefined {
+    if (value instanceof Date) {
+      return value;
+    }
+    if (typeof value === 'string' || typeof value === 'number') {
+      const date = new Date(value);
+      return isNaN(date.getTime()) ? undefined : date;
+    }
+    return undefined;
+  }
+
+  /**
    * 새 프로젝트를 생성합니다
    * 동일한 사용자가 같은 이름의 프로젝트를 만들 수 없도록 유니크 제약조건이 있습니다
    */
@@ -448,9 +519,9 @@ export class ProjectService {
 
       console.log('[Project Service] Project created:', project.projectID);
 
-      // 2. Installation UUID로 실제 GitHub Installation ID 조회
+      // 2. GitHub Installation ID로 직접 조회
       const installation = await tx.githubInstallation.findUnique({
-        where: { id: data.installationId },
+        where: { installationId: data.installationId },
       });
 
       if (!installation) {
@@ -699,5 +770,34 @@ export class ProjectService {
       totalConnectedRepositories: totalRepositories,
       installations: installationsWithCount,
     };
+  }
+
+  /**
+   * 파이프라인 상태를 빌드 상태로 매핑
+   */
+  private mapPipelineStatusToBuildStatus(
+    status: string,
+  ): 'pending' | 'running' | 'success' | 'failed' | 'cancelled' {
+    switch (status.toLowerCase()) {
+      case 'pending':
+      case 'queued':
+        return 'pending';
+      case 'running':
+      case 'in_progress':
+        return 'running';
+      case 'completed':
+      case 'success':
+      case 'succeeded':
+        return 'success';
+      case 'failed':
+      case 'error':
+        return 'failed';
+      case 'cancelled':
+      case 'canceled':
+      case 'aborted':
+        return 'cancelled';
+      default:
+        return 'pending';
+    }
   }
 }
