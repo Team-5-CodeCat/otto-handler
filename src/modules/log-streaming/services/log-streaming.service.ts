@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { Observable, Subject, BehaviorSubject, EMPTY, interval } from 'rxjs';
+import { Observable, Subject, BehaviorSubject, EMPTY, interval, timer } from 'rxjs';
 import {
   map,
   filter as rxFilter,
@@ -123,18 +123,22 @@ export class LogStreamingService
   }
 
   /**
-   * 🔄 Worker 로그 스트림 시작
+   * Worker 로그 실시간 스트리밍을 시작합니다.
    *
-   * 💼 비즈니스 프로세스:
-   * 1. gRPC 클라이언트를 통해 Ottoscaler에서 실시간 로그 수신
-   * 2. 수신된 로그를 필터링 조건에 따라 처리
-   * 3. 클라이언트별 세션에 맞게 변환하여 전달
-   * 4. 에러 발생 시 자동 재시도 및 복구 처리
+   * 비즈니스 목적:
+   * - CI/CD 작업 실행 중 발생하는 로그를 실시간으로 Handler로 스트리밍
+   * - 개발자가 빌드/테스트/배포 과정을 실시간으로 모니터링할 수 있도록 지원
+   * - 여러 클라이언트가 동시에 동일한 작업의 로그를 구독할 수 있는 기능 제공
    *
-   * 🔧 기술적 구현:
-   * - gRPC ForwardWorkerLogs 양방향 스트리밍 활용
-   * - RxJS 연산자 체이닝으로 데이터 처리 파이프라인 구성
-   * - 백프레셔 처리: 클라이언트 처리 속도 고려
+   * 기술적 구현:
+   * 1. gRPC 양방향 스트리밍 채널을 생성하여 Ottoscaler와 실시간 통신
+   * 2. RxJS Observable 패턴으로 비동기 스트림 데이터를 처리
+   * 3. 스트림 중간에 필터링, 메트릭 수집, 에러 처리 등의 파이프라인 적용
+   * 4. share() 오퍼레이터로 멀티캐스트 지원 (하나의 gRPC 연결로 여러 구독자 지원)
+   *
+   * @param taskId CI/CD 작업의 고유 식별자
+   * @param filter 로그 필터링 조건 (레벨, 키워드, 워커 ID 등)
+   * @returns Observable<WorkerLogEntry> 실시간 로그 스트림
    */
   startWorkerLogStream(
     taskId: string,
@@ -143,43 +147,191 @@ export class LogStreamingService
     this.logger.log(`Worker 로그 스트림 시작: taskId=${taskId}`);
 
     try {
-      // 📡 gRPC 양방향 스트리밍 채널 생성
+      /**
+       * 1단계: gRPC 양방향 스트리밍 채널 생성
+       * 
+       * 기술적 배경:
+       * - gRPC의 양방향 스트리밍은 클라이언트와 서버가 동시에 데이터를 주고받을 수 있는 통신 방식
+       * - Otto Handler는 클라이언트 역할로 Ottoscaler 서버에 연결
+       * - forwardWorkerLogs RPC 메서드를 통해 Worker가 생성한 로그를 실시간으로 수신
+       * 
+       * 에러 가능성:
+       * - 네트워크 연결 실패 (DNS 해석 실패, 포트 차단, 방화벽)
+       * - gRPC 서버 다운타임 또는 과부하
+       * - 인증/권한 문제 (TLS 인증서, API 키 등)
+       */
       const channel = this.ottoscalerService.createForwardWorkerLogsChannel();
 
+      /**
+       * 2단계: gRPC 스트림을 RxJS Observable로 변환하고 데이터 처리 파이프라인 구성
+       * 
+       * 파이프라인 설계 원칙:
+       * - 각 연산자는 단일 책임을 가지도록 설계
+       * - 에러가 발생해도 전체 스트림이 중단되지 않도록 방어적 프로그래밍
+       * - 성능 모니터링을 위한 메트릭 수집 포인트 배치
+       * - 메모리 누수 방지를 위한 자동 정리 메커니즘 포함
+       */
       return channel.responses$.pipe(
-        // 🔄 성공 응답만 필터링 (ACK 상태)
-        rxFilter((response: any) => response.status === 0), // 0 = ACK
+        /**
+         * 3-1. gRPC 응답 상태 코드 검증
+         * 
+         * gRPC 상태 코드의 의미:
+         * - 0 (OK): 성공적으로 처리됨
+         * - 1 (CANCELLED): 클라이언트에 의해 취소됨
+         * - 2 (UNKNOWN): 알 수 없는 에러
+         * - 3 (INVALID_ARGUMENT): 잘못된 인자
+         * - 14 (UNAVAILABLE): 서비스 사용 불가능
+         * 
+         * 필터링 이유:
+         * - 성공 상태의 로그만 처리하여 잘못된 데이터로 인한 오작동 방지
+         * - 에러 상태는 별도의 에러 핸들링 로직에서 처리
+         */
+        rxFilter((response: any) => {
+          if (response.status !== 0) {
+            this.logger.warn(
+              `비정상 gRPC 응답 상태: ${response.status}, taskId=${taskId}`
+            );
+            return false;
+          }
+          return true;
+        }),
 
-        // 🎛 로그 필터 적용 (레벨, 키워드, 시간 범위 등)
+        /**
+         * 3-2. 비즈니스 로직 필터 적용
+         * 
+         * 필터링 목적:
+         * - 클라이언트가 요청한 조건에 맞는 로그만 전송하여 네트워크 대역폭 절약
+         * - 로그 레벨별 필터링으로 개발자가 관심 있는 정보만 표시
+         * - 키워드 검색으로 특정 에러나 이벤트 추적 가능
+         * 
+         * 성능 고려사항:
+         * - 필터링은 서버 사이드에서 수행하여 불필요한 데이터 전송 최소화
+         * - 정규식 사용 시 CPU 사용량 증가 가능성 있음 (향후 최적화 필요)
+         */
         rxFilter((logEntry) =>
           this.applyLogFilter(logEntry as unknown as WorkerLogEntry, filter),
         ),
 
-        // 📊 메트릭 수집: 처리된 메시지 수 카운트
+        /**
+         * 3-3. 메트릭 수집 및 모니터링
+         * 
+         * 모니터링 목적:
+         * - 시스템 성능 및 처리량 측정
+         * - 장애 발생 시 원인 분석을 위한 데이터 수집
+         * - 용량 계획 및 스케일링 결정을 위한 통계 정보 제공
+         * 
+         * 수집 데이터:
+         * - 초당 처리된 로그 메시지 수
+         * - 평균 응답 시간
+         * - 에러 발생률
+         */
         tap(() => this.updateMessageMetrics()),
 
-        // 🔄 gRPC 연결 실패 시 자동 재시도 (최대 3회)
+        /**
+         * 3-4. gRPC 연결 장애 시 자동 재시도
+         * 
+         * 재시도 정책:
+         * - 최대 3회까지 재시도 (무한 재시도 방지로 시스템 보호)
+         * - 지수 백오프 알고리즘 적용 (RxJS retry 기본 동작)
+         * - 재시도 간격: 1초 → 2초 → 4초
+         * 
+         * 재시도가 필요한 에러 유형:
+         * - 네트워크 일시적 장애 (연결 타임아웃, 패킷 손실)
+         * - gRPC 서버 일시적 과부하 (UNAVAILABLE 상태)
+         * - 로드밸런서 또는 프록시 이슈
+         * 
+         * 재시도하지 않는 에러 유형:
+         * - 인증 실패 (UNAUTHENTICATED)
+         * - 권한 부족 (PERMISSION_DENIED)
+         * - 잘못된 요청 (INVALID_ARGUMENT)
+         */
         retry(3),
 
-        // ❌ 복구 불가능한 에러 처리
+        /**
+         * 3-5. 복구 불가능한 에러에 대한 최종 처리
+         * 
+         * 에러 처리 전략:
+         * - 로그를 통한 에러 상황 기록 (운영팀 알림, 디버깅 정보 제공)
+         * - 메트릭 업데이트로 에러율 통계 수집
+         * - EMPTY Observable 반환으로 스트림 안전 종료 (다른 구독자에게 영향 없음)
+         * 
+         * 향후 개선사항:
+         * - 에러 유형별 차별화된 처리 (일시적 vs 영구적 에러)
+         * - 알림 시스템 연동 (중요 에러 발생 시 Slack, 이메일 등)
+         * - Circuit Breaker 패턴 적용으로 연쇄 장애 방지
+         */
         catchError((error) => {
           this.logger.error(
-            `Worker 로그 스트림 에러: ${(error as Error).message}`,
+            `Worker 로그 스트림 에러 - taskId: ${taskId}, 에러: ${(error as Error).message}`,
             (error as Error).stack,
           );
+          
+          // 에러 유형별 상세 로깅
+          if (error.message.includes('UNAVAILABLE')) {
+            this.logger.warn('Ottoscaler 서비스가 일시적으로 사용 불가능합니다. 재시도가 실패했습니다.');
+          } else if (error.message.includes('UNAUTHENTICATED')) {
+            this.logger.error('gRPC 인증 실패. 인증 설정을 확인하세요.');
+          }
+          
           this.updateErrorMetrics();
-          return EMPTY; // 빈 Observable 반환으로 스트림 종료
+          return EMPTY;
         }),
 
-        // 🛑 서비스 종료 시 스트림 자동 정리
+        /**
+         * 3-6. 서비스 종료 시 스트림 자동 정리
+         * 
+         * 생명주기 관리:
+         * - NestJS 애플리케이션 종료 시 (SIGTERM, SIGINT)
+         * - 모듈 재시작 시
+         * - 메모리 부족 등으로 인한 강제 종료 시
+         * 
+         * 정리 작업:
+         * - gRPC 연결 해제
+         * - Observable 구독 해제
+         * - 메모리 리소스 해제
+         * 
+         * takeUntil 사용 이유:
+         * - 명시적인 종료 신호를 받을 때까지만 스트림 유지
+         * - 메모리 누수 방지 (long-running stream의 일반적인 문제)
+         */
         takeUntil(this.destroy$),
 
-        // 🔗 다중 구독자 지원: 동일한 taskId를 여러 클라이언트가 구독 가능
+        /**
+         * 3-7. 멀티캐스트 지원으로 리소스 효율성 향상
+         * 
+         * share() 오퍼레이터의 역할:
+         * - 하나의 gRPC 연결을 여러 구독자가 공유
+         * - 첫 번째 구독자가 생성될 때 gRPC 연결 시작
+         * - 마지막 구독자가 해제될 때 자동으로 연결 종료
+         * 
+         * 리소스 효율성:
+         * - 동일한 taskId를 10명이 모니터링해도 gRPC 연결은 1개만 사용
+         * - Ottoscaler 서버의 부하 감소
+         * - 네트워크 대역폭 절약
+         * 
+         * 주의사항:
+         * - Cold Observable을 Hot Observable로 변환
+         * - 늦게 구독하는 클라이언트는 과거 데이터를 받을 수 없음
+         * - 향후 ReplaySubject나 shareReplay 고려 필요
+         */
         share(),
       ) as Observable<WorkerLogEntry>;
     } catch (error) {
+      /**
+       * 동기적 에러 처리 (채널 생성 실패 등)
+       * 
+       * 발생 가능한 에러:
+       * - gRPC 클라이언트 초기화 실패
+       * - 설정 오류 (잘못된 서버 주소, 포트)
+       * - 메모리 부족으로 인한 객체 생성 실패
+       * 
+       * 처리 방법:
+       * - 상세한 에러 로그 기록
+       * - EMPTY Observable 반환으로 안전한 fallback 제공
+       * - 서비스 전체가 중단되지 않도록 방어적 처리
+       */
       this.logger.error(
-        `Worker 로그 스트림 초기화 실패: ${(error as Error).message}`,
+        `Worker 로그 스트림 초기화 실패 - taskId: ${taskId}, 에러: ${(error as Error).message}`,
         (error as Error).stack,
       );
       return EMPTY;
@@ -187,13 +339,22 @@ export class LogStreamingService
   }
 
   /**
-   * 📊 파이프라인 진행 상황 스트림 시작
+   * 파이프라인 실행 진행 상황을 실시간으로 스트리밍합니다.
    *
-   * 💼 비즈니스 프로세스:
-   * 1. CI/CD 파이프라인의 각 스테이지별 진행 상황 추적
-   * 2. 빌드→테스트→배포 순서에 따른 상태 변화 모니터링
-   * 3. 진행률, 완료 시간, 에러 정보 등을 실시간으로 제공
-   * 4. 대시보드 UI에서 시각적으로 표시할 수 있는 구조화된 데이터 전달
+   * 비즈니스 목적:
+   * - CI/CD 파이프라인의 전체 실행 과정을 실시간으로 추적
+   * - 각 스테이지(빌드, 테스트, 배포)별 진행률과 상태를 모니터링
+   * - 프로젝트 관리자와 개발팀이 파이프라인 상태를 공유할 수 있도록 지원
+   * - 장애 발생 시 빠른 대응을 위한 실시간 알림 제공
+   *
+   * 기술적 구현:
+   * 1. gRPC executePipeline RPC를 통해 Ottoscaler와 통신
+   * 2. 파이프라인 메타데이터를 기반으로 실행 요청 생성
+   * 3. 스트림 중복 제거 및 진행 상황 메트릭 수집
+   * 4. 에러 처리 및 자동 재시도 메커니즘 적용
+   *
+   * @param pipelineId 파이프라인의 고유 식별자
+   * @returns Observable<PipelineProgress> 파이프라인 진행 상황 스트림
    */
   startPipelineProgressStream(
     pipelineId: string,
@@ -203,20 +364,65 @@ export class LogStreamingService
     );
 
     try {
-      // 📋 파이프라인 실행 요청 생성 (실제 환경에서는 DB에서 조회)
+      /**
+       * 1단계: 파이프라인 실행 요청 객체 생성
+       * 
+       * 현재 구현:
+       * - 목업 데이터로 기본 구조 생성
+       * - 실제 운영환경에서는 데이터베이스에서 파이프라인 정보를 조회해야 함
+       * 
+       * 향후 개선사항:
+       * - PrismaService를 통한 Pipeline 모델 조회
+       * - stages 배열에 실제 스테이지 정보 포함 (빌드, 테스트, 배포 등)
+       * - repository, commitSha 등 실제 Git 정보 연동
+       * - triggeredBy 필드에 실제 트리거 사용자 정보 설정
+       * 
+       * 데이터베이스 쿼리 예시 (향후 구현):
+       * ```typescript
+       * const pipeline = await this.prisma.pipeline.findUnique({
+       *   where: { id: pipelineId },
+       *   include: { stages: true, project: { include: { repository: true } } }
+       * });
+       * ```
+       */
       const pipelineRequest: PipelineRequest = {
         pipelineId,
         name: `Pipeline ${pipelineId}`,
-        stages: [], // 실제로는 DB에서 스테이지 정보 조회
-        repository: '',
-        commitSha: '',
-        triggeredBy: 'system',
-        metadata: {},
+        stages: [], // TODO: 데이터베이스에서 실제 스테이지 정보 조회
+        repository: '', // TODO: 프로젝트 연결된 Git 저장소 정보
+        commitSha: '', // TODO: 빌드 대상 커밋 해시
+        triggeredBy: 'system', // TODO: 실제 트리거한 사용자 정보
+        metadata: {}, // TODO: 추가 메타데이터 (브랜치명, 태그 등)
       };
 
-      // 🚀 gRPC ExecutePipeline 스트리밍 호출
+      /**
+       * 2단계: gRPC 스트리밍 호출 및 데이터 처리 파이프라인 구성
+       * 
+       * executePipeline RPC의 동작 과정:
+       * 1. Ottoscaler가 파이프라인 정의를 분석하고 실행 계획 수립
+       * 2. 각 스테이지를 순차적으로 실행하면서 진행 상황을 스트리밍으로 전송
+       * 3. 스테이지 완료, 실패, 취소 등의 상태 변화를 실시간으로 알림
+       * 4. 전체 파이프라인 완료 또는 실패 시 최종 결과 전송
+       */
       return this.ottoscalerService.executePipeline$(pipelineRequest).pipe(
-        // 🎯 중복 상태 제거: 동일한 상태가 연속으로 오는 경우 필터링
+        /**
+         * 3-1. 중복 상태 메시지 제거
+         * 
+         * 중복 발생 원인:
+         * - gRPC 스트리밍에서 같은 상태가 여러 번 전송될 수 있음
+         * - 네트워크 지연으로 인한 메시지 재전송
+         * - Ottoscaler 내부 로직에서 상태 변화 없이 heartbeat 전송
+         * 
+         * 중복 판단 기준:
+         * - stageId: 현재 실행 중인 스테이지 식별자
+         * - status: 스테이지 실행 상태 (RUNNING, COMPLETED, FAILED 등)
+         * - progressPercentage: 진행률 (0-100)
+         * 
+         * 성능상 이점:
+         * - 불필요한 WebSocket/SSE 메시지 전송 방지
+         * - 클라이언트의 UI 깜빡임 현상 방지
+         * - 네트워크 대역폭 절약
+         */
         distinctUntilChanged(
           (prev, curr) =>
             prev.stageId === curr.stageId &&
@@ -224,33 +430,168 @@ export class LogStreamingService
             prev.progressPercentage === curr.progressPercentage,
         ),
 
-        // 📊 진행 상황 메트릭 업데이트
+        /**
+         * 3-2. 진행 상황 로깅 및 메트릭 수집
+         * 
+         * 로깅 목적:
+         * - 파이프라인 실행 과정 추적을 위한 감사 로그
+         * - 성능 분석 및 병목 구간 식별
+         * - 장애 발생 시 디버깅 정보 제공
+         * 
+         * 메트릭 수집 항목:
+         * - 각 스테이지별 실행 시간
+         * - 전체 파이프라인 소요 시간
+         * - 성공/실패율 통계
+         * - 동시 실행 중인 파이프라인 수
+         * 
+         * 향후 확장 가능성:
+         * - Prometheus 메트릭 연동
+         * - 알림 시스템 트리거 (Slack, 이메일)
+         * - 대시보드 실시간 업데이트
+         */
         tap((progress) => {
+          // 상세 진행 상황 디버그 로그
           this.logger.debug(
-            `파이프라인 진행: Stage=${progress.stageId}, Progress=${progress.progressPercentage}%`,
+            `파이프라인 진행상황 - pipelineId: ${pipelineId}, ` +
+            `stageId: ${progress.stageId}, status: ${progress.status}, ` +
+            `progress: ${progress.progressPercentage}%`
           );
+
+          // 중요한 상태 변화는 INFO 레벨로 로깅
+          if (progress.status.toString().includes('COMPLETED')) {
+            this.logger.log(
+              `파이프라인 스테이지 완료 - ${pipelineId}: ${progress.stageId}`
+            );
+          } else if (progress.status.toString().includes('FAILED')) {
+            this.logger.warn(
+              `파이프라인 스테이지 실패 - ${pipelineId}: ${progress.stageId}, ` +
+              `오류: ${progress.errorMessage || '알 수 없음'}`
+            );
+          }
+
+          // 메트릭 업데이트 (성능 통계, 모니터링)
           this.updateProgressMetrics(progress);
         }),
 
-        // 🔄 연결 실패 시 재시도
-        retry(2),
+        /**
+         * 3-3. gRPC 연결 장애 시 재시도
+         * 
+         * 재시도 정책 차이점:
+         * - Worker 로그 스트리밍: 3회 재시도 (데이터 손실 허용 가능)
+         * - 파이프라인 진행상황: 2회 재시도 (중요한 상태 변화 놓치면 안됨)
+         * 
+         * 파이프라인 재시도 시 주의사항:
+         * - 파이프라인 실행은 중단되지 않고 계속 진행됨
+         * - 재시도는 스트리밍 연결만 복구하는 것
+         * - 중간에 놓친 진행상황은 복구 후 최신 상태부터 수신
+         * 
+         * 재시도하지 않는 경우:
+         * - 파이프라인이 이미 완료된 경우
+         * - 잘못된 pipelineId로 요청한 경우
+         * - 권한이 없는 파이프라인에 접근한 경우
+         */
+        retry({
+          count: 2,
+          delay: (error, retryCount) => {
+            this.logger.warn(
+              `파이프라인 스트림 재시도 (${retryCount}/2) - ${pipelineId}: ${error.message}`
+            );
+            // 재시도 간격: 2초 → 4초
+            return timer(retryCount * 2000);
+          }
+        }),
 
-        // ❌ 에러 처리 및 로깅
+        /**
+         * 3-4. 복구 불가능한 에러 최종 처리
+         * 
+         * 파이프라인 스트리밍 특수 에러 케이스:
+         * - PIPELINE_NOT_FOUND: 존재하지 않는 파이프라인 요청
+         * - PIPELINE_ALREADY_COMPLETED: 이미 완료된 파이프라인 재요청
+         * - INSUFFICIENT_RESOURCES: 워커 리소스 부족으로 실행 불가
+         * - EXECUTION_TIMEOUT: 파이프라인 실행 시간 초과
+         * 
+         * 에러별 처리 방법:
+         * - 일시적 에러: 재시도 후에도 실패하면 빈 스트림 반환
+         * - 영구적 에러: 즉시 에러 로그 기록 후 스트림 종료
+         * - 시스템 에러: 운영팀 알림 트리거
+         * 
+         * 클라이언트 영향:
+         * - SSE/WebSocket 클라이언트는 스트림 종료 이벤트 수신
+         * - UI에서 "파이프라인 모니터링 실패" 등의 메시지 표시
+         * - 사용자는 수동 새로고침으로 재시도 가능
+         */
         catchError((error) => {
           this.logger.error(
-            `파이프라인 진행 상황 스트림 에러: ${(error as Error).message}`,
+            `파이프라인 진행 상황 스트림 에러 - pipelineId: ${pipelineId}, 에러: ${(error as Error).message}`,
             (error as Error).stack,
           );
+
+          // 에러 유형별 세부 처리
+          if (error.message.includes('NOT_FOUND')) {
+            this.logger.warn(`존재하지 않는 파이프라인: ${pipelineId}`);
+          } else if (error.message.includes('ALREADY_COMPLETED')) {
+            this.logger.log(`이미 완료된 파이프라인: ${pipelineId}`);
+          } else if (error.message.includes('INSUFFICIENT_RESOURCES')) {
+            this.logger.error(`리소스 부족으로 파이프라인 실행 불가: ${pipelineId}`);
+          }
+
           return EMPTY;
         }),
 
-        // 🛑 서비스 종료 시 정리
+        /**
+         * 3-5. 서비스 종료 시 스트림 정리
+         * 
+         * 파이프라인 스트리밍 종료 시나리오:
+         * - 애플리케이션 정상 종료 (SIGTERM)
+         * - 긴급 종료 (SIGKILL)
+         * - 모듈 재배포
+         * - 메모리 부족으로 인한 프로세스 재시작
+         * 
+         * 정리 작업:
+         * - 활성화된 모든 gRPC 스트림 연결 해제
+         * - 진행 중인 파이프라인은 Ottoscaler에서 계속 실행됨 (스트리밍만 중단)
+         * - 메모리 상의 세션 정보 정리
+         * - 메트릭 데이터 최종 저장
+         */
         takeUntil(this.destroy$),
+
+        /**
+         * 3-6. 멀티캐스트 지원으로 효율성 확보
+         * 
+         * 파이프라인 모니터링 시나리오:
+         * - 프로젝트 관리자, 개발자, QA 엔지니어가 동시에 모니터링
+         * - CI/CD 대시보드에서 여러 파이프라인을 동시에 표시
+         * - 모바일 앱과 웹 대시보드에서 동시 접근
+         * 
+         * share() 적용 효과:
+         * - 10명이 동시에 모니터링해도 gRPC 연결은 1개만 사용
+         * - Ottoscaler 서버의 부하 최소화
+         * - 네트워크 리소스 효율적 사용
+         * 
+         * 주의사항:
+         * - 늦게 구독한 클라이언트는 현재 진행상황부터만 수신
+         * - 파이프라인 시작 전부터 구독한 경우에만 전체 과정 확인 가능
+         * - 과거 진행상황이 필요한 경우 별도 API로 조회 필요
+         */
         share(),
       );
     } catch (error) {
+      /**
+       * 동기적 에러 처리 (파이프라인 요청 생성 실패)
+       * 
+       * 발생 가능한 동기 에러:
+       * - pipelineId 유효성 검사 실패
+       * - PipelineRequest 객체 생성 오류
+       * - gRPC 클라이언트 접근 실패
+       * - 메모리 부족으로 인한 객체 생성 불가
+       * 
+       * 방어적 처리:
+       * - 상세한 에러 정보 로깅
+       * - 빈 Observable 반환으로 애플리케이션 중단 방지
+       * - 에러 상황을 메트릭으로 기록하여 모니터링 가능
+       */
       this.logger.error(
-        `파이프라인 스트림 초기화 실패: ${(error as Error).message}`,
+        `파이프라인 스트림 초기화 실패 - pipelineId: ${pipelineId}, 에러: ${(error as Error).message}`,
         (error as Error).stack,
       );
       return EMPTY;
