@@ -5,8 +5,10 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import fastifyCookie from '@fastify/cookie';
+import fastifyStatic from '@fastify/static';
 import { NestiaSwaggerComposer } from '@nestia/sdk';
 import { SwaggerModule, OpenAPIObject } from '@nestjs/swagger';
+import { join } from 'path';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -58,8 +60,17 @@ async function bootstrap() {
     secret: process.env.COOKIE_SECRET ?? 'dev-cookie-secret',
   });
 
+  // 정적 파일 서빙 (개발 환경에서만)
+  if (process.env.NODE_ENV !== 'production') {
+    await app.register(fastifyStatic, {
+      root: join(__dirname, '..'), // 프로젝트 루트 디렉토리
+      prefix: '/', // 루트 경로에서 접근 가능
+      decorateReply: false, // 기본 설정
+    });
+  }
+
   app.setGlobalPrefix('api/v1', {
-    exclude: ['health', 'docs'],
+    exclude: ['health', 'docs', 'test-sse.html'],
   });
   await app.listen(Number(process.env.PORT) || 4000, '0.0.0.0');
 }

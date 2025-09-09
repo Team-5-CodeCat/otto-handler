@@ -477,6 +477,94 @@ export class LogStreamingController implements ILogStreamingController {
     }
   }
 
+  /**
+   * 🧪 목업 SSE 로그 스트림 테스트 엔드포인트
+   * 개발/테스트 환경에서 실시간 목업 로그 스트리밍 확인
+   */
+  @Get('test/mock-stream/:taskId')
+  streamMockLogs(
+    @Param('taskId') taskId: string,
+    @Res() response: FastifyReply,
+    @Query('interval') interval = '1000',
+    @Query('count') count = '20',
+  ): void {
+    if (process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('목업 스트리밍은 개발 환경에서만 사용 가능합니다');
+    }
+
+    this.logger.log(
+      `목업 SSE 로그 스트림 시작: taskId=${taskId}, interval=${interval}ms, count=${count}`,
+    );
+
+    try {
+      const intervalMs = parseInt(interval, 10);
+      const totalLogs = parseInt(count, 10);
+
+      // SSE 헤더 설정
+      this.setupSSEHeaders(response);
+
+      // 목업 로그 스트림 시작
+      const mockStream$ = this.logStreamingService
+        .createMockLogStream(taskId, intervalMs, totalLogs)
+        .pipe(
+          map((logEntry: WorkerLogEntry) =>
+            this.createSSEMessage('log', logEntry),
+          ),
+          catchError((error) => {
+            this.logger.error(
+              `목업 SSE 스트림 에러: ${(error as Error).message}`,
+              (error as Error).stack,
+            );
+            const errorMessage = this.createSSEMessage('error', {
+              message: '목업 로그 스트림 에러',
+              details: (error as Error).message,
+              timestamp: new Date().toISOString(),
+            });
+            response.raw.write(this.formatSSEMessage(errorMessage));
+            return EMPTY;
+          }),
+        );
+
+      // SSE 메시지 전송
+      const subscription = mockStream$.subscribe({
+        next: (sseMessage: SSEMessage) => {
+          const formattedMessage = this.formatSSEMessage(sseMessage);
+          response.raw.write(formattedMessage);
+        },
+        error: (error) => {
+          this.logger.error(
+            `목업 SSE 스트림 구독 에러: ${(error as Error).message}`,
+          );
+          response.raw.end();
+        },
+        complete: () => {
+          this.logger.log(`목업 SSE 스트림 완료: taskId=${taskId}`);
+          const completeMessage = this.createSSEMessage('complete', {
+            message: '목업 로그 스트림이 완료되었습니다',
+            timestamp: new Date().toISOString(),
+            totalLogs,
+          });
+          response.raw.write(this.formatSSEMessage(completeMessage));
+          response.raw.end();
+        },
+      });
+
+      // 클라이언트 연결 종료 시 정리
+      response.raw.on('close', () => {
+        this.logger.debug(`목업 SSE 클라이언트 연결 종료: taskId=${taskId}`);
+        subscription.unsubscribe();
+      });
+    } catch (error) {
+      this.logger.error(
+        `목업 SSE 스트림 초기화 실패: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+      throw new InternalServerErrorException(
+        '목업 로그 스트림을 시작할 수 없습니다',
+      );
+    }
+  }
+
   // ========================================
   // 🔧 Private Helper Methods (내부 구현)
   // ========================================
