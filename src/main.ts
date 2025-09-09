@@ -9,6 +9,7 @@ import fastifyStatic from '@fastify/static';
 import { NestiaSwaggerComposer } from '@nestia/sdk';
 import { SwaggerModule, OpenAPIObject } from '@nestjs/swagger';
 import { join } from 'path';
+import { AllExceptionsFilter } from './common/filters/custom-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -68,7 +69,7 @@ async function bootstrap() {
       decorateReply: false, // 기본 설정
     });
   }
-
+  app.useGlobalFilters(new AllExceptionsFilter());
   app.setGlobalPrefix('api/v1', {
     exclude: ['health', 'docs', 'test-sse.html'],
   });
