@@ -11,10 +11,14 @@ import type { FastifyRequest } from 'fastify';
 import type { GithubWebhookRequestDto, WebhookResponseDto } from './dtos';
 import type { CommonErrorResponseDto } from '../common/dto/response/common-error-response.dto';
 
-@Controller('/webhooks')
+@Controller('webhooks')
 export class WebhookController {
   constructor(private readonly projectService: ProjectService) {}
 
+  /**
+   * @tag webhooks
+   * @summary GitHub 웹훅 엔드포인트 확인
+   */
   @HttpCode(200)
   @TypedRoute.Get('/github')
   handleGithubWebhookGet(): WebhookResponseDto {
