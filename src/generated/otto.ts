@@ -26,6 +26,29 @@ import _m0 from "protobufjs/minimal";
 
 export const protobufPackage = "ottoscaler.v1";
 
+/** StageType - Pipeline Stage의 타입을 정의하는 Enum */
+export enum StageType {
+  /** STAGE_TYPE_UNSPECIFIED - Proto3 관례: 0은 미지정/알 수 없는 타입 */
+  STAGE_TYPE_UNSPECIFIED = 0,
+  /** STAGE_TYPE_BUILD - 빌드 단계 (컴파일, 패키징 등) */
+  STAGE_TYPE_BUILD = 1,
+  /** STAGE_TYPE_TEST - 테스트 단계 (단위 테스트, 통합 테스트 등) */
+  STAGE_TYPE_TEST = 2,
+  /** STAGE_TYPE_DEPLOY - 배포 단계 (스테이징, 프로덕션 배포 등) */
+  STAGE_TYPE_DEPLOY = 3,
+  /** STAGE_TYPE_SETUP - 환경 설정 단계 (초기화, 의존성 설치 등) */
+  STAGE_TYPE_SETUP = 4,
+  /** STAGE_TYPE_CLEANUP - 정리 단계 (리소스 정리, 캐시 삭제 등) */
+  STAGE_TYPE_CLEANUP = 5,
+  /** STAGE_TYPE_NOTIFY - 알림 단계 (이메일, 슬랙 알림 등) */
+  STAGE_TYPE_NOTIFY = 6,
+  /** STAGE_TYPE_APPROVAL - 승인 대기 단계 (수동 승인 필요) */
+  STAGE_TYPE_APPROVAL = 7,
+  /** STAGE_TYPE_CUSTOM - 사용자 정의 단계 (위 카테고리에 속하지 않는 경우) */
+  STAGE_TYPE_CUSTOM = 100,
+  UNRECOGNIZED = -1,
+}
+
 /** StageStatus - Pipeline Stage 상태 */
 export enum StageStatus {
   /** STAGE_PENDING - 대기 중 */
@@ -451,8 +474,8 @@ export interface PipelineRequest_MetadataEntry {
 export interface PipelineStage {
   /** Stage ID (예: "build", "unit-test", "deploy-staging") */
   stageId: string;
-  /** Stage 타입 ("build", "test", "deploy", "custom") */
-  type: string;
+  /** Stage 타입 (Enum으로 타입 안정성 보장) */
+  type: StageType;
   /** Stage 이름 */
   name: string;
   /** 이 Stage를 위한 Worker 수 */
@@ -2584,7 +2607,7 @@ export const PipelineRequest_MetadataEntry = {
 function createBasePipelineStage(): PipelineStage {
   return {
     stageId: "",
-    type: "",
+    type: 0,
     name: "",
     workerCount: 0,
     dependsOn: [],
@@ -2602,8 +2625,8 @@ export const PipelineStage = {
     if (message.stageId !== "") {
       writer.uint32(10).string(message.stageId);
     }
-    if (message.type !== "") {
-      writer.uint32(18).string(message.type);
+    if (message.type !== 0) {
+      writer.uint32(16).int32(message.type);
     }
     if (message.name !== "") {
       writer.uint32(26).string(message.name);
@@ -2650,11 +2673,11 @@ export const PipelineStage = {
           message.stageId = reader.string();
           continue;
         case 2:
-          if (tag !== 18) {
+          if (tag !== 16) {
             break;
           }
 
-          message.type = reader.string();
+          message.type = reader.int32() as any;
           continue;
         case 3:
           if (tag !== 26) {
@@ -2737,7 +2760,7 @@ export const PipelineStage = {
   fromPartial(object: DeepPartial<PipelineStage>): PipelineStage {
     const message = createBasePipelineStage();
     message.stageId = object.stageId ?? "";
-    message.type = object.type ?? "";
+    message.type = object.type ?? 0;
     message.name = object.name ?? "";
     message.workerCount = object.workerCount ?? 0;
     message.dependsOn = object.dependsOn?.map((e) => e) || [];
