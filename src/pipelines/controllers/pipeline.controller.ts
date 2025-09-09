@@ -15,6 +15,8 @@ import type {
   GetPipelineByIdResponseDto,
   KVType,
 } from '../dtos';
+import type { CreatePipelineRunRequestDto } from '../dtos/request/create-pipeline-run-request.dto';
+import type { CreatePipelineRunResponseDto } from '../dtos/response/create-pipeline-run-response.dto';
 import { tags } from 'typia';
 
 @Controller('pipelines')
@@ -148,6 +150,55 @@ export class PipelineController {
         idempotencyKey: run.idempotencyKey,
         createdAt: run.createdAt.toISOString(),
       })),
+    };
+  }
+
+  /**
+   * @tag pipeline
+   * @summary 파이프라인 수동 실행 (Run)
+   */
+  @AuthGuard()
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: '로그인 필요',
+  })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.NOT_FOUND,
+    description: '파이프라인을 찾을 수 없음',
+  })
+  @TypedRoute.Post('/:pipelineID/runs')
+  async pipelineCreateRun(
+    @TypedParam('pipelineID') pipelineID: string & tags.Format<'uuid'>,
+    @TypedBody() dto: CreatePipelineRunRequestDto,
+  ): Promise<CreatePipelineRunResponseDto> {
+    const { labels, metadata, idempotencyKey, externalRunKey } = dto;
+    const run = await this.pipelineService.pipelineCreateRun(pipelineID, {
+      labels,
+      metadata,
+      idempotencyKey,
+      externalRunKey,
+    });
+
+    return {
+      run: {
+        id: run.id,
+        pipelineID: run.pipelineID,
+        pipelineVersion: run.pipelineVersion,
+        status: run.status as unknown as string,
+        queuedAt: run.queuedAt?.toISOString() ?? null,
+        startedAt: run.startedAt?.toISOString() ?? null,
+        finishedAt: run.finishedAt?.toISOString() ?? null,
+        exitCode: run.exitCode ?? null,
+        owner: run.owner ?? null,
+        agent: run.agent ?? null,
+        containerImage: run.containerImage ?? null,
+        trigger: run.trigger ?? null,
+        labels: (run.labels as Record<string, unknown>) ?? null,
+        metadata: (run.metadata as Record<string, unknown>) ?? null,
+        externalRunKey: run.externalRunKey ?? null,
+        idempotencyKey: run.idempotencyKey ?? null,
+        createdAt: run.createdAt.toISOString(),
+      },
     };
   }
 }

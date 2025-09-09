@@ -129,4 +129,51 @@ export class PipelineService {
 
     return pipeline;
   }
+
+  /**
+   * 수동 실행으로 파이프라인 런을 생성합니다
+   */
+  async pipelineCreateRun(
+    pipelineID: string,
+    params: {
+      labels?: Record<string, unknown>;
+      metadata?: Record<string, unknown>;
+      idempotencyKey?: string;
+      externalRunKey?: string;
+      owner?: string;
+    },
+  ) {
+    const pipeline = await this.prisma.pipeline.findUnique({
+      where: { pipelineID },
+    });
+    if (!pipeline) {
+      throw new NotFoundException('파이프라인을 찾을 수 없습니다.');
+    }
+
+    // 멱등키가 있으면 동일 키 중복 방지
+    if (params.idempotencyKey) {
+      const existing = await this.prisma.pipelineRun.findUnique({
+        where: { idempotencyKey: params.idempotencyKey },
+      });
+      if (existing) {
+        return existing;
+      }
+    }
+
+    const run = await this.prisma.pipelineRun.create({
+      data: {
+        pipelineID: pipeline.pipelineID,
+        pipelineVersion: pipeline.version,
+        status: 'pending' as never,
+        trigger: 'manual',
+        labels: (params.labels ?? {}) as never,
+        metadata: (params.metadata ?? {}) as never,
+        idempotencyKey: params.idempotencyKey,
+        externalRunKey: params.externalRunKey,
+        owner: params.owner,
+      },
+    });
+
+    return run;
+  }
 }
