@@ -45,7 +45,7 @@ export class PipelineController {
   async pipelineCreate(
     @TypedBody() createPipelineDto: CreatePipelineRequestDto,
   ): Promise<CreatePipelineResponseDto> {
-    const pipeline = await this.pipelineService.createPipeline(
+    const pipeline = await this.pipelineService.pipelineCreate(
       createPipelineDto.projectID,
       createPipelineDto.name,
       createPipelineDto.yamlContent,
