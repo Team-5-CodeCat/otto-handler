@@ -12,5 +12,3 @@ export type GetUserProjectsResponseDto = Array<{
     isActive: boolean;
   }>;
 }>;
-
-

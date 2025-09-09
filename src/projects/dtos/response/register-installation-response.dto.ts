@@ -12,5 +12,3 @@ export interface RegisterInstallationResponseDto {
     name: string;
   };
 }
-
-
