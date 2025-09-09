@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { GithubService } from './github.service';
 import { JwtService } from '../../auth/services/jwt.service';
+import { PipelineService } from '../../pipelines/services/pipeline.service';
 
 @Injectable()
 export class ProjectService {
@@ -16,6 +17,7 @@ export class ProjectService {
     private prisma: PrismaService,
     private githubService: GithubService,
     private jwtService: JwtService,
+    private pipelineService: PipelineService,
   ) {}
 
   /**
@@ -376,13 +378,13 @@ export class ProjectService {
   }
 
   /**
-   * 빌드 레코드 생성 (기본 파이프라인 런 기록)
+   * 빌드 레코드 생성 및 웹훅 트리거시 자동 실행
    */
   async createBuildRecord(
     projectId: string,
     buildInfo: { trigger: string; metadata?: Record<string, unknown> },
   ) {
-    // 간단한 placeholder: 프로젝트에 활성 파이프라인 1개 선택 후 실행 레코드 생성
+    // 프로젝트에 활성 파이프라인 1개 선택 후 실행 레코드 생성
     const pipeline = await this.prisma.pipeline.findFirst({
       where: { projectID: projectId, active: true },
       orderBy: { createdAt: 'desc' },
@@ -390,6 +392,7 @@ export class ProjectService {
     if (!pipeline) {
       throw new BadRequestException('활성 파이프라인이 없습니다');
     }
+
     const run = await this.prisma.pipelineRun.create({
       data: {
         pipelineID: pipeline.pipelineID,
@@ -399,6 +402,13 @@ export class ProjectService {
         metadata: (buildInfo.metadata ?? {}) as never,
       },
     });
+
+    // 웹훅 트리거인 경우 자동으로 파이프라인 실행
+    if (buildInfo.trigger.startsWith('webhook:')) {
+      console.log(`[Webhook] Auto-triggering pipeline execution for run ${run.id}`);
+      this.pipelineService.startPipelineExecution(run.id);
+    }
+
     return run;
   }
 
