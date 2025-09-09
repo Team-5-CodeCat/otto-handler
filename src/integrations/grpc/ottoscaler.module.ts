@@ -4,7 +4,7 @@ import {
   OTTOSCALER_GRPC_TOKEN,
   OTTOSCALER_GRPC_URL_ENV,
 } from './ottoscaler.constants';
-import { createOttoscalerGrpcClients } from './ottoscaler.provider.js';
+import { createOttoscalerGrpcClients } from './ottoscaler.provider';
 
 @Module({
   providers: [
