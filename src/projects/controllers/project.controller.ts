@@ -153,34 +153,107 @@ export class ProjectController {
   @AuthGuard()
   @TypedRoute.Get('github-installations/:installationId/repositories')
   async projectGetAvailableRepositories(
-    @TypedParam('installationId') installationId: string & tags.Format<'uuid'>,
+    @TypedParam('installationId') installationId: string, //& tags.Format<'uuid'>,
     @Req() req: IRequestType,
   ): Promise<GetRepositoriesResponseDto> {
     const userId = req.user.user_id;
 
-    // 보안 검증: 이 설치가 현재 사용자 소유인지 확인
-    const installations =
-      await this.projectService.getUserGithubInstallations(userId);
-    const hasAccess = installations.some(
-      (install) => install.id === installationId,
-    );
+    console.log('[Repositories API] Request received:', {
+      userId,
+      installationId,
+      paramType: typeof installationId,
+      rawParams: req.params,
+      rawQuery: req.query,
+      headers: {
+        'user-agent': req.headers['user-agent'],
+        authorization: req.headers.authorization ? 'Bearer [TOKEN]' : 'none',
+      },
+    });
 
-    if (!hasAccess) {
-      throw new ForbiddenException('해당 GitHub 설치에 접근할 권한이 없습니다');
+    try {
+      // 보안 검증: 이 설치가 현재 사용자 소유인지 확인
+      const installations =
+        await this.projectService.getUserGithubInstallations(userId);
+
+      console.log('[Repositories API] User installations found:', {
+        userId,
+        totalInstallations: installations.length,
+        installationIds: installations.map((install) => ({
+          id: install.id,
+          installationId: install.installationId,
+          accountLogin: install.accountLogin,
+        })),
+      });
+
+      const hasAccess = installations.some(
+        (install) => install.installationId === installationId,
+      );
+
+      if (!hasAccess) {
+        console.log('[Repositories API] Access denied:', {
+          userId,
+          requestedInstallationId: installationId,
+          availableInstallations: installations.map((i) => i.id),
+        });
+        throw new ForbiddenException(
+          '해당 GitHub 설치에 접근할 권한이 없습니다',
+        );
+      }
+
+      // UUID로 실제 GitHub Installation ID 찾기
+      const installation = installations.find(
+        (install) => install.installationId === installationId,
+      );
+
+      if (!installation) {
+        console.log('[Repositories API] Installation not found:', {
+          userId,
+          requestedInstallationId: installationId,
+          availableInstallations: installations.map((i) => i.id),
+        });
+        throw new ForbiddenException('해당 GitHub 설치를 찾을 수 없습니다');
+      }
+
+      console.log('[Repositories API] Fetching repositories:', {
+        userId,
+        uuidInstallationId: installation.id,
+        githubInstallationId: installation.installationId,
+        accountLogin: installation.accountLogin,
+      });
+
+      const repositories = await this.githubService.getAccessibleRepositories(
+        installation.installationId,
+      );
+
+      console.log('[Repositories API] Success:', {
+        userId,
+        installationId,
+        repositoryCount: repositories.length,
+        repositories: repositories.slice(0, 3).map((r) => ({
+          name: r.name,
+          fullName: r.fullName,
+        })),
+      });
+
+      return repositories;
+    } catch (error: unknown) {
+      console.error('[Repositories API] Error occurred:', {
+        userId,
+        installationId,
+        error:
+          error instanceof Error
+            ? {
+                message: error.message,
+                name: error.name,
+                stack: error.stack?.substring(0, 500),
+              }
+            : error,
+        errorType: error?.constructor?.name,
+      });
+
+      // 에러를 다시 던져서 NestJS가 적절한 HTTP 응답을 생성하도록 함
+      throw error;
     }
-
-    // UUID로 실제 GitHub Installation ID 찾기
-    const installation = installations.find(
-      (install) => install.id === installationId,
-    );
-
-    if (!installation) {
-      throw new ForbiddenException('해당 GitHub 설치를 찾을 수 없습니다');
-    }
-
-    return this.githubService.getAccessibleRepositories(
-      installation.installationId,
-    );
   }
 
   /**
@@ -204,7 +277,7 @@ export class ProjectController {
     'github-installations/:installationId/repositories/:repoFullName/branches',
   )
   async getRepositoryBranchesFromInstallation(
-    @TypedParam('installationId') installationId: string & tags.Format<'uuid'>,
+    @TypedParam('installationId') installationId: string, //& tags.Format<'uuid'>,
     @TypedParam('repoFullName') repoFullName: string,
     @Req() req: IRequestType,
   ): Promise<GetBranchesResponseDto> {
@@ -214,7 +287,7 @@ export class ProjectController {
     const installations =
       await this.projectService.getUserGithubInstallations(userId);
     const hasAccess = installations.some(
-      (install) => install.id === installationId,
+      (install) => install.installationId === installationId,
     );
 
     if (!hasAccess) {
@@ -223,7 +296,7 @@ export class ProjectController {
 
     // UUID로 실제 GitHub Installation ID 찾기
     const installation = installations.find(
-      (install) => install.id === installationId,
+      (install) => install.installationId === installationId,
     );
 
     if (!installation) {
