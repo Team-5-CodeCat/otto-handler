@@ -8,7 +8,7 @@ import {
   ConnectedSocket,
   OnGatewayInit,
 } from '@nestjs/websockets';
-import { Logger, UnauthorizedException } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 
@@ -73,7 +73,7 @@ import type { WorkerLogEntry, PipelineProgress } from '../../../generated/otto';
   pingInterval: 25000, // 25초
 })
 export class LogStreamingGateway
-implements
+  implements
     ILogStreamingGateway,
     OnGatewayInit,
     OnGatewayConnection,
@@ -82,7 +82,16 @@ implements
   private readonly logger = new Logger(LogStreamingGateway.name);
 
   @WebSocketServer()
-    server: Server;
+  server: Server;
+
+  private formatError(err: unknown): { message: string; stack?: string } {
+    if (err instanceof Error) return { message: err.message, stack: err.stack };
+    try {
+      return { message: JSON.stringify(err) };
+    } catch {
+      return { message: String(err) };
+    }
+  }
 
   /**
    * 👥 클라이언트 세션 관리
@@ -115,7 +124,7 @@ implements
    * - 연결 통계 초기화 및 모니터링 준비
    * - 필요시 외부 시스템과의 연동 초기화
    */
-  afterInit(server: Server) {
+  afterInit(_server: Server) {
     this.logger.log('LogStreaming WebSocket 게이트웨이가 초기화되었습니다');
     this.logger.log(`WebSocket 서버가 포트 3001에서 실행 중입니다`);
 
@@ -148,22 +157,24 @@ implements
 
       // 🔐 JWT 인증 (선택적)
       let userId: string | undefined;
-      const token =
-        authToken ||
-        client.handshake.auth?.token ||
+      const tokenCandidate =
+        authToken ??
+        (client.handshake.auth?.token as string | undefined) ??
         client.handshake.headers.authorization?.replace('Bearer ', '');
+      const token =
+        typeof tokenCandidate === 'string' ? tokenCandidate : undefined;
 
       if (token) {
         try {
-          const payload = this.jwtService.verify(token);
-          userId = payload.sub || payload.userId;
+          type JwtPayload = { sub?: string; userId?: string };
+          const payload = this.jwtService.verify<JwtPayload>(token);
+          userId = payload.sub ?? payload.userId;
           this.logger.debug(
             `인증된 사용자 연결: ${userId} (socket: ${client.id})`,
           );
-        } catch (jwtError) {
-          this.logger.warn(
-            `JWT 인증 실패: ${jwtError.message}, 비인증 사용자로 처리`,
-          );
+        } catch (jwtError: unknown) {
+          const { message } = this.formatError(jwtError);
+          this.logger.warn(`JWT 인증 실패: ${message}, 비인증 사용자로 처리`);
           // 비인증 사용자도 허용 (읽기 전용 모니터링)
         }
       }
@@ -193,14 +204,12 @@ implements
       this.logger.log(
         `클라이언트 세션 생성 완료: ${client.id} → ${session.sessionId}`,
       );
-    } catch (error) {
-      this.logger.error(
-        `클라이언트 연결 처리 실패: ${error.message}`,
-        error.stack,
-      );
+    } catch (error: unknown) {
+      const { message, stack } = this.formatError(error);
+      this.logger.error(`클라이언트 연결 처리 실패: ${message}`, stack);
       client.emit('connection_error', {
         message: '연결 처리 중 오류가 발생했습니다',
-        details: error.message,
+        details: message,
       });
       client.disconnect(true);
     }
@@ -226,11 +235,11 @@ implements
       if (clientSession) {
         // 🧹 구독 중인 모든 room에서 제거
         clientSession.subscribedTasks.forEach((taskId) => {
-          client.leave(`task:${taskId}`);
+          void client.leave(`task:${taskId}`);
         });
 
         clientSession.subscribedPipelines.forEach((pipelineId) => {
-          client.leave(`pipeline:${pipelineId}`);
+          void client.leave(`pipeline:${pipelineId}`);
         });
 
         // 🗑 세션 정리
@@ -245,11 +254,9 @@ implements
           `연결 종료된 클라이언트의 세션을 찾을 수 없음: ${client.id}`,
         );
       }
-    } catch (error) {
-      this.logger.error(
-        `클라이언트 연결 종료 처리 실패: ${error.message}`,
-        error.stack,
-      );
+    } catch (error: unknown) {
+      const { message, stack } = this.formatError(error);
+      this.logger.error(`클라이언트 연결 종료 처리 실패: ${message}`, stack);
     }
   }
 
@@ -332,11 +339,12 @@ implements
       this.logger.debug(
         `로그 구독 완료: client=${client.id}, room=${roomName}`,
       );
-    } catch (error) {
-      this.logger.error(`로그 구독 처리 실패: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const { message, stack } = this.formatError(error);
+      this.logger.error(`로그 구독 처리 실패: ${message}`, stack);
       client.emit('subscription_error', {
         message: '로그 구독 처리 중 오류가 발생했습니다',
-        details: error.message,
+        details: message,
         event: 'subscribe-to-logs',
       });
     }
@@ -401,14 +409,12 @@ implements
       this.logger.debug(
         `로그 구독 해제 완료: client=${client.id}, room=${roomName}`,
       );
-    } catch (error) {
-      this.logger.error(
-        `로그 구독 해제 처리 실패: ${error.message}`,
-        error.stack,
-      );
+    } catch (error: unknown) {
+      const { message, stack } = this.formatError(error);
+      this.logger.error(`로그 구독 해제 처리 실패: ${message}`, stack);
       client.emit('unsubscription_error', {
         message: '로그 구독 해제 처리 중 오류가 발생했습니다',
-        details: error.message,
+        details: message,
         event: 'unsubscribe-from-logs',
       });
     }
@@ -468,14 +474,12 @@ implements
       this.logger.debug(
         `로그 필터 업데이트 완료: client=${client.id}, taskId=${taskId}`,
       );
-    } catch (error) {
-      this.logger.error(
-        `로그 필터 업데이트 실패: ${error.message}`,
-        error.stack,
-      );
+    } catch (error: unknown) {
+      const { message, stack } = this.formatError(error);
+      this.logger.error(`로그 필터 업데이트 실패: ${message}`, stack);
       client.emit('filter_update_error', {
         message: '로그 필터 업데이트 중 오류가 발생했습니다',
-        details: error.message,
+        details: message,
         event: 'update-log-filter',
       });
     }
@@ -495,7 +499,7 @@ implements
    * - 비동기 처리로 성능 최적화
    * - 에러 발생 시에도 다른 클라이언트에게 영향 없음
    */
-  async broadcastLog(taskId: string, logEntry: WorkerLogEntry): Promise<void> {
+  broadcastLog(taskId: string, logEntry: WorkerLogEntry): void {
     try {
       const roomName = `task:${taskId}`;
 
@@ -519,10 +523,11 @@ implements
           `로그 브로드캐스트: room=${roomName}, clients=${roomSize}, level=${logEntry.level}`,
         );
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const { message, stack } = this.formatError(error);
       this.logger.error(
-        `로그 브로드캐스트 실패: taskId=${taskId}, error=${error.message}`,
-        error.stack,
+        `로그 브로드캐스트 실패: taskId=${taskId}, error=${message}`,
+        stack,
       );
     }
   }
@@ -536,10 +541,10 @@ implements
    * 3. 각 스테이지별 완료 상태, 진행률, 에러 정보 전파
    * 4. 대시보드 UI의 실시간 업데이트 지원
    */
-  async broadcastPipelineProgress(
+  broadcastPipelineProgress(
     pipelineId: string,
     progress: PipelineProgress,
-  ): Promise<void> {
+  ): void {
     try {
       const roomName = `pipeline:${pipelineId}`;
 
@@ -568,10 +573,11 @@ implements
           `파이프라인 상태 변화 브로드캐스트: ${pipelineId} → ${progress.status} (Stage: ${progress.stageId})`,
         );
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const { message, stack } = this.formatError(error);
       this.logger.error(
-        `파이프라인 진행 상황 브로드캐스트 실패: pipelineId=${pipelineId}, error=${error.message}`,
-        error.stack,
+        `파이프라인 진행 상황 브로드캐스트 실패: pipelineId=${pipelineId}, error=${message}`,
+        stack,
       );
     }
   }
@@ -631,14 +637,12 @@ implements
         roomName,
         timestamp: new Date().toISOString(),
       });
-    } catch (error) {
-      this.logger.error(
-        `파이프라인 구독 처리 실패: ${error.message}`,
-        error.stack,
-      );
+    } catch (error: unknown) {
+      const { message, stack } = this.formatError(error);
+      this.logger.error(`파이프라인 구독 처리 실패: ${message}`, stack);
       client.emit('subscription_error', {
         message: '파이프라인 구독 처리 중 오류가 발생했습니다',
-        details: error.message,
+        details: message,
         event: 'subscribe-to-pipeline',
       });
     }
@@ -672,14 +676,12 @@ implements
       client.emit('server-stats', stats);
 
       this.logger.debug(`서버 통계 정보 전송: client=${client.id}`);
-    } catch (error) {
-      this.logger.error(
-        `서버 통계 정보 조회 실패: ${error.message}`,
-        error.stack,
-      );
+    } catch (error: unknown) {
+      const { message, stack } = this.formatError(error);
+      this.logger.error(`서버 통계 정보 조회 실패: ${message}`, stack);
       client.emit('stats_error', {
         message: '서버 통계 정보 조회 중 오류가 발생했습니다',
-        details: error.message,
+        details: message,
       });
     }
   }

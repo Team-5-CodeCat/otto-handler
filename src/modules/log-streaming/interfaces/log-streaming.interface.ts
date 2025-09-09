@@ -264,7 +264,7 @@ export interface ILogStreamingGateway {
    * @param taskId 대상 작업 ID
    * @param logEntry 브로드캐스트할 로그 엔트리
    */
-  broadcastLog(taskId: string, logEntry: WorkerLogEntry): Promise<void>;
+  broadcastLog(taskId: string, logEntry: WorkerLogEntry): void;
 
   /**
    * 📊 파이프라인 상태 브로드캐스트
@@ -279,5 +279,5 @@ export interface ILogStreamingGateway {
   broadcastPipelineProgress(
     pipelineId: string,
     progress: PipelineProgress,
-  ): Promise<void>;
+  ): void;
 }

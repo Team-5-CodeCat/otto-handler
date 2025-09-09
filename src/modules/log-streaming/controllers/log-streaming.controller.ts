@@ -112,7 +112,7 @@ export class LogStreamingController implements ILogStreamingController {
 
       /**
        * SSE 클라이언트 연결 관리 및 공유 스트림 구독
-       * 
+       *
        * 브로드캐스팅 시스템 통합:
        * 1. 고유한 클라이언트 ID 생성 (연결 추적용)
        * 2. SSE 클라이언트 연결 등록
@@ -120,7 +120,7 @@ export class LogStreamingController implements ILogStreamingController {
        * 4. 연결 해제 시 자동 정리
        */
       const clientId = `sse-${Date.now()}-${Math.random().toString(36).substring(2)}`;
-      
+
       // 클라이언트 연결 등록
       this.logStreamingService.registerSSEClient(taskId, clientId);
 
@@ -135,7 +135,7 @@ export class LogStreamingController implements ILogStreamingController {
 
           /**
            * Circuit Breaker 패턴 일관성 유지
-           * 
+           *
            * 에러 처리 전략:
            * 1. gRPC 연결 에러는 이미 startWorkerLogStream에서 처리됨
            * 2. 여기서는 SSE 특화 에러만 처리 (변환 에러, 네트워크 에러 등)
@@ -146,7 +146,7 @@ export class LogStreamingController implements ILogStreamingController {
               `SSE 스트림 변환 에러 - taskId: ${taskId}, clientId: ${clientId}, 에러: ${(error as Error).message}`,
               (error as Error).stack,
             );
-            
+
             // 클라이언트에게 에러 알림
             const errorMessage = this.createSSEMessage('error', {
               message: 'SSE 스트림 처리 중 에러가 발생했습니다',
@@ -154,7 +154,7 @@ export class LogStreamingController implements ILogStreamingController {
               timestamp: new Date().toISOString(),
               clientId, // 디버깅을 위한 클라이언트 식별자
             });
-            
+
             response.raw.write(this.formatSSEMessage(errorMessage));
             return EMPTY; // 에러 후 스트림 종료
           }),
@@ -177,20 +177,22 @@ export class LogStreamingController implements ILogStreamingController {
 
         /**
          * SSE 구독 에러 처리
-         * 
+         *
          * 에러 발생 시나리오:
          * - 네트워크 연결 끊김
          * - 클라이언트 브라우저 종료
          * - 서버 리소스 부족
-         * 
+         *
          * 처리 방법:
          * - 해당 클라이언트만 연결 종료 (다른 클라이언트 영향 없음)
          * - 클라이언트 연결 해제 등록
          * - 정리 작업 수행
          */
         error: (error) => {
-          this.logger.error(`SSE 구독 에러 - taskId: ${taskId}, clientId: ${clientId}, 에러: ${(error as Error).message}`);
-          
+          this.logger.error(
+            `SSE 구독 에러 - taskId: ${taskId}, clientId: ${clientId}, 에러: ${(error as Error).message}`,
+          );
+
           // 에러 메시지 전송 시도 (연결이 살아있다면)
           if (!response.raw.destroyed) {
             const errorMessage = this.createSSEMessage('error', {
@@ -200,7 +202,7 @@ export class LogStreamingController implements ILogStreamingController {
             });
             response.raw.write(this.formatSSEMessage(errorMessage));
           }
-          
+
           // 클라이언트 연결 해제 및 정리
           this.logStreamingService.unregisterSSEClient(taskId, clientId);
           response.raw.end();
@@ -208,22 +210,24 @@ export class LogStreamingController implements ILogStreamingController {
 
         /**
          * 정상적인 스트림 완료 처리
-         * 
+         *
          * 완료 시나리오:
          * - CI/CD 작업 완료
          * - gRPC 스트림 종료
          * - 서버 측 스트림 완료
          */
         complete: () => {
-          this.logger.log(`SSE 스트림 완료 - taskId: ${taskId}, clientId: ${clientId}`);
-          
+          this.logger.log(
+            `SSE 스트림 완료 - taskId: ${taskId}, clientId: ${clientId}`,
+          );
+
           const completeMessage = this.createSSEMessage('complete', {
             message: '로그 스트림이 완료되었습니다',
             timestamp: new Date().toISOString(),
             clientId,
           });
           response.raw.write(this.formatSSEMessage(completeMessage));
-          
+
           // 클라이언트 연결 해제 등록
           this.logStreamingService.unregisterSSEClient(taskId, clientId);
           response.raw.end();
@@ -232,23 +236,25 @@ export class LogStreamingController implements ILogStreamingController {
 
       /**
        * 클라이언트 연결 종료 이벤트 처리
-       * 
+       *
        * 브라우저 연결 종료 감지:
        * - 사용자가 브라우저 탭 닫기
        * - 페이지 새로고침
        * - 네트워크 연결 끊김
-       * 
+       *
        * 자동 정리 작업:
        * - Observable 구독 해제
        * - 클라이언트 연결 카운트 감소
        * - 필요 시 gRPC 스트림 정리 (마지막 클라이언트인 경우)
        */
       response.raw.on('close', () => {
-        this.logger.debug(`SSE 클라이언트 연결 종료 - taskId: ${taskId}, clientId: ${clientId}`);
-        
+        this.logger.debug(
+          `SSE 클라이언트 연결 종료 - taskId: ${taskId}, clientId: ${clientId}`,
+        );
+
         // Observable 구독 해제
         subscription.unsubscribe();
-        
+
         // 클라이언트 연결 해제 등록 (브로드캐스팅 시스템에서 자동 정리)
         this.logStreamingService.unregisterSSEClient(taskId, clientId);
       });
@@ -454,7 +460,7 @@ export class LogStreamingController implements ILogStreamingController {
       }
 
       const logCount = parseInt(count, 10);
-      const logs = await this.logStreamingService.generateMockLogs(
+      const logs = this.logStreamingService.generateMockLogs(
         validJobId,
         1,
         logCount,
@@ -489,7 +495,9 @@ export class LogStreamingController implements ILogStreamingController {
     @Query('count') count = '20',
   ): void {
     if (process.env.NODE_ENV === 'production') {
-      throw new BadRequestException('목업 스트리밍은 개발 환경에서만 사용 가능합니다');
+      throw new BadRequestException(
+        '목업 스트리밍은 개발 환경에서만 사용 가능합니다',
+      );
     }
 
     this.logger.log(

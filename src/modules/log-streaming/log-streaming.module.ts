@@ -38,7 +38,7 @@ import { OttoscalerModule } from '../../integrations/grpc/ottoscaler.module';
     // 🔐 기술적 구현: JWT 토큰 검증을 통한 사용자 인증
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET') || 'default-secret',
         signOptions: { expiresIn: '1h' },
       }),
