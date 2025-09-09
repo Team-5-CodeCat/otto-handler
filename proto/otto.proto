@@ -6,12 +6,12 @@ option go_package = "github.com/Team-5-CodeCat/ottoscaler/pkg/proto/v1";
 
 /*
  * OttoscalerService - Otto-handler에서 Ottoscaler로의 스케일링 명령 서비스
- *
+ * 
  * 🎯 목적:
  * - Otto-handler가 Ottoscaler에게 Worker Pod 스케일링 명령을 전송
  * - 스케일링 요청에 대한 동기적 응답 처리
  * - Worker Pod 상태 조회 기능
- *
+ * 
  * 📊 통신 패턴:
  * 1. Otto-handler → ScaleUp/ScaleDown 호출 → Ottoscaler가 Worker Pod 처리
  * 2. Otto-handler → GetWorkerStatus 호출 → 현재 Worker 상태 반환
@@ -19,35 +19,35 @@ option go_package = "github.com/Team-5-CodeCat/ottoscaler/pkg/proto/v1";
 service OttoscalerService {
     /*
      * ScaleUp - Worker Pod를 생성하여 스케일 업
-     *
+     * 
      * 📝 동작 방식:
      * - Otto-handler가 새로운 CI/CD 작업 시작 시 호출
      * - Ottoscaler가 지정된 개수만큼 Worker Pod 생성
      * - 생성된 Worker Pod 정보를 응답으로 반환
      */
     rpc ScaleUp(ScaleRequest) returns (ScaleResponse);
-
+    
     /*
      * ScaleDown - Worker Pod를 종료하여 스케일 다운
-     *
+     * 
      * 📝 동작 방식:
      * - Otto-handler가 CI/CD 작업 완료 또는 취소 시 호출
      * - Ottoscaler가 지정된 Worker Pod들을 정리
      */
     rpc ScaleDown(ScaleRequest) returns (ScaleResponse);
-
+    
     /*
      * GetWorkerStatus - 현재 Worker Pod 상태 조회
-     *
+     * 
      * 📝 동작 방식:
      * - Otto-handler가 Worker 상태를 확인하고 싶을 때 호출
      * - 활성 상태인 Worker Pod 목록과 상태 정보 반환
      */
     rpc GetWorkerStatus(WorkerStatusRequest) returns (WorkerStatusResponse);
-
+    
     /*
      * ExecutePipeline - CI/CD Pipeline 실행
-     *
+     * 
      * 📝 동작 방식:
      * - Otto-handler가 전체 Pipeline (build, test, deploy 등)을 전달
      * - Ottoscaler가 Stage 의존성을 파악하여 순차/병렬 실행
@@ -58,12 +58,12 @@ service OttoscalerService {
 
 /*
  * LogStreamingService - Worker Pod에서 NestJS 서버로의 실시간 로그 스트리밍 서비스
- *
+ * 
  * 🎯 목적:
  * - Worker Pod의 stdout/stderr 로그를 실시간으로 NestJS 서버에 전송
  * - 양방향 스트리밍을 통한 효율적인 로그 전송 및 피드백 처리
  * - Worker Pod 등록 및 설정 관리
- *
+ * 
  * 📊 통신 패턴:
  * 1. Worker Pod 시작 → RegisterWorker() 호출 → 세션 설정 받기
  * 2. 로그 생성 시마다 → StreamLogs() 스트림으로 전송 → 응답 받기
@@ -71,12 +71,12 @@ service OttoscalerService {
  */
 /*
  * OttoHandlerLogService - Ottoscaler에서 Otto-handler로의 로그 전달 서비스
- *
+ * 
  * 🎯 목적:
  * - Ottoscaler가 수집한 Worker Pod 로그를 Otto-handler로 전달
  * - Otto-handler에서 로그를 받아 웹 인터페이스에 표시
  * - 실시간 로그 스트리밍을 통한 CI/CD 작업 모니터링
- *
+ * 
  * 📊 통신 패턴:
  * 1. Ottoscaler → ForwardWorkerLogs() 스트림으로 로그 전송
  * 2. Otto-handler → LogForwardResponse로 처리 상태 응답
@@ -84,11 +84,11 @@ service OttoscalerService {
 service OttoHandlerLogService {
     /*
      * ForwardWorkerLogs - Worker Pod 로그를 Otto-handler로 전달
-     *
+     * 
      * 📝 동작 방식:
      * - Client (Ottoscaler): WorkerLogEntry를 지속적으로 전송
      * - Server (Otto-handler): LogForwardResponse로 처리 상태 응답
-     *
+     * 
      * 🔄 스트림 라이프사이클:
      * 1. Ottoscaler가 Worker Pod 로그 수집 시작
      * 2. 로그 발생 시마다 WorkerLogEntry 전송
@@ -96,10 +96,10 @@ service OttoHandlerLogService {
      * 4. Worker 작업 완료 시 스트림 종료
      */
     rpc ForwardWorkerLogs(stream WorkerLogEntry) returns (stream LogForwardResponse);
-
+    
     /*
      * NotifyWorkerStatus - Worker Pod 상태 변경 알림
-     *
+     * 
      * 📝 동작 방식:
      * - Ottoscaler에서 Worker Pod 상태 변경 시 호출
      * - Otto-handler에서 상태를 받아 UI 업데이트
@@ -110,12 +110,12 @@ service OttoHandlerLogService {
 service LogStreamingService {
     /*
      * StreamLogs - 양방향 스트리밍 RPC로 로그 전송
-     *
+     * 
      * 📝 동작 방식:
      * - Client (Worker Pod): LogEntry 메시지를 지속적으로 전송
      * - Server (NestJS): LogResponse로 처리 상태 응답
      * - 연결이 끊어지면 자동으로 재연결 시도
-     *
+     * 
      * 🔄 스트림 라이프사이클:
      * 1. Worker Pod가 스트림 연결 시작
      * 2. 로그 발생 시마다 LogEntry 전송
@@ -123,10 +123,10 @@ service LogStreamingService {
      * 4. Worker 작업 완료 시 스트림 종료
      */
     rpc StreamLogs(stream LogEntry) returns (stream LogResponse);
-
+    
     /*
      * RegisterWorker - Worker Pod 시작 시 서버에 등록
-     *
+     * 
      * 📋 등록 프로세스:
      * 1. Worker Pod가 시작되면 즉시 호출
      * 2. Worker 메타데이터와 작업 정보 전송
@@ -138,16 +138,16 @@ service LogStreamingService {
 
 /*
  * LogEntry - Worker Pod에서 생성되는 단일 로그 엔트리
- *
+ * 
  * 📝 로그 구조 설명:
  * - Worker Pod의 stdout/stderr에서 캐치된 한 줄의 로그를 표현
  * - 시간 정보와 함께 구조화된 형태로 전송
  * - NestJS 서버에서 파싱하여 웹 인터페이스에 실시간 표시
- *
+ * 
  * 🔍 사용 예시:
  * {
  *   "worker_id": "otto-agent-1-abc123",
- *   "task_id": "task-456",
+ *   "task_id": "task-456", 
  *   "timestamp": "2025-09-01T12:34:56.789Z",
  *   "level": "INFO",
  *   "source": "stdout",
@@ -159,27 +159,27 @@ message LogEntry {
     // Worker Pod의 고유 식별자 (예: "otto-agent-1-abc123")
     // Main Pod에서 생성한 Worker Pod의 이름과 일치해야 함
     string worker_id = 1;
-
+    
     // Redis 이벤트에서 온 작업 식별자 (예: "task-456")
     // 어떤 scale_up 이벤트로 인해 생성된 작업인지 추적
     string task_id = 2;
-
+    
     // 로그 생성 시간 (RFC3339 형식: "2025-09-01T12:34:56.789Z")
     // Worker Pod 내부에서 로그가 실제로 발생한 시점
     string timestamp = 3;
-
+    
     // 로그 레벨 (INFO, ERROR, DEBUG, WARN 등)
     // 로그의 중요도나 유형을 나타냄
     string level = 4;
-
+    
     // 로그 소스 (stdout, stderr)
     // 표준 출력인지 에러 출력인지 구분
     string source = 5;
-
+    
     // 실제 로그 메시지 내용 (cmd창에 출력되는 한 줄)
     // Worker Pod의 작업 진행 상황, 에러, 디버그 정보 등
     string message = 6;
-
+    
     // 추가 메타데이터 (선택적)
     // 작업 단계, 파일명, 함수명 등 부가 정보
     map<string, string> metadata = 7;
@@ -187,12 +187,12 @@ message LogEntry {
 
 /*
  * LogResponse - NestJS 서버에서 Worker Pod로의 응답 메시지
- *
+ * 
  * 🔄 응답 처리 로직:
  * - ACK: 로그 성공적으로 받음, 다음 로그 전송 가능
  * - RETRY: 일시적 실패, 같은 로그를 다시 전송 필요
  * - DROP: 영구적 실패, 해당 로그 포기하고 다음으로 진행
- *
+ * 
  * 📊 백프레셔(Backpressure) 처리:
  * - 서버 과부하 시 RETRY 응답으로 Worker Pod 전송 속도 조절
  * - sequence 번호로 로그 순서 보장
@@ -200,7 +200,7 @@ message LogEntry {
 message LogResponse {
     /*
      * Status - 로그 처리 결과 상태
-     *
+     * 
      * ✅ ACK (0): 성공적으로 처리됨
      * 🔄 RETRY (1): 일시적 오류, 재시도 필요 (네트워크 지연, 서버 부하 등)
      * ❌ DROP (2): 영구적 오류, 해당 로그 포기 (잘못된 형식, 권한 없음 등)
@@ -210,14 +210,14 @@ message LogResponse {
         RETRY = 1;      // 일시적 실패, 재시도 요청
         DROP = 2;       // 영구적 실패, 로그 포기
     }
-
+    
     // 로그 처리 결과 상태
     Status status = 1;
-
+    
     // 디버깅용 메시지 (선택적)
     // 에러 이유나 추가 정보 제공
     string message = 2;
-
+    
     // 순서 보장을 위한 시퀀스 번호 (선택적)
     // 로그 전송 순서와 처리 순서 매칭
     int64 sequence = 3;
@@ -227,13 +227,13 @@ message LogResponse {
 message WorkerRegistration {
     // Worker pod identifier
     string worker_id = 1;
-
+    
     // Task identifier this worker is handling
     string task_id = 2;
-
+    
     // Worker pod metadata
     WorkerMetadata metadata = 3;
-
+    
     // NestJS server endpoint (for health checks)
     string server_endpoint = 4;
 }
@@ -242,16 +242,16 @@ message WorkerRegistration {
 message WorkerMetadata {
     // Pod name in Kubernetes
     string pod_name = 1;
-
+    
     // Kubernetes namespace
     string namespace = 2;
-
+    
     // Node where pod is running
     string node_name = 3;
-
+    
     // Pod creation timestamp
     string created_at = 4;
-
+    
     // Labels applied to the pod
     map<string, string> labels = 5;
 }
@@ -264,13 +264,13 @@ message RegistrationResponse {
         SERVER_FULL = 2;
         INVALID_REQUEST = 3;
     }
-
+    
     Status status = 1;
     string message = 2;
-
+    
     // Server-assigned session ID for this worker
     string session_id = 3;
-
+    
     // Recommended logging configuration
     LoggingConfig config = 4;
 }
@@ -279,20 +279,20 @@ message RegistrationResponse {
 message LoggingConfig {
     // Maximum logs per second from this worker
     int32 rate_limit = 1;
-
+    
     // Buffer size for batching logs
     int32 buffer_size = 2;
-
+    
     // Maximum message size in bytes
     int32 max_message_size = 3;
-
+    
     // Whether to include full metadata
     bool include_metadata = 4;
 }
 
 /*
  * ===== SCALING SERVICE MESSAGES =====
- *
+ * 
  * 스케일링 서비스에서 사용하는 메시지 타입들
  * Otto-handler ↔ Ottoscaler 간의 스케일링 요청/응답
  */
@@ -301,30 +301,30 @@ message LoggingConfig {
 message ScaleRequest {
     // 작업 고유 식별자 (CI/CD 작업 ID)
     string task_id = 1;
-
+    
     // Git 저장소 URL
     string repository = 2;
-
+    
     // Git 커밋 SHA
     string commit_sha = 3;
-
+    
     // 스케일링할 Worker Pod 수 (scale_up 시 생성할 수, scale_down 시 목표 수)
     int32 worker_count = 4;
-
+    
     // CI/CD 빌드 설정 (환경 변수, 명령어 등)
     map<string, string> build_config = 5;
-
+    
     // 요청을 시작한 주체 (사용자 또는 시스템)
     string triggered_by = 6;
-
+    
     // 스케일링 요청 사유
     string reason = 7;
-
+    
     // 추가 메타데이터
     map<string, string> metadata = 8;
 }
 
-// ScaleResponse - 스케일링 응답 메시지
+// ScaleResponse - 스케일링 응답 메시지  
 message ScaleResponse {
     enum Status {
         SUCCESS = 0;           // 성공
@@ -332,22 +332,22 @@ message ScaleResponse {
         PARTIAL_SUCCESS = 2;   // 부분 성공 (일부 Pod만 처리됨)
         ALREADY_PROCESSED = 3; // 이미 처리된 요청
     }
-
+    
     // 응답 상태
     Status status = 1;
-
+    
     // 응답 메시지 (에러 정보 또는 성공 메시지)
     string message = 2;
-
+    
     // 실제로 처리된 Worker Pod 수
     int32 processed_count = 3;
-
+    
     // 생성/삭제된 Worker Pod 목록
     repeated string worker_pod_names = 4;
-
+    
     // 처리 시작 시간 (RFC3339 형식)
     string started_at = 5;
-
+    
     // 처리 완료 시간 (RFC3339 형식)
     string completed_at = 6;
 }
@@ -356,10 +356,10 @@ message ScaleResponse {
 message WorkerStatusRequest {
     // 특정 작업 ID로 필터링 (비어있으면 전체 조회)
     string task_id = 1;
-
+    
     // 특정 Worker Pod 이름으로 필터링
     string worker_pod_name = 2;
-
+    
     // 상태로 필터링 ("running", "pending", "succeeded", "failed")
     string status_filter = 3;
 }
@@ -368,13 +368,13 @@ message WorkerStatusRequest {
 message WorkerStatusResponse {
     // 전체 Worker Pod 수
     int32 total_count = 1;
-
+    
     // 상태별 Worker Pod 수
     int32 running_count = 2;
     int32 pending_count = 3;
     int32 succeeded_count = 4;
     int32 failed_count = 5;
-
+    
     // Worker Pod 상세 정보 목록
     repeated WorkerPodStatus workers = 6;
 }
@@ -383,38 +383,38 @@ message WorkerStatusResponse {
 message WorkerPodStatus {
     // Pod 이름
     string pod_name = 1;
-
+    
     // 작업 ID
     string task_id = 2;
-
+    
     // Pod 상태 ("pending", "running", "succeeded", "failed")
     string status = 3;
-
+    
     // Pod 생성 시간
     string created_at = 4;
-
+    
     // Pod 시작 시간
     string started_at = 5;
-
+    
     // Pod 완료 시간 (완료된 경우)
     string completed_at = 6;
-
+    
     // 실행 중인 노드
     string node_name = 7;
-
+    
     // Pod IP
     string pod_ip = 8;
-
+    
     // 추가 라벨
     map<string, string> labels = 9;
-
+    
     // 에러 메시지 (실패한 경우)
     string error_message = 10;
 }
 
 /*
  * ===== OTTO-HANDLER LOG SERVICE MESSAGES =====
- *
+ * 
  * Ottoscaler에서 Otto-handler로 로그를 전달하기 위한 메시지 타입들
  */
 
@@ -422,25 +422,25 @@ message WorkerPodStatus {
 message WorkerLogEntry {
     // Worker Pod의 고유 식별자
     string worker_id = 1;
-
+    
     // 작업 식별자 (CI/CD 작업 ID)
     string task_id = 2;
-
+    
     // 로그 생성 시간 (RFC3339 형식)
     string timestamp = 3;
-
+    
     // 로그 레벨 (INFO, ERROR, DEBUG, WARN)
     string level = 4;
-
+    
     // 로그 소스 (stdout, stderr)
     string source = 5;
-
+    
     // 실제 로그 메시지 내용
     string message = 6;
-
+    
     // Pod 관련 메타데이터
     WorkerMetadata pod_metadata = 7;
-
+    
     // 추가 메타데이터
     map<string, string> metadata = 8;
 }
@@ -452,16 +452,16 @@ message LogForwardResponse {
         RETRY = 1;      // 일시적 실패, 재시도 요청
         DROP = 2;       // 영구적 실패, 로그 포기
     }
-
+    
     // 로그 처리 결과 상태
     Status status = 1;
-
+    
     // 응답 메시지 (에러 정보 또는 성공 메시지)
     string message = 2;
-
+    
     // 순서 보장을 위한 시퀀스 번호
     int64 sequence = 3;
-
+    
     // 백프레셔 제어: 다음 로그까지 대기 시간 (ms)
     int32 throttle_ms = 4;
 }
@@ -475,22 +475,22 @@ message WorkerStatusNotification {
         FAILED = 3;      // Pod 실패
         TERMINATED = 4;  // Pod 강제 종료
     }
-
+    
     // Worker Pod 이름
     string worker_id = 1;
-
+    
     // 작업 ID
     string task_id = 2;
-
+    
     // 상태 타입
     StatusType status = 3;
-
+    
     // 상태 변경 시간
     string timestamp = 4;
-
+    
     // 상태 변경 이유/메시지
     string reason = 5;
-
+    
     // 추가 메타데이터
     map<string, string> metadata = 6;
 }
@@ -502,7 +502,7 @@ message WorkerStatusAck {
         IGNORED = 1;     // 무시됨 (중복 등)
         ERROR = 2;       // 처리 중 에러
     }
-
+    
     Status status = 1;
     string message = 2;
 }
@@ -515,22 +515,22 @@ message WorkerStatusAck {
 message PipelineRequest {
     // Pipeline 고유 ID
     string pipeline_id = 1;
-
+    
     // Pipeline 이름 (예: "Full CI/CD", "Build and Test")
     string name = 2;
-
+    
     // Pipeline을 구성하는 Stage들
     repeated PipelineStage stages = 3;
-
+    
     // Repository 정보
     string repository = 4;
-
+    
     // Commit SHA
     string commit_sha = 5;
-
+    
     // 트리거한 사용자/시스템
     string triggered_by = 6;
-
+    
     // Pipeline 메타데이터
     map<string, string> metadata = 7;
 }
@@ -572,31 +572,30 @@ message PipelineStage {
 
     // Stage 타입 (Enum으로 타입 안정성 보장)
     StageType type = 2;
-
     // Stage 이름
     string name = 3;
-
+    
     // 이 Stage를 위한 Worker 수
     int32 worker_count = 4;
-
+    
     // 의존하는 Stage ID 목록 (병렬 실행 가능 판단용)
     repeated string depends_on = 5;
-
+    
     // Stage별 설정 (환경변수, 파라미터 등)
     map<string, string> config = 6;
-
+    
     // 사용할 이미지 (비어있으면 기본 이미지 사용)
     string image = 7;
-
+    
     // 실행할 명령어
     repeated string command = 8;
-
+    
     // 명령어 인자
     repeated string args = 9;
-
+    
     // 타임아웃 (초 단위, 0이면 무제한)
     int32 timeout_seconds = 10;
-
+    
     // 재시도 정책
     RetryPolicy retry_policy = 11;
 }
@@ -605,10 +604,10 @@ message PipelineStage {
 message RetryPolicy {
     // 최대 재시도 횟수
     int32 max_attempts = 1;
-
+    
     // 재시도 간격 (초)
     int32 retry_delay_seconds = 2;
-
+    
     // 재시도 가능한 실패 유형
     repeated string retryable_failures = 3;
 }
@@ -617,34 +616,34 @@ message RetryPolicy {
 message PipelineProgress {
     // Pipeline ID
     string pipeline_id = 1;
-
+    
     // 현재 Stage ID
     string stage_id = 2;
-
+    
     // Stage 상태
     StageStatus status = 3;
-
+    
     // 상태 메시지
     string message = 4;
-
+    
     // 이 Stage를 위해 생성된 Worker Pod 이름들
     repeated string worker_pod_names = 5;
-
+    
     // 진행률 (0-100)
     int32 progress_percentage = 6;
-
+    
     // 타임스탬프
     string timestamp = 7;
-
+    
     // Stage 시작 시간
     string started_at = 8;
-
+    
     // Stage 완료 시간 (완료된 경우)
     string completed_at = 9;
-
+    
     // 에러 정보 (실패한 경우)
     string error_message = 10;
-
+    
     // Stage 메트릭
     StageMetrics metrics = 11;
 }
@@ -664,19 +663,19 @@ enum StageStatus {
 message StageMetrics {
     // 실행 시간 (초)
     int32 duration_seconds = 1;
-
+    
     // 성공한 Worker 수
     int32 successful_workers = 2;
-
+    
     // 실패한 Worker 수
     int32 failed_workers = 3;
-
+    
     // 총 Worker 수
     int32 total_workers = 4;
-
+    
     // CPU 사용량 (평균)
     float avg_cpu_usage = 5;
-
+    
     // 메모리 사용량 (평균, MB)
     float avg_memory_mb = 6;
 }
