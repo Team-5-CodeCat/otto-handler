@@ -80,7 +80,6 @@ export class PipelineController {
     const pipelines =
       await this.pipelineService.pipelineGetByProject(projectID);
 
-    console.log(pipelines);
     return {
       pipelines: pipelines.map((pipeline) => ({
         pipelineID: pipeline.pipelineID,

@@ -6,8 +6,10 @@ import {
 } from './ottoscaler.constants';
 import { createOttoscalerGrpcClients } from './ottoscaler.provider';
 import { OttoscalerService } from './ottoscaler.service';
+import { HealthController } from './health.controller';
 
 @Module({
+  controllers: [HealthController],
   providers: [
     {
       provide: OTTOSCALER_GRPC_TOKEN,

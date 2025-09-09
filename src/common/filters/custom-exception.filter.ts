@@ -5,7 +5,7 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyReply } from 'fastify';
 import { CommonErrorResponseDto } from '../dto';
 
 @Catch() // 모든 예외 캐치
@@ -128,9 +128,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = this.errorMessages[500];
       error = this.errorNames[500];
 
-      // 개발 환경에서는 상세 에러 로깅
+      // 개발 환경에서는 상세 에러 로깅 (production에서는 적절한 로깅 서비스 사용)
       if (process.env.NODE_ENV === 'development') {
-        console.error('Unhandled Exception:', exception);
+        // TODO: Logger 서비스로 교체 예정
+        process.stderr.write(
+          `Unhandled Exception: ${JSON.stringify(exception)}\n`,
+        );
       }
     }
 

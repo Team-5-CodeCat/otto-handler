@@ -9,7 +9,6 @@ import { OttoscalerModule } from './integrations/grpc/ottoscaler.module';
 import { LogStreamingModule } from './modules/log-streaming/log-streaming.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { PipelinesModule } from './pipelines/pipelines.module';
-import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -41,7 +40,6 @@ import { HealthModule } from './health/health.module';
     // 🔗 웹훅 및 파이프라인 관리
     WebhooksModule,
     PipelinesModule,
-    HealthModule,
   ],
   controllers: [],
   providers: [AppService],

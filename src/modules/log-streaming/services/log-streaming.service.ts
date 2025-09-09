@@ -16,12 +16,10 @@ import {
   share,
   retry,
   distinctUntilChanged,
-  switchMap,
   take,
   publishReplay,
   refCount,
 } from 'rxjs/operators';
-crypto.randomUUID();
 import { Log, LogStream, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../../database/prisma.service';
@@ -187,118 +185,38 @@ export class LogStreamingService
 
     try {
       /**
-       * 1단계: gRPC 양방향 스트리밍 채널 생성
-       *
-       * 기술적 배경:
-       * - gRPC의 양방향 스트리밍은 클라이언트와 서버가 동시에 데이터를 주고받을 수 있는 통신 방식
-       * - Otto Handler는 클라이언트 역할로 Ottoscaler 서버에 연결
-       * - forwardWorkerLogs RPC 메서드를 통해 Worker가 생성한 로그를 실시간으로 수신
-       *
-       * 에러 가능성:
-       * - 네트워크 연결 실패 (DNS 해석 실패, 포트 차단, 방화벽)
-       * - gRPC 서버 다운타임 또는 과부하
-       * - 인증/권한 문제 (TLS 인증서, API 키 등)
+       * 1단계: ottoscaler와의 gRPC ForwardWorkerLogs 채널 생성
+       * - ottoscaler의 Worker Pod에서 생성되는 로그를 실시간으로 수신
+       * - 양방향 스트리밍을 통해 지속적인 연결 유지
+       * - 백프레셔와 재시도 로직으로 안정성 보장
        */
-      const channel = this.ottoscalerService.createForwardWorkerLogsChannel();
+      const logStream = this.ottoscalerService.createForwardWorkerLogsChannel();
 
       /**
-       * 2단계: gRPC 스트림을 RxJS Observable로 변환하고 데이터 처리 파이프라인 구성
+       * 2단계: 받은 로그 스트림 처리 및 필터링
        *
        * 파이프라인 설계 원칙:
-       * - 각 연산자는 단일 책임을 가지도록 설계
-       * - 에러가 발생해도 전체 스트림이 중단되지 않도록 방어적 프로그래밍
-       * - 성능 모니터링을 위한 메트릭 수집 포인트 배치
-       * - 메모리 누수 방지를 위한 자동 정리 메커니즘 포함
+       * - 임시 메모리 저장을 통한 빠른 응답성 확보
+       * - 사용자 필터링 조건에 따른 로그 선별적 전송
+       * - taskId 필터링과 메트릭 수집 적용
        */
-      return channel.responses$.pipe(
-        /**
-         * 3-1. gRPC 응답 상태 코드 검증
-         *
-         * gRPC 상태 코드의 의미:
-         * - 0 (OK): 성공적으로 처리됨
-         * - 1 (CANCELLED): 클라이언트에 의해 취소됨
-         * - 2 (UNKNOWN): 알 수 없는 에러
-         * - 3 (INVALID_ARGUMENT): 잘못된 인자
-         * - 14 (UNAVAILABLE): 서비스 사용 불가능
-         *
-         * 필터링 이유:
-         * - 성공 상태의 로그만 처리하여 잘못된 데이터로 인한 오작동 방지
-         * - 에러 상태는 별도의 에러 핸들링 로직에서 처리
-         */
-        rxFilter((response: { status?: number }) => {
-          if (response.status !== 0) {
-            this.logger.warn(
-              `비정상 gRPC 응답 상태: ${response.status}, taskId=${taskId}`,
-            );
-            return false;
-          }
-          return true;
+      return (logStream as Observable<WorkerLogEntry>).pipe(
+        // taskId 필터링: 요청된 taskId에 해당하는 로그만 필터링
+        rxFilter((logEntry: WorkerLogEntry) => {
+          // taskId가 지정되었으면 해당 taskId의 로그만 통과
+          return !taskId || logEntry.taskId === taskId;
         }),
 
-        /**
-         * 3-2. 비즈니스 로직 필터 적용
-         *
-         * 필터링 목적:
-         * - 클라이언트가 요청한 조건에 맞는 로그만 전송하여 네트워크 대역폭 절약
-         * - 로그 레벨별 필터링으로 개발자가 관심 있는 정보만 표시
-         * - 키워드 검색으로 특정 에러나 이벤트 추적 가능
-         *
-         * 성능 고려사항:
-         * - 필터링은 서버 사이드에서 수행하여 불필요한 데이터 전송 최소화
-         * - 정규식 사용 시 CPU 사용량 증가 가능성 있음 (향후 최적화 필요)
-         */
-        rxFilter((logEntry) =>
-          this.applyLogFilter(logEntry as unknown as WorkerLogEntry, filter),
-        ),
+        // 부가 필터 적용: 로그 레벨, 키워드 등
+        rxFilter((logEntry) => this.applyLogFilter(logEntry, filter)),
 
-        /**
-         * 3-3. 메트릭 수집 및 모니터링
-         *
-         * 모니터링 목적:
-         * - 시스템 성능 및 처리량 측정
-         * - 장애 발생 시 원인 분석을 위한 데이터 수집
-         * - 용량 계획 및 스케일링 결정을 위한 통계 정보 제공
-         *
-         * 수집 데이터:
-         * - 초당 처리된 로그 메시지 수
-         * - 평균 응답 시간
-         * - 에러 발생률
-         */
+        // 메트릭 수집
         tap(() => this.updateMessageMetrics()),
 
-        /**
-         * 3-4. gRPC 연결 장애 시 자동 재시도
-         *
-         * 재시도 정책:
-         * - 최대 3회까지 재시도 (무한 재시도 방지로 시스템 보호)
-         * - 지수 백오프 알고리즘 적용 (RxJS retry 기본 동작)
-         * - 재시도 간격: 1초 → 2초 → 4초
-         *
-         * 재시도가 필요한 에러 유형:
-         * - 네트워크 일시적 장애 (연결 타임아웃, 패킷 손실)
-         * - gRPC 서버 일시적 과부하 (UNAVAILABLE 상태)
-         * - 로드밸런서 또는 프록시 이슈
-         *
-         * 재시도하지 않는 에러 유형:
-         * - 인증 실패 (UNAUTHENTICATED)
-         * - 권한 부족 (PERMISSION_DENIED)
-         * - 잘못된 요청 (INVALID_ARGUMENT)
-         */
+        // 자동 재시도
         retry(3),
 
-        /**
-         * 3-5. 복구 불가능한 에러에 대한 최종 처리
-         *
-         * 에러 처리 전략:
-         * - 로그를 통한 에러 상황 기록 (운영팀 알림, 디버깅 정보 제공)
-         * - 메트릭 업데이트로 에러율 통계 수집
-         * - EMPTY Observable 반환으로 스트림 안전 종료 (다른 구독자에게 영향 없음)
-         *
-         * 향후 개선사항:
-         * - 에러 유형별 차별화된 처리 (일시적 vs 영구적 에러)
-         * - 알림 시스템 연동 (중요 에러 발생 시 Slack, 이메일 등)
-         * - Circuit Breaker 패턴 적용으로 연쇄 장애 방지
-         */
+        // 에러 처리
         catchError((error: unknown) => {
           const err = error instanceof Error ? error : new Error(String(error));
           this.logger.error(
@@ -319,45 +237,12 @@ export class LogStreamingService
           return EMPTY;
         }),
 
-        /**
-         * 3-6. 서비스 종료 시 스트림 자동 정리
-         *
-         * 생명주기 관리:
-         * - NestJS 애플리케이션 종료 시 (SIGTERM, SIGINT)
-         * - 모듈 재시작 시
-         * - 메모리 부족 등으로 인한 강제 종료 시
-         *
-         * 정리 작업:
-         * - gRPC 연결 해제
-         * - Observable 구독 해제
-         * - 메모리 리소스 해제
-         *
-         * takeUntil 사용 이유:
-         * - 명시적인 종료 신호를 받을 때까지만 스트림 유지
-         * - 메모리 누수 방지 (long-running stream의 일반적인 문제)
-         */
+        // 서비스 종료 시 정리
         takeUntil(this.destroy$),
 
-        /**
-         * 3-7. 멀티캐스트 지원으로 리소스 효율성 향상
-         *
-         * share() 오퍼레이터의 역할:
-         * - 하나의 gRPC 연결을 여러 구독자가 공유
-         * - 첫 번째 구독자가 생성될 때 gRPC 연결 시작
-         * - 마지막 구독자가 해제될 때 자동으로 연결 종료
-         *
-         * 리소스 효율성:
-         * - 동일한 taskId를 10명이 모니터링해도 gRPC 연결은 1개만 사용
-         * - Ottoscaler 서버의 부하 감소
-         * - 네트워크 대역폭 절약
-         *
-         * 주의사항:
-         * - Cold Observable을 Hot Observable로 변환
-         * - 늦게 구독하는 클라이언트는 과거 데이터를 받을 수 없음
-         * - 향후 ReplaySubject나 shareReplay 고려 필요
-         */
+        // 멀티캐스트 지원
         share(),
-      ) as Observable<WorkerLogEntry>;
+      );
     } catch (error: unknown) {
       /**
        * 동기적 에러 처리 (채널 생성 실패 등)
@@ -1620,42 +1505,8 @@ export class LogStreamingService
     // 실시간 모드인 경우 새로운 로그 폴링 추가
     if (realtime) {
       // TODO: 실시간 폴링 기능 구현 예정
-      // 현재는 getRecentLogs 메서드 참조만 유지 (구현 시 제거 예정)
-      // const realtimePolling$ = interval(2000).pipe(
-      //   switchMap(() => this.getRecentLogs(jobId, queryOptions)),
-      //   rxFilter((logs) => logs.length > 0),
-      // );
-      // return storedLogs$
-      //   .pipe
-      //   // 초기 저장된 로그들을 모두 전송 후 실시간 폴링 시작
-      //   // 실제 구현에서는 더 정교한 중복 제거 로직 필요
-      //   ();
     }
 
     return storedLogs$;
-  }
-
-  /**
-   * 최근 로그 조회 (실시간 스트림용)
-   * TODO: 실시간 폴링 기능 구현 시 사용 예정
-   */
-  private async getRecentLogs(
-    jobId: string,
-    options?: { attemptNo?: number; stream?: LogStream },
-  ): Promise<Log[]> {
-    const lastMinute = new Date(Date.now() - 60 * 1000);
-
-    const whereClause: Prisma.LogWhereInput = {
-      jobID: jobId,
-      createdAt: { gte: lastMinute },
-      ...(options?.attemptNo !== undefined && { attemptNo: options.attemptNo }),
-      ...(options?.stream && { stream: options.stream }),
-    };
-
-    return this.prisma.log.findMany({
-      where: whereClause,
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    });
   }
 }
