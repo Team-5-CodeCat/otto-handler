@@ -8,6 +8,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { OttoscalerModule } from './integrations/grpc/ottoscaler.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { PipelinesModule } from './pipelines/pipelines.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PipelinesModule } from './pipelines/pipelines.module';
     OttoscalerModule,
     WebhooksModule,
     PipelinesModule,
+    HealthModule,
   ],
   controllers: [],
   providers: [AppService],

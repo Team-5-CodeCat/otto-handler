@@ -5,6 +5,7 @@ import {
   OTTOSCALER_GRPC_URL_ENV,
 } from './ottoscaler.constants';
 import { createOttoscalerGrpcClients } from './ottoscaler.provider';
+import { OttoscalerService } from './ottoscaler.service';
 
 @Module({
   providers: [
@@ -21,7 +22,8 @@ import { createOttoscalerGrpcClients } from './ottoscaler.provider';
         return createOttoscalerGrpcClients(targetUrl);
       },
     },
+    OttoscalerService,
   ],
-  exports: [OTTOSCALER_GRPC_TOKEN],
+  exports: [OTTOSCALER_GRPC_TOKEN, OttoscalerService],
 })
 export class OttoscalerModule {}
