@@ -28,7 +28,7 @@ export class HealthController {
     description: 'Ottoscaler 서비스에 연결할 수 없음',
   })
   @TypedRoute.Get('/ottoscaler')
-  async checkOttoscalerHealth(): Promise<OttoscalerHealthDto> {
+  async healthgetHealthCheck(): Promise<OttoscalerHealthDto> {
     this.logger.log('Ottoscaler health check requested');
     return this.healthService.checkOttoscalerHealth();
   }
