@@ -17,6 +17,8 @@ import { LogStreamingService } from '../services/log-streaming.service';
 import type { ILogStreamingController } from '../interfaces/log-streaming.interface';
 import type { SSEMessage, LogFilter } from '../types/log-streaming.types';
 import type { WorkerLogEntry, PipelineProgress } from '../../../generated/otto';
+import { AuthGuard } from '../../../common/decorators';
+import { randomUUID } from 'node:crypto';
 
 /**
  * 🌐 LogStreamingController
@@ -82,6 +84,7 @@ export class LogStreamingController implements ILogStreamingController {
    * @param workerId Worker Pod ID 필터
    * @param response Fastify Response 객체
    */
+  @AuthGuard()
   @Get('logs/:taskId/stream')
   streamLogs(
     @Param('taskId') taskId: string,
@@ -307,6 +310,7 @@ export class LogStreamingController implements ILogStreamingController {
    * });
    * ```
    */
+  @AuthGuard()
   @Get('pipelines/:pipelineId/progress')
   streamPipelineProgress(
     @Param('pipelineId') pipelineId: string,
@@ -412,6 +416,7 @@ export class LogStreamingController implements ILogStreamingController {
    * - 현재 활성 연결 수
    * - 타임스탬프
    */
+  @AuthGuard()
   @Get('health')
   async getHealth(): Promise<{
     status: string;
@@ -439,11 +444,9 @@ export class LogStreamingController implements ILogStreamingController {
    * 🧪 목업 데이터 생성 테스트 엔드포인트
    * 개발/테스트 환경에서 목업 로그 데이터 생성 확인
    */
+  @AuthGuard()
   @Get('test/mock-logs/:jobId')
-  async testMockLogs(
-    @Param('jobId') jobId: string,
-    @Query('count') count = '10',
-  ) {
+  testMockLogs(@Param('jobId') jobId: string, @Query('count') count = '10') {
     try {
       // UUID 형식 검증 - 실제 Job과 연결하지 않고 임시로 UUID 생성
       let validJobId = jobId;
@@ -452,7 +455,7 @@ export class LogStreamingController implements ILogStreamingController {
 
       if (!uuidRegex.test(jobId)) {
         // UUID가 아니면 임시로 생성 (실제 연결 없이 테스트)
-        const { randomUUID } = await import('crypto');
+
         validJobId = randomUUID();
         this.logger.log(
           `UUID가 아닌 jobId를 UUID로 변환: ${jobId} -> ${validJobId}`,
@@ -487,6 +490,7 @@ export class LogStreamingController implements ILogStreamingController {
    * 🧪 목업 SSE 로그 스트림 테스트 엔드포인트
    * 개발/테스트 환경에서 실시간 목업 로그 스트리밍 확인
    */
+  @AuthGuard()
   @Get('test/mock-stream/:taskId')
   streamMockLogs(
     @Param('taskId') taskId: string,
