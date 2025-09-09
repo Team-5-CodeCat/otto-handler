@@ -74,11 +74,11 @@ export class PipelineController {
    */
   @AuthGuard()
   @TypedRoute.Get('/project/:projectID')
-  async getPipelinesByProject(
+  async pipelineGetpipelinesByProject(
     @TypedParam('projectID') projectID: string & tags.Format<'uuid'>,
   ): Promise<GetPipelinesByProjectResponseDto> {
     const pipelines =
-      await this.pipelineService.getPipelinesByProject(projectID);
+      await this.pipelineService.pipelineGetpipelinesByProject(projectID);
 
     console.log(pipelines);
     return {
@@ -109,10 +109,11 @@ export class PipelineController {
    */
   @AuthGuard()
   @TypedRoute.Get('/:pipelineID')
-  async getPipelineById(
+  async pipelineGetpipelineById(
     @TypedParam('pipelineID') pipelineID: string & tags.Format<'uuid'>,
   ): Promise<GetPipelineByIdResponseDto> {
-    const pipeline = await this.pipelineService.getPipelineById(pipelineID);
+    const pipeline =
+      await this.pipelineService.pipelineGetpipelineById(pipelineID);
 
     return {
       pipelineID: pipeline.pipelineID,
