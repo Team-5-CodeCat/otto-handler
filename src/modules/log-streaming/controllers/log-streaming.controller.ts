@@ -19,6 +19,8 @@ import type { SSEMessage, LogFilter } from '../types/log-streaming.types';
 import type { WorkerLogEntry, PipelineProgress } from '../../../generated/otto';
 import { AuthGuard } from '../../../common/decorators';
 import { randomUUID } from 'node:crypto';
+import { TypedQuery } from '@nestia/core';
+import { tags } from 'typia';
 
 /**
  * 🌐 LogStreamingController
@@ -446,7 +448,10 @@ export class LogStreamingController implements ILogStreamingController {
    */
   @AuthGuard()
   @Get('test/mock-logs/:jobId')
-  testMockLogs(@Param('jobId') jobId: string, @Query('count') count = '10') {
+  testMockLogs(
+    @Param('jobId') jobId: string,
+    @TypedQuery() query: { count?: number & tags.Default<10> },
+  ) {
     try {
       // UUID 형식 검증 - 실제 Job과 연결하지 않고 임시로 UUID 생성
       let validJobId = jobId;
@@ -462,7 +467,7 @@ export class LogStreamingController implements ILogStreamingController {
         );
       }
 
-      const logCount = parseInt(count, 10);
+      const logCount = query.count || 10;
       const logs = this.logStreamingService.generateMockLogs(
         validJobId,
         1,
@@ -489,14 +494,18 @@ export class LogStreamingController implements ILogStreamingController {
   /**
    * 🧪 목업 SSE 로그 스트림 테스트 엔드포인트
    * 개발/테스트 환경에서 실시간 목업 로그 스트리밍 확인
+   * @internal
    */
   @AuthGuard()
   @Get('test/mock-stream/:taskId')
   streamMockLogs(
     @Param('taskId') taskId: string,
     @Res() response: FastifyReply,
-    @Query('interval') interval = '1000',
-    @Query('count') count = '20',
+    @TypedQuery()
+    query: {
+      interval?: number & tags.Default<1000>;
+      count?: number & tags.Default<20>;
+    },
   ): void {
     if (process.env.NODE_ENV === 'production') {
       throw new BadRequestException(
@@ -505,12 +514,12 @@ export class LogStreamingController implements ILogStreamingController {
     }
 
     this.logger.log(
-      `목업 SSE 로그 스트림 시작: taskId=${taskId}, interval=${interval}ms, count=${count}`,
+      `목업 SSE 로그 스트림 시작: taskId=${taskId}, interval=${query.interval}ms, count=${query.count}`,
     );
 
     try {
-      const intervalMs = parseInt(interval, 10);
-      const totalLogs = parseInt(count, 10);
+      const intervalMs = query.interval;
+      const totalLogs = query.count;
 
       // SSE 헤더 설정
       this.setupSSEHeaders(response);
