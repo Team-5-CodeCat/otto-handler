@@ -4,7 +4,7 @@ import {
   OTTOSCALER_GRPC_TOKEN,
   OTTOSCALER_GRPC_URL_ENV,
 } from './ottoscaler.constants';
-import { createOttoscalerGrpcClients } from './ottoscaler.provider.js';
+import { createOttoscalerGrpcClients } from './ottoscaler.provider';
 import { OttoscalerService } from './ottoscaler.service';
 
 @Module({
@@ -12,7 +12,7 @@ import { OttoscalerService } from './ottoscaler.service';
     {
       provide: OTTOSCALER_GRPC_TOKEN,
       inject: [ConfigService],
-      useFactory: async (config: ConfigService) => {
+      useFactory: (config: ConfigService) => {
         const targetUrl = config.get<string>(OTTOSCALER_GRPC_URL_ENV);
         if (!targetUrl) {
           throw new Error(

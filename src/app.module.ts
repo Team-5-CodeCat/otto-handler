@@ -7,6 +7,8 @@ import { ConfigModule } from '@nestjs/config';
 import { ProjectsModule } from './projects/projects.module';
 import { OttoscalerModule } from './integrations/grpc/ottoscaler.module';
 import { LogStreamingModule } from './modules/log-streaming/log-streaming.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
+import { PipelinesModule } from './pipelines/pipelines.module';
 
 @Module({
   imports: [
@@ -20,7 +22,8 @@ import { LogStreamingModule } from './modules/log-streaming/log-streaming.module
     // ⚙️ 환경 설정 (전역 설정)
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath:
+        process.env.NODE_ENV === 'production' ? '.env.prod' : '.env.dev',
     }),
 
     // 📋 비즈니스 로직 모듈들
@@ -33,6 +36,10 @@ import { LogStreamingModule } from './modules/log-streaming/log-streaming.module
     // 💼 비즈니스 가치: CI/CD 파이프라인의 실시간 로그 모니터링
     // 🔧 기술 스택: gRPC + SSE + WebSocket
     LogStreamingModule,
+
+    // 🔗 웹훅 및 파이프라인 관리
+    WebhooksModule,
+    PipelinesModule,
   ],
   controllers: [],
   providers: [AppService],

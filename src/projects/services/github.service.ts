@@ -1,7 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../database/prisma.service';
 import { Octokit } from '@octokit/rest';
-import { createAppAuth } from '@octokit/auth-app';
+import * as jwt from 'jsonwebtoken';
 import type {
   GetRepositoriesResponseDto,
   GetBranchesResponseDto,
@@ -19,6 +18,7 @@ interface GitHubRepository {
   forks_count: number;
   updated_at: string;
 }
+
 interface GitHubBranch {
   name: string;
   protected: boolean;
@@ -27,53 +27,123 @@ interface GitHubBranch {
     url: string;
   };
 }
-interface GitHubAccount {
-  login: string;
-  id: number;
-  type: 'User' | 'Organization';
-}
-interface GitHubInstallation {
-  id: number;
-  account: GitHubAccount;
-  permissions: Record<string, string>;
-  created_at: string;
-}
 @Injectable()
 export class GithubService {
   private appId: string;
   private privateKey: string;
 
-  constructor(private prisma: PrismaService) {
-    this.appId = process.env.GITHUB_APP_ID || '';
-    this.privateKey = process.env.GITHUB_APP_PRIVATE_KEY || '';
+  constructor() {
+    this.appId = String(process.env.OTTO_GITHUB_APP_ID || '');
+
+    // Private Key를 string으로 변환하고 \n을 실제 줄바꿈으로 변환
+    const rawPrivateKey = String(process.env.OTTO_GITHUB_APP_PRIVATE_KEY || '');
+    this.privateKey = rawPrivateKey.replace(/\\n/g, '\n');
+
+    // PEM 형식 확인 및 추가 정규화
+    if (
+      !this.privateKey.includes('-----BEGIN RSA PRIVATE KEY-----') &&
+      !this.privateKey.includes('-----BEGIN PRIVATE KEY-----')
+    ) {
+      throw new Error('GitHub App Private Key가 올바른 PEM 형식이 아닙니다');
+    }
 
     if (!this.appId || !this.privateKey) {
       throw new Error('GitHub App ID와 Private Key가 설정되지 않았습니다');
     }
+
+    console.log('[GitHub Service] 인증 정보 로드:', {
+      appId: this.appId,
+      privateKeyLength: this.privateKey.length,
+      privateKeyStart: this.privateKey.substring(0, 50),
+      hasBeginMarker: this.privateKey.includes('-----BEGIN'),
+      hasEndMarker: this.privateKey.includes('-----END'),
+    });
   }
 
-  private getInstallationOctokit(installationId: string): Octokit {
+  private generateJWT(): string {
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      iat: now,
+      exp: now + 600, // 10 minutes
+      iss: parseInt(this.appId),
+    };
+
     try {
-      const auth = createAppAuth({
-        appId: this.appId,
-        privateKey: this.privateKey,
-        installationId: parseInt(installationId),
+      console.log('[GitHub Service] JWT 생성 시작:', {
+        appId: payload.iss,
+        iat: payload.iat,
+        exp: payload.exp,
+        privateKeyLength: this.privateKey.length,
       });
 
-      return new Octokit({
-        auth,
+      const token = jwt.sign(payload, this.privateKey, {
+        algorithm: 'RS256',
       });
-    } catch {
+
+      console.log('[GitHub Service] JWT 생성 성공:', {
+        tokenLength: token.length,
+        tokenStart: token.substring(0, 30),
+      });
+
+      return token;
+    } catch (error) {
+      console.error('[GitHub Service] JWT 생성 실패:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        privateKeyStart: this.privateKey.substring(0, 50),
+      });
+      throw new BadRequestException('GitHub App JWT 생성에 실패했습니다');
+    }
+  }
+
+  private async getInstallationToken(installationId: string): Promise<string> {
+    try {
+      const jwtToken = this.generateJWT();
+
+      console.log('[GitHub Service] Installation 토큰 요청 시작:', {
+        installationId,
+        jwtTokenLength: jwtToken.length,
+      });
+
+      // JWT로 Installation Access Token 요청
+      const octokit = new Octokit({
+        auth: jwtToken,
+      });
+
+      const { data } = await octokit.rest.apps.createInstallationAccessToken({
+        installation_id: parseInt(installationId),
+      });
+
+      console.log('[GitHub Service] Installation 토큰 생성 성공:', {
+        tokenLength: data.token.length,
+        expiresAt: data.expires_at,
+      });
+
+      return data.token;
+    } catch (error) {
+      console.error('[GitHub Service] Installation 토큰 생성 실패:', {
+        installationId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       throw new BadRequestException(
         `GitHub 설치 ${installationId}에 접근할 수 없습니다. 설치가 유효한지 확인해주세요.`,
       );
     }
   }
 
+  private async getInstallationOctokit(
+    installationId: string,
+  ): Promise<Octokit> {
+    const installationToken = await this.getInstallationToken(installationId);
+
+    return new Octokit({
+      auth: installationToken,
+    });
+  }
+
   async getAccessibleRepositories(
     installationId: string,
   ): Promise<GetRepositoriesResponseDto> {
-    const octokit = this.getInstallationOctokit(installationId);
+    const octokit = await this.getInstallationOctokit(installationId);
 
     try {
       const { data } =
@@ -110,7 +180,8 @@ export class GithubService {
       throw new BadRequestException('올바르지 않은 레포지토리 이름 형식입니다');
     }
 
-    const octokit = this.getInstallationOctokit(installationId);
+    // 검증된 수동 토큰 방식 사용
+    const octokit = await this.getInstallationOctokit(installationId);
 
     try {
       const { data } = await octokit.rest.repos.listBranches({
@@ -142,32 +213,64 @@ export class GithubService {
     createdAt: string;
   }> {
     try {
-      const auth = createAppAuth({
+      console.log('[GitHub API] Installation 검증 시작:', {
+        installationId,
         appId: this.appId,
-        privateKey: this.privateKey,
       });
 
+      // 1. JWT 토큰 생성
+      const jwtToken = this.generateJWT();
+
+      // 2. JWT로 Octokit 인스턴스 생성
       const octokit = new Octokit({
-        auth,
+        auth: jwtToken,
       });
 
+      console.log('[GitHub API] Octokit 인스턴스 생성 완료 (JWT 사용)');
+
+      // 3. Installation 정보 조회
       const { data } = await octokit.rest.apps.getInstallation({
         installation_id: parseInt(installationId),
       });
 
-      const installation = data as unknown as GitHubInstallation;
+      // GitHub API 응답에서 account 정보 추출
+      const account = data.account;
+      if (!account) {
+        throw new Error('Installation account 정보가 없습니다');
+      }
+
+      // account 타입에 따라 login 필드 접근
+      const accountLogin = 'login' in account ? account.login : account.name;
+      const accountId = account.id;
+      const accountType = 'type' in account ? account.type : 'Organization';
+
+      console.log('[GitHub API] Installation 조회 성공:', {
+        id: data.id,
+        accountLogin,
+        accountType,
+      });
 
       return {
-        id: installation.id,
+        id: data.id,
         account: {
-          login: installation.account.login,
-          id: installation.account.id,
-          type: installation.account.type,
+          login: accountLogin,
+          id: accountId,
+          type: accountType as 'User' | 'Organization',
         },
-        permissions: installation.permissions,
-        createdAt: installation.created_at,
+        permissions: data.permissions || {},
+        createdAt: data.created_at,
       };
-    } catch {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : '';
+
+      console.error('[GitHub API] Installation 조회 실패:', {
+        installationId,
+        appId: this.appId,
+        error: errorMessage,
+        stack: errorStack?.substring(0, 500),
+      });
       throw new BadRequestException('유효하지 않은 GitHub 설치 ID입니다');
     }
   }

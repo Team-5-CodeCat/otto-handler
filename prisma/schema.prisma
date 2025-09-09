@@ -196,7 +196,6 @@ model Pipeline {
   active         Boolean  @default(true) @map("active") // 활성 여부
   owner          String?  @map("owner") // 소유자 정보 (선택적, 사용자 이름/ID)
   pipelineSpec   Json     @map("pipeline_spec")
-  isBlockBased   Boolean  @default(false) @map("is_block_based")
   originalSpec   String?  @map("original_spec") @db.Text // 원본 YAML/JSON
   normalizedSpec Json?    @map("normalized_spec") // canonical JSON
   specHash       String?  @map("spec_hash") @db.VarChar(64) // SHA-256
