@@ -5,6 +5,8 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { GithubService } from './github.service';
@@ -17,6 +19,7 @@ export class ProjectService {
     private prisma: PrismaService,
     private githubService: GithubService,
     private jwtService: JwtService,
+    @Inject(forwardRef(() => PipelineService))
     private pipelineService: PipelineService,
   ) {}
 
@@ -405,8 +408,10 @@ export class ProjectService {
 
     // 웹훅 트리거인 경우 자동으로 파이프라인 실행
     if (buildInfo.trigger.startsWith('webhook:')) {
-      console.log(`[Webhook] Auto-triggering pipeline execution for run ${run.id}`);
-      this.pipelineService.startPipelineExecution(run.id);
+      console.log(
+        `[Webhook] Auto-triggering pipeline execution for run ${run.id}`,
+      );
+      void this.pipelineService.startPipelineExecution(run.id);
     }
 
     return run;

@@ -180,11 +180,14 @@ export class PipelineService {
   /**
    * 파이프라인 자동 실행 (웹훅 트리거용)
    */
-  async startPipelineExecution(runId: string) {
+  startPipelineExecution(runId: string): void {
     // 백그라운드에서 실행하여 웹훅 응답 지연 방지
     setImmediate(() => {
-      this.executePipeline(runId).catch((error) => {
-        console.error(`[Pipeline] Execution failed for run ${runId}:`, error);
+      void this.executePipeline(runId).catch((error: unknown) => {
+        console.error(
+          `[Pipeline] Execution failed for run ${runId}:`,
+          String(error),
+        );
       });
     });
   }
@@ -209,12 +212,12 @@ export class PipelineService {
       console.log(`[Pipeline] Starting execution for run ${runId}`);
 
       // 파이프라인 스펙 파싱
-      const pipelineSpec = run.pipeline.pipelineSpec as any;
+      const pipelineSpec = run.pipeline.pipelineSpec as Record<string, unknown>;
       const jobs = this.parseJobsFromPipelineSpec(pipelineSpec);
 
       // Job 순차 실행
       for (const jobConfig of jobs) {
-        await this.executeJob(runId, run.pipelineID, jobConfig);
+        await this.executeJob(runId, jobConfig);
       }
 
       // 성공 상태로 변경
@@ -227,8 +230,9 @@ export class PipelineService {
         },
       });
 
-      console.log(`[Pipeline] Execution completed successfully for run ${runId}`);
-
+      console.log(
+        `[Pipeline] Execution completed successfully for run ${runId}`,
+      );
     } catch (error) {
       // 실패 상태로 변경
       await this.prisma.pipelineRun.update({
@@ -240,7 +244,10 @@ export class PipelineService {
         },
       });
 
-      console.error(`[Pipeline] Execution failed for run ${runId}:`, error);
+      console.error(
+        `[Pipeline] Execution failed for run ${runId}:`,
+        String(error),
+      );
       throw error;
     }
   }
@@ -248,7 +255,7 @@ export class PipelineService {
   /**
    * 파이프라인 스펙에서 Job 목록 추출
    */
-  private parseJobsFromPipelineSpec(spec: any): Array<{
+  private parseJobsFromPipelineSpec(spec: Record<string, unknown>): Array<{
     name: string;
     type: string;
     commands: string[];
@@ -257,28 +264,37 @@ export class PipelineService {
 
     // build 단계
     if (spec.build) {
+      const buildCommands = Array.isArray(spec.build)
+        ? (spec.build as string[])
+        : [spec.build as string];
       jobs.push({
         name: 'build',
         type: 'BUILD',
-        commands: Array.isArray(spec.build) ? spec.build : [spec.build],
+        commands: buildCommands,
       });
     }
 
     // test 단계
     if (spec.test) {
+      const testCommands = Array.isArray(spec.test)
+        ? (spec.test as string[])
+        : [spec.test as string];
       jobs.push({
         name: 'test',
         type: 'TEST',
-        commands: Array.isArray(spec.test) ? spec.test : [spec.test],
+        commands: testCommands,
       });
     }
 
     // deploy 단계
     if (spec.deploy) {
+      const deployCommands = Array.isArray(spec.deploy)
+        ? (spec.deploy as string[])
+        : [spec.deploy as string];
       jobs.push({
         name: 'deploy',
         type: 'DEPLOYMENT',
-        commands: Array.isArray(spec.deploy) ? spec.deploy : [spec.deploy],
+        commands: deployCommands,
       });
     }
 
@@ -288,21 +304,28 @@ export class PipelineService {
   /**
    * 개별 Job 실행 시뮬레이션
    */
-  private async executeJob(runId: string, pipelineId: string, jobConfig: {
-    name: string;
-    type: string;
-    commands: string[];
-  }) {
+  private async executeJob(
+    runId: string,
+    jobConfig: {
+      name: string;
+      type: string;
+      commands: string[];
+    },
+  ) {
     try {
-      console.log(`[Job] Starting ${jobConfig.name} (${jobConfig.type}) for run ${runId}`);
-      
+      console.log(
+        `[Job] Starting ${jobConfig.name} (${jobConfig.type}) for run ${runId}`,
+      );
+
       // 실제 Job 생성은 생략하고 실행만 시뮬레이션
       await this.simulateJobExecution(jobConfig);
 
       console.log(`[Job] Completed ${jobConfig.name} for run ${runId}`);
-
     } catch (error) {
-      console.error(`[Job] Failed ${jobConfig.name} for run ${runId}:`, error);
+      console.error(
+        `[Job] Failed ${jobConfig.name} for run ${runId}:`,
+        String(error),
+      );
       throw error;
     }
   }
@@ -315,12 +338,15 @@ export class PipelineService {
     type: string;
     commands: string[];
   }) {
-    console.log(`[Job Simulation] Executing ${jobConfig.name}:`, jobConfig.commands);
-    
+    console.log(
+      `[Job Simulation] Executing ${jobConfig.name}:`,
+      jobConfig.commands,
+    );
+
     // 실행 시간 시뮬레이션 (2-5초)
     const executionTime = 2000 + Math.random() * 3000;
-    await new Promise(resolve => setTimeout(resolve, executionTime));
-    
+    await new Promise((resolve) => setTimeout(resolve, executionTime));
+
     // 5% 확률로 실패 시뮬레이션
     if (Math.random() < 0.05) {
       throw new Error(`Simulated failure in ${jobConfig.name} job`);
