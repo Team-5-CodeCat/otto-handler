@@ -65,7 +65,7 @@ export class ProjectController {
   })
   @AuthGuard()
   @TypedRoute.Post()
-  async createProject(
+  async projectCreateProject(
     @TypedBody() createProjectDto: CreateProjectRequestDto,
     @Req() req: IRequestType,
   ): Promise<CreateProjectResponseDto> {
