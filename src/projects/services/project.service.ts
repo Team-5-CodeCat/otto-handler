@@ -482,4 +482,207 @@ export class ProjectService {
       };
     });
   }
+
+  /**
+   * GitHub App 설치 이벤트 처리 (웹훅에서 호출)
+   * 새로 설치된 앱의 정보를 데이터베이스에 저장하거나 업데이트합니다
+   */
+  async handleGitHubAppInstalled(
+    installationId: number,
+    installationInfo?: {
+      accountLogin: string;
+      accountId: number;
+      accountType: 'User' | 'Organization';
+      repositorySelection?: 'selected' | 'all';
+    },
+  ) {
+    const installationIdStr = installationId.toString();
+
+    console.log(
+      `[ProjectService] Handling GitHub app installation: ${installationIdStr} (${installationInfo?.accountLogin || 'unknown'})`,
+    );
+
+    try {
+      let accountInfo: { login: string; id: number };
+
+      if (installationInfo) {
+        // 웹훅에서 제공된 정보 사용
+        accountInfo = {
+          login: installationInfo.accountLogin,
+          id: installationInfo.accountId,
+        };
+      } else {
+        // 기존 방식: GitHub API에서 설치 정보 조회 (fallback)
+        const apiInfo =
+          await this.githubService.validateInstallation(installationIdStr);
+        accountInfo = apiInfo.account;
+      }
+
+      // 기존 설치 정보가 있는지 확인
+      const existingInstallation =
+        await this.prisma.githubInstallation.findUnique({
+          where: { installationId: installationIdStr },
+        });
+
+      if (existingInstallation) {
+        // 기존 설치 정보 업데이트
+        const updated = await this.prisma.githubInstallation.update({
+          where: { installationId: installationIdStr },
+          data: {
+            accountLogin: accountInfo.login,
+            accountId: accountInfo.id.toString(),
+            accountType:
+              installationInfo?.accountType === 'User'
+                ? 'User'
+                : 'Organization',
+            repositorySelection:
+              installationInfo?.repositorySelection === 'all'
+                ? 'all'
+                : 'selected',
+            lastUsedAt: new Date(),
+          },
+        });
+
+        console.log(
+          `[ProjectService] Updated existing installation: ${updated.id}`,
+        );
+        return updated;
+      } else {
+        // 새 설치 정보는 사용자가 직접 연결할 때까지 대기
+        // 웹훅만으로는 어느 사용자가 설치했는지 알 수 없으므로
+        // 하지만 기본 정보는 로그로 기록
+        console.log(
+          `[ProjectService] New installation detected: ${installationIdStr} for ${accountInfo.login} (ID: ${accountInfo.id})`,
+        );
+        console.log(
+          `[ProjectService] Installation will be linked when user connects it manually`,
+        );
+        return null;
+      }
+    } catch (error) {
+      console.error(
+        '[ProjectService] Error handling GitHub app installation:',
+        error,
+      );
+      // GitHub API 호출 실패 시에도 로그는 남겨둠
+      if (installationInfo) {
+        console.log(
+          `[ProjectService] Installation info from webhook: ${installationInfo.accountLogin} (${installationInfo.accountType})`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * GitHub App 제거 이벤트 처리 (웹훅에서 호출)
+   * 제거된 앱의 설치 정보를 비활성화하거나 삭제합니다
+   */
+  async handleGitHubAppUninstalled(installationId: number) {
+    const installationIdStr = installationId.toString();
+
+    console.log(
+      `[ProjectService] Handling GitHub app uninstallation: ${installationIdStr}`,
+    );
+
+    try {
+      // 관련된 설치 정보 조회
+      const installation = await this.prisma.githubInstallation.findUnique({
+        where: { installationId: installationIdStr },
+      });
+
+      if (!installation) {
+        console.log(
+          `[ProjectService] Installation not found: ${installationIdStr}`,
+        );
+        return null;
+      }
+
+      // 트랜잭션으로 관련 데이터 정리
+      return await this.prisma.$transaction(async (tx) => {
+        // 1. 해당 설치와 연결된 모든 프로젝트 레포지토리를 비활성화
+        const updatedRepositories = await tx.projectRepository.updateMany({
+          where: { installationId: installationIdStr },
+          data: {
+            isActive: false,
+            updatedAt: new Date(),
+          },
+        });
+
+        console.log(
+          `[ProjectService] Deactivated ${updatedRepositories.count} project repositories`,
+        );
+
+        // 2. 설치 정보 삭제
+        const deletedInstallation = await tx.githubInstallation.delete({
+          where: { installationId: installationIdStr },
+        });
+
+        console.log(
+          `[ProjectService] Deleted installation: ${deletedInstallation.id}`,
+        );
+
+        return {
+          deletedInstallation,
+          deactivatedRepositories: updatedRepositories.count,
+        };
+      });
+    } catch (error) {
+      console.error(
+        '[ProjectService] Error handling GitHub app uninstallation:',
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * 사용자의 GitHub 설치 상태 조회
+   * GET /api/v1/projects/github/status에서 사용
+   */
+  async getGitHubInstallationStatus(userId: string) {
+    const installations = await this.prisma.githubInstallation.findMany({
+      where: { userID: userId },
+      select: {
+        id: true,
+        installationId: true,
+        accountLogin: true,
+        accountId: true,
+        createdAt: true,
+        lastUsedAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // 각 설치에 연결된 레포지토리 개수 조회
+    const installationsWithCount = await Promise.all(
+      installations.map(async (installation) => {
+        const repositoryCount = await this.prisma.projectRepository.count({
+          where: { installationId: installation.installationId },
+        });
+
+        return {
+          id: installation.id,
+          installationId: installation.installationId,
+          accountLogin: installation.accountLogin,
+          accountId: installation.accountId,
+          connectedRepositories: repositoryCount,
+          installedAt: installation.createdAt.toISOString(),
+          lastUsedAt: installation.lastUsedAt?.toISOString() || null,
+        };
+      }),
+    );
+
+    const totalRepositories = installationsWithCount.reduce(
+      (sum, installation) => sum + installation.connectedRepositories,
+      0,
+    );
+
+    return {
+      hasInstallations: installations.length > 0,
+      totalInstallations: installations.length,
+      totalConnectedRepositories: totalRepositories,
+      installations: installationsWithCount,
+    };
+  }
 }

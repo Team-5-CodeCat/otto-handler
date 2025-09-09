@@ -430,20 +430,30 @@ export class ProjectController {
     description: '로그인 필요',
   })
   @AuthGuard()
+  /**
+   * @summary GitHub 설치 상태 및 연결된 레포지토리 현황 조회
+   * @tag project
+   */
   @TypedRoute.Get('github/status')
   async getGithubStatus(
     @Req() req: IRequestType,
   ): Promise<GithubStatusResponseDto> {
     const userId = req.user.user_id;
-    const installations =
-      await this.projectService.getUserGithubInstallations(userId);
+    const status =
+      await this.projectService.getGitHubInstallationStatus(userId);
+
     return {
-      hasInstallation: installations.length > 0,
-      installations: installations.map((i) => ({
-        id: i.id,
-        installationId: i.installationId,
-        accountLogin: i.accountLogin,
-        createdAt: i.createdAt.toISOString(),
+      hasInstallation: status.hasInstallations,
+      totalInstallations: status.totalInstallations,
+      totalConnectedRepositories: status.totalConnectedRepositories,
+      installations: status.installations.map((installation) => ({
+        id: installation.id,
+        installationId: installation.installationId,
+        accountLogin: installation.accountLogin || 'Unknown',
+        accountId: installation.accountId || 'Unknown',
+        connectedRepositories: installation.connectedRepositories,
+        installedAt: installation.installedAt,
+        lastUsedAt: installation.lastUsedAt,
       })),
     };
   }
