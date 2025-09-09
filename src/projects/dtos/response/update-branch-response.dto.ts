@@ -11,5 +11,3 @@ export interface UpdateBranchResponseDto {
     name: string;
   };
 }
-
-

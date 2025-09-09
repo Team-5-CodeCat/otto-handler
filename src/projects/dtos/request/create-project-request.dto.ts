@@ -6,5 +6,3 @@ export interface CreateProjectRequestDto {
   /** 웹훅 URL (선택) */
   webhookUrl?: string & tags.Format<'url'>;
 }
-
-
