@@ -206,15 +206,15 @@ export class OttoscalerService {
    *   pipelineId: 'pipeline-123',
    *   name: 'Production Deployment',
    *   stages: [
-   *     { stageId: 'build', type: 'build', name: 'Build', workerCount: 2, ... },
-   *     { stageId: 'test', type: 'test', name: 'Test', workerCount: 4, ... }
+   *     { stageId: 'build', type: StageType.STAGE_TYPE_BUILD, name: 'Build', workerCount: 2, ... },
+   *     { stageId: 'test', type: StageType.STAGE_TYPE_TEST, name: 'Test', workerCount: 4, ... }
    *   ],
    *   repository: 'https://github.com/user/repo',
    *   commitSha: 'abc123',
    *   triggeredBy: 'user@example.com',
    *   metadata: { environment: 'production' }
    * });
-   * 
+   *
    * stream.on('data', (progress) => {
    *   console.log(`Stage ${progress.stageId}: ${progress.status} - ${progress.progressPercentage}%`);
    * });
@@ -252,9 +252,9 @@ export class OttoscalerService {
    *       console.error(`Stage ${progress.stageId} failed: ${progress.errorMessage}`);
    *     }
    *   }),
-   *   catchError(err => { 
-   *     console.error('Stream error:', err); 
-   *     return EMPTY; 
+   *   catchError(err => {
+   *     console.error('Stream error:', err);
+   *     return EMPTY;
    *   })
    * )
    * .subscribe();
@@ -423,7 +423,7 @@ export class OttoscalerService {
    * // 작업 완료 시 스트림 종료
    * channel.end();
    *
-   * @note 
+   * @note
    * - 백프레셔 처리: 서버 과부하 시 RETRY 응답으로 Worker Pod 전송 속도 조절
    * - sequence 번호로 로그 순서 보장
    * - 구독 해제 시 자동으로 duplex 스트림이 종료됩니다.
