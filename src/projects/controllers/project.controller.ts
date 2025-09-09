@@ -1,12 +1,3 @@
-// controllers/project.controller.ts
-import {
-  Controller,
-  ForbiddenException,
-  NotFoundException,
-  BadRequestException,
-  Req,
-  HttpStatus,
-} from '@nestjs/common';
 import { ProjectService } from '../services/project.service';
 import { GithubService } from '../services/github.service';
 import {
@@ -15,40 +6,51 @@ import {
   TypedParam,
   TypedRoute,
 } from '@nestia/core';
-import { AuthGuard } from 'src/common/decorators';
-import type { IRequestType } from 'src/common/type';
-import { CommonErrorResponseDto } from 'src/common/dto/response/common-error-response.dto';
 import type {
   CreateProjectRequestDto,
+  CreateProjectWithGithubDto,
   RegisterInstallationRequestDto,
   ConnectRepositoryRequestDto,
   UpdateBranchRequestDto,
   CreateProjectResponseDto,
+  CreateProjectWithGithubResponseDto,
   RegisterInstallationResponseDto,
   GetRepositoriesResponseDto,
   ConnectRepositoryResponseDto,
   GetBranchesResponseDto,
   UpdateBranchResponseDto,
-  GetUserGithubInstallationsResponseDto,
-  GetProjectDetailResponseDto,
-  GetUserProjectsResponseDto,
+  GithubInstallUrlResponseDto,
+  GithubStatusResponseDto,
 } from '../dtos';
+import {
+  Controller,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+  Req,
+  HttpStatus,
+  Query,
+  Redirect,
+} from '@nestjs/common';
 import { tags } from 'typia';
+import { AuthGuard } from '../../common/decorators';
+import type { IRequestType } from '../../common/type';
+import { CommonErrorResponseDto } from '../../common/dto/response/common-error-response.dto';
+import { GetUserGithubInstallationsResponseDto } from '../dtos/response/get-user-github-installations-response.dto';
+import { GetProjectDetailResponseDto } from '../dtos/response/get-project-detail-response.dto';
+import { GetUserProjectsResponseDto } from '../dtos/response/get-user-projects-response.dto';
 
 @Controller('projects')
 export class ProjectController {
   constructor(
-    private projectService: ProjectService,
-    private githubService: GithubService,
+    private readonly projectService: ProjectService,
+    private readonly githubService: GithubService,
   ) {}
 
   /**
-   *
-   * @tag project
    * @summary 새 프로젝트 생성
-   *
+   * @tag project
    */
-  @AuthGuard()
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
@@ -61,8 +63,9 @@ export class ProjectController {
     status: HttpStatus.BAD_REQUEST,
     description: '잘못된 요청',
   })
-  @TypedRoute.Post('createProject')
-  async projectCreateProject(
+  @AuthGuard()
+  @TypedRoute.Post()
+  async createProject(
     @TypedBody() createProjectDto: CreateProjectRequestDto,
     @Req() req: IRequestType,
   ): Promise<CreateProjectResponseDto> {
@@ -76,11 +79,9 @@ export class ProjectController {
   }
 
   /**
-   *
-   *@tag project
-   *@summary GitHub app 설치 등록
+   * @summary GitHub app 설치 등록
+   * @tag project
    */
-  @AuthGuard()
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
@@ -93,8 +94,7 @@ export class ProjectController {
     status: HttpStatus.BAD_REQUEST,
     description: '잘못된 요청',
   })
-
-  // 2단계: GitHub 설치 등록
+  @AuthGuard()
   @TypedRoute.Post('github-installations')
   async projectRegisterGithubInstallation(
     @TypedBody() registerDto: RegisterInstallationRequestDto,
@@ -109,11 +109,9 @@ export class ProjectController {
   }
 
   /**
-   *
-   *@tag project
-   *@summary GitHub 설치 목록 조회 (사용자가 등록한 모든 GitHub 계정)
+   * @summary GitHub 설치 목록 조회 (사용자가 등록한 모든 GitHub 계정)
+   * @tag project
    */
-  @AuthGuard()
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
@@ -126,7 +124,7 @@ export class ProjectController {
     status: HttpStatus.BAD_REQUEST,
     description: '잘못된 요청',
   })
-  // GitHub 설치 목록 조회 (사용자가 등록한 모든 GitHub 계정)
+  @AuthGuard()
   @TypedRoute.Get('github-installations')
   async projectGetUserGithubInstallations(
     @Req() req: IRequestType,
@@ -137,11 +135,9 @@ export class ProjectController {
   }
 
   /**
-   *
-   *@tag project
-   *@summary 특정 설치에서 접근 가능한 레포지토리 목록 조회
+   * @summary 특정 설치에서 접근 가능한 레포지토리 목록 조회
+   * @tag project
    */
-  @AuthGuard()
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
@@ -154,7 +150,7 @@ export class ProjectController {
     status: HttpStatus.BAD_REQUEST,
     description: '잘못된 요청',
   })
-  // 3단계: 특정 설치에서 접근 가능한 레포지토리 목록 조회
+  @AuthGuard()
   @TypedRoute.Get('github-installations/:installationId/repositories')
   async projectGetAvailableRepositories(
     @TypedParam('installationId') installationId: string & tags.Format<'uuid'>,
@@ -166,22 +162,31 @@ export class ProjectController {
     const installations =
       await this.projectService.getUserGithubInstallations(userId);
     const hasAccess = installations.some(
-      (install) => install.installationId === installationId,
+      (install) => install.id === installationId,
     );
 
     if (!hasAccess) {
       throw new ForbiddenException('해당 GitHub 설치에 접근할 권한이 없습니다');
     }
 
-    return this.githubService.getAccessibleRepositories(installationId);
+    // UUID로 실제 GitHub Installation ID 찾기
+    const installation = installations.find(
+      (install) => install.id === installationId,
+    );
+
+    if (!installation) {
+      throw new ForbiddenException('해당 GitHub 설치를 찾을 수 없습니다');
+    }
+
+    return this.githubService.getAccessibleRepositories(
+      installation.installationId,
+    );
   }
 
   /**
-   *
-   *@tag project
-   *@summary 프로젝트에 레포지토리 연결
+   * @summary GitHub Installation의 특정 레포지토리 브랜치 목록 조회
+   * @tag project
    */
-  @AuthGuard()
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
@@ -194,7 +199,63 @@ export class ProjectController {
     status: HttpStatus.BAD_REQUEST,
     description: '잘못된 요청',
   })
-  // 4단계: 프로젝트에 레포지토리 연결
+  @AuthGuard()
+  @TypedRoute.Get(
+    'github-installations/:installationId/repositories/:repoFullName/branches',
+  )
+  async getRepositoryBranchesFromInstallation(
+    @TypedParam('installationId') installationId: string & tags.Format<'uuid'>,
+    @TypedParam('repoFullName') repoFullName: string,
+    @Req() req: IRequestType,
+  ): Promise<GetBranchesResponseDto> {
+    const userId = req.user.user_id;
+
+    // 보안 검증: 이 설치가 현재 사용자 소유인지 확인
+    const installations =
+      await this.projectService.getUserGithubInstallations(userId);
+    const hasAccess = installations.some(
+      (install) => install.id === installationId,
+    );
+
+    if (!hasAccess) {
+      throw new ForbiddenException('해당 GitHub 설치에 접근할 권한이 없습니다');
+    }
+
+    // UUID로 실제 GitHub Installation ID 찾기
+    const installation = installations.find(
+      (install) => install.id === installationId,
+    );
+
+    if (!installation) {
+      throw new ForbiddenException('해당 GitHub 설치를 찾을 수 없습니다');
+    }
+
+    // repoFullName을 URL 디코딩 (예: "owner%2Frepo" -> "owner/repo")
+    const decodedRepoFullName = decodeURIComponent(repoFullName);
+
+    return this.githubService.getRepositoryBranches(
+      installation.installationId,
+      decodedRepoFullName,
+    );
+  }
+
+  /**
+   * @summary 프로젝트에 레포지토리 연결
+   * @tag project
+   */
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: '로그인 필요',
+  })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.FORBIDDEN,
+    description: '권한 없음',
+  })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
+  @AuthGuard()
   @TypedRoute.Post(':projectId/repositories')
   async projectConnectRepository(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
@@ -213,11 +274,9 @@ export class ProjectController {
   }
 
   /**
-   *
-   *@tag project
-   *@summary 레포지토리의 브랜치 목록 조회
+   * @summary 레포지토리의 브랜치 목록 조회
+   * @tag project
    */
-  @AuthGuard()
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
@@ -230,7 +289,7 @@ export class ProjectController {
     status: HttpStatus.BAD_REQUEST,
     description: '잘못된 요청',
   })
-  // 5단계: 레포지토리의 브랜치 목록 조회
+  @AuthGuard()
   @TypedRoute.Get(':projectId/repositories/:repositoryId/branches')
   async projectGetRepositoryBranches(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
@@ -265,15 +324,9 @@ export class ProjectController {
   }
 
   /**
-   *
-   *@tag project
-   *@summary 선택된 브랜치 변경
+   * @summary 선택된 브랜치 변경
+   * @tag project
    */
-  @AuthGuard()
-  @TypedException<CommonErrorResponseDto>({
-    status: HttpStatus.BAD_REQUEST,
-    description: '잘못된 요청',
-  })
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
@@ -282,7 +335,11 @@ export class ProjectController {
     status: HttpStatus.FORBIDDEN,
     description: '권한 없음',
   })
-  // 6단계: 선택된 브랜치 변경
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
+  @AuthGuard()
   @TypedRoute.Patch(':projectId/repositories/:repositoryId/branch')
   async projectUpdateSelectedBranch(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
@@ -301,15 +358,9 @@ export class ProjectController {
   }
 
   /**
-   *
-   *@tag project
-   *@summary 프로젝트 상세 정보 조회 (연결된 레포지토리들과 함께)
+   * @summary 프로젝트 상세 정보 조회 (연결된 레포지토리들과 함께)
+   * @tag project
    */
-  @AuthGuard()
-  @TypedException<CommonErrorResponseDto>({
-    status: HttpStatus.BAD_REQUEST,
-    description: '잘못된 요청',
-  })
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
@@ -318,6 +369,11 @@ export class ProjectController {
     status: HttpStatus.FORBIDDEN,
     description: '권한 없음',
   })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
+  @AuthGuard()
   @TypedRoute.Get(':projectId')
   async projectGetProjectDetail(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
@@ -329,15 +385,73 @@ export class ProjectController {
   }
 
   /**
-   *
-   *@tag project
-   *@summary 사용자의 모든 프로젝트 목록 조회
+   * @summary GitHub App 설치 URL 생성
+   * @tag project
    */
-  @AuthGuard()
   @TypedException<CommonErrorResponseDto>({
-    status: HttpStatus.BAD_REQUEST,
-    description: '잘못된 요청',
+    status: HttpStatus.UNAUTHORIZED,
+    description: '로그인 필요',
   })
+  @AuthGuard()
+  @TypedRoute.Get('github/install-url')
+  getGithubInstallUrl(@Req() req: IRequestType): GithubInstallUrlResponseDto {
+    const userId = req.user.user_id;
+
+    console.log('[GitHub Install URL] Generating for user:', userId);
+
+    const state = this.projectService.generateGithubInstallState(userId);
+    const appSlug = process.env.GITHUB_APP_NAME || 'otto-test-1';
+    const baseUrl = 'https://github.com/apps';
+    const installUrl = `${baseUrl}/${appSlug}/installations/new?state=${encodeURIComponent(
+      state,
+    )}`;
+
+    console.log('[GitHub Install URL] Generated:', {
+      userId,
+      appSlug,
+      state: `${state.substring(0, 20)}...`,
+      installUrl: `${baseUrl}/${appSlug}/installations/new?state=...`,
+    });
+
+    return {
+      userId,
+      appSlug,
+      state,
+      installUrl,
+    };
+  }
+
+  /**
+   * @summary 사용자의 GitHub 설치 상태 확인
+   * @tag project
+   */
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: '로그인 필요',
+  })
+  @AuthGuard()
+  @TypedRoute.Get('github/status')
+  async getGithubStatus(
+    @Req() req: IRequestType,
+  ): Promise<GithubStatusResponseDto> {
+    const userId = req.user.user_id;
+    const installations =
+      await this.projectService.getUserGithubInstallations(userId);
+    return {
+      hasInstallation: installations.length > 0,
+      installations: installations.map((i) => ({
+        id: i.id,
+        installationId: i.installationId,
+        accountLogin: i.accountLogin,
+        createdAt: i.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  /**
+   * @summary 사용자의 모든 프로젝트 목록 조회
+   * @tag project
+   */
   @TypedException<CommonErrorResponseDto>({
     status: HttpStatus.UNAUTHORIZED,
     description: '로그인 필요',
@@ -346,6 +460,11 @@ export class ProjectController {
     status: HttpStatus.FORBIDDEN,
     description: '권한 없음',
   })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
+  @AuthGuard()
   @TypedRoute.Get()
   async projectGetUserProjects(
     @Req() req: IRequestType,
@@ -353,5 +472,145 @@ export class ProjectController {
     const userId = req.user.user_id;
 
     return this.projectService.getUserProjects(userId);
+  }
+
+  /**
+   * @summary GitHub App 설치 콜백 처리 (프론트엔드 리다이렉트)
+   * @tag project
+   */
+  @TypedRoute.Get('github/callback')
+  @Redirect()
+  async handleGithubCallback(
+    @Query('installation_id') installationId: string,
+    @Query('setup_action') setupAction: string,
+    @Query('state') state: string,
+  ) {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const callbackPath = '/integrations/github/callback';
+
+    console.log('[GitHub Callback] Received:', {
+      installationId,
+      setupAction,
+      state: state ? `${state.substring(0, 20)}...` : 'null',
+    });
+
+    try {
+      // 1) state 검증 및 사용자 식별
+      if (!state) {
+        console.log('[GitHub Callback] Error: Missing state parameter');
+        return {
+          url: `${frontendUrl}${callbackPath}?status=error&reason=missing_state`,
+          statusCode: 302,
+        };
+      }
+
+      const userId = this.projectService.parseGithubInstallState(state);
+      if (!userId) {
+        console.log('[GitHub Callback] Error: Invalid state token');
+        return {
+          url: `${frontendUrl}${callbackPath}?status=error&reason=invalid_state`,
+          statusCode: 302,
+        };
+      }
+
+      console.log('[GitHub Callback] State verified for user:', userId);
+
+      // 2) installation_id 유효성 확인
+      if (!installationId) {
+        console.log('[GitHub Callback] Error: Missing installation_id');
+        return {
+          url: `${frontendUrl}${callbackPath}?status=error&reason=missing_installation_id`,
+          statusCode: 302,
+        };
+      }
+
+      // installation_id를 string으로 확실히 변환
+      const installationIdStr = String(installationId);
+      console.log(
+        '[GitHub Callback] Processing installation:',
+        installationIdStr,
+      );
+
+      // setup_action 참고: install/update
+      void setupAction;
+
+      // 3) 사용자와 설치 연결 (검증 및 upsert)
+      const installation = await this.projectService.linkInstallationToUser(
+        userId,
+        installationIdStr,
+      );
+
+      console.log('[GitHub Callback] Installation saved successfully:', {
+        userId,
+        installationId: installation.installationId,
+        accountLogin: installation.accountLogin,
+        dbId: installation.id,
+      });
+
+      // 4) 프론트엔드 콜백 페이지로 리다이렉트
+      const successUrl = `${frontendUrl}${callbackPath}?status=success&installation_id=${encodeURIComponent(
+        installationIdStr,
+      )}&account_login=${encodeURIComponent(installation.accountLogin || '')}`;
+
+      console.log('[GitHub Callback] Redirecting to:', successUrl);
+
+      return {
+        url: successUrl,
+        statusCode: 302,
+      };
+    } catch (error) {
+      // 5) 예외 처리 및 에러 리다이렉트
+      console.error('[GitHub Callback] Error occurred:', error);
+
+      // 에러 타입별 세분화
+      let reason = 'installation_failed';
+      if (error instanceof Error) {
+        if (error.message.includes('유효하지 않은')) {
+          reason = 'invalid_installation';
+        } else if (error.message.includes('권한')) {
+          reason = 'permission_denied';
+        }
+      }
+
+      return {
+        url: `${frontendUrl}${callbackPath}?status=error&reason=${reason}`,
+        statusCode: 302,
+      };
+    }
+  }
+
+  /**
+   * @summary GitHub 연동 프로젝트 생성 (원스톱)
+   * @tag project
+   */
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: '로그인 필요',
+  })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.FORBIDDEN,
+    description: '권한 없음',
+  })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청',
+  })
+  @AuthGuard()
+  @TypedRoute.Post('with-github')
+  async createProjectWithGithub(
+    @TypedBody() createDto: CreateProjectWithGithubDto,
+    @Req() req: IRequestType,
+  ): Promise<CreateProjectWithGithubResponseDto> {
+    const userId = req.user.user_id;
+
+    console.log('[Project Controller] Creating GitHub project:', {
+      userId,
+      name: createDto.name,
+      repository: createDto.repositoryFullName,
+      installationId: createDto.installationId,
+      selectedBranch: createDto.selectedBranch,
+    });
+
+    return this.projectService.createProjectWithGithub(userId, createDto);
   }
 }

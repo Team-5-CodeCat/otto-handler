@@ -15,6 +15,24 @@ async function bootstrap() {
       logger: process.env.NODE_ENV !== 'production',
     }),
   );
+
+  // Enable CORS
+  app.enableCors({
+    origin:
+      process.env.NODE_ENV === 'production'
+        ? ['https://codecat-otto.shop', 'https://www.codecat-otto.shop']
+        : [process.env.FRONTEND_URL || 'http://localhost:3000'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Cookie',
+      'X-Requested-With',
+      'Accept',
+    ],
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const document = await NestiaSwaggerComposer.document(app, {
       openapi: '3.1',
@@ -39,6 +57,7 @@ async function bootstrap() {
   await app.register(fastifyCookie, {
     secret: process.env.COOKIE_SECRET ?? 'dev-cookie-secret',
   });
+
   app.setGlobalPrefix('api/v1', {
     exclude: ['health', 'docs'],
   });

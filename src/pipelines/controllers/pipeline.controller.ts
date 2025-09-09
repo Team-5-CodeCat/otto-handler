@@ -40,10 +40,10 @@ export class PipelineController {
     description: '프로젝트를 찾을 수 없음',
   })
   @TypedRoute.Post('/')
-  async pipelineCreate(
+  async createPipeline(
     @TypedBody() createPipelineDto: CreatePipelineRequestDto,
   ): Promise<CreatePipelineResponseDto> {
-    const pipeline = await this.pipelineService.pipelineCreate(
+    const pipeline = await this.pipelineService.createPipeline(
       createPipelineDto.projectID,
       createPipelineDto.name,
       createPipelineDto.yamlContent,
@@ -72,12 +72,13 @@ export class PipelineController {
    */
   @AuthGuard()
   @TypedRoute.Get('/project/:projectID')
-  async pipelineGetByProject(
+  async getPipelinesByProject(
     @TypedParam('projectID') projectID: string & tags.Format<'uuid'>,
   ): Promise<GetPipelinesByProjectResponseDto> {
     const pipelines =
-      await this.pipelineService.pipelineGetByProject(projectID);
+      await this.pipelineService.getPipelinesByProject(projectID);
 
+    console.log(pipelines);
     return {
       pipelines: pipelines.map((pipeline) => ({
         pipelineID: pipeline.pipelineID,
@@ -106,10 +107,10 @@ export class PipelineController {
    */
   @AuthGuard()
   @TypedRoute.Get('/:pipelineID')
-  async pipelineGetById(
+  async getPipelineById(
     @TypedParam('pipelineID') pipelineID: string & tags.Format<'uuid'>,
   ): Promise<GetPipelineByIdResponseDto> {
-    const pipeline = await this.pipelineService.pipelineGetById(pipelineID);
+    const pipeline = await this.pipelineService.getPipelineById(pipelineID);
 
     return {
       pipelineID: pipeline.pipelineID,
