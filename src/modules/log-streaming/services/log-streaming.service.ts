@@ -21,11 +21,11 @@ import {
   publishReplay,
   refCount,
 } from 'rxjs/operators';
-import { v4 as uuidv4 } from 'uuid';
+crypto.randomUUID();
 import { Log, LogStream, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../../database/prisma.service';
-import { OttoscalerService } from '../../../integrations/grpc/ottoscaler.service';
+import { OttoscalerService } from '../../../integrations/grpc';
 import type { ILogStreamingService } from '../interfaces/log-streaming.interface';
 import type {
   LogStreamSession,
@@ -806,7 +806,7 @@ export class LogStreamingService
       );
     }
 
-    const sessionId = uuidv4();
+    const sessionId = crypto.randomUUID();
     const now = new Date();
 
     const session: LogStreamSession = {

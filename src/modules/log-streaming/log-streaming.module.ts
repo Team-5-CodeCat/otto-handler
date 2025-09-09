@@ -1,9 +1,8 @@
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+
 import { LogStreamingService } from './services/log-streaming.service';
 import { LogStreamingController } from './controllers/log-streaming.controller';
-import { LogStreamingGateway } from './gateways/log-streaming.gateway';
+// import { LogStreamingGateway } from './gateways/log-streaming.gateway';
 import { OttoscalerModule } from '../../integrations/grpc/ottoscaler.module';
 
 /**
@@ -33,17 +32,6 @@ import { OttoscalerModule } from '../../integrations/grpc/ottoscaler.module';
     // gRPC 통신을 위한 Ottoscaler 모듈
     // 📡 기술적 구현: gRPC 클라이언트를 통해 Worker Pod 로그 수신
     OttoscalerModule,
-
-    // JWT 인증 모듈 (WebSocket 연결 시 사용)
-    // 🔐 기술적 구현: JWT 토큰 검증을 통한 사용자 인증
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'default-secret',
-        signOptions: { expiresIn: '1h' },
-      }),
-      inject: [ConfigService],
-    }),
   ],
   providers: [
     // 핵심 로그 처리 서비스
@@ -52,7 +40,7 @@ import { OttoscalerModule } from '../../integrations/grpc/ottoscaler.module';
 
     // WebSocket 게이트웨이 (양방향 실시간 통신)
     // 🔧 기술적 구현: Socket.IO를 통한 실시간 로그 스트리밍
-    LogStreamingGateway,
+    // LogStreamingGateway,
   ],
   controllers: [
     // HTTP SSE 컨트롤러 (Server-Sent Events)
