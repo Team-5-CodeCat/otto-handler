@@ -11,6 +11,8 @@ import {
   distinctUntilChanged,
   switchMap,
   take,
+  publishReplay,
+  refCount,
 } from 'rxjs/operators';
 import { v4 as uuidv4 } from 'uuid';
 import { Log, LogStream, Prisma } from '@prisma/client';
@@ -82,13 +84,40 @@ export class LogStreamingService
   });
 
   /**
-   * 🔌 gRPC 연결 상태 관리
-   *
-   * 🔧 기술적 구현:
-   * - Subject를 통한 서비스 종료 시그널
-   * - 모든 활성 스트림의 정리 보장
+   * gRPC 연결 상태 관리
+   * 서비스 종료 시그널을 통한 모든 활성 스트림 정리 보장
    */
   private readonly destroy$ = new Subject<void>();
+
+  /**
+   * SSE 브로드캐스팅을 위한 활성 스트림 저장소
+   * 
+   * 기술적 설계:
+   * - taskId를 키로 하는 Map 구조로 스트림별 독립적 관리
+   * - 각 스트림은 gRPC Observable의 Hot Observable 인스턴스를 저장
+   * - 첫 번째 SSE 클라이언트 연결 시 gRPC 스트림 생성
+   * - 마지막 클라이언트 연결 해제 시 자동 정리
+   * 
+   * 메모리 관리:
+   * - share() 오퍼레이터로 멀티캐스트 구현
+   * - refCount() 패턴으로 자동 구독/해제 관리
+   * - WeakMap 대신 Map 사용으로 명시적 정리 제어
+   */
+  private readonly activeStreams = new Map<string, Observable<WorkerLogEntry>>();
+
+  /**
+   * SSE 클라이언트 연결 추적을 위한 저장소
+   * 
+   * 연결 관리 전략:
+   * - taskId별로 연결된 클라이언트 수 추적
+   * - 클라이언트 연결/해제 시 실시간 업데이트
+   * - 0이 되면 해당 gRPC 스트림 자동 정리
+   * 
+   * 성능 최적화:
+   * - O(1) 시간복잡도로 연결 수 조회
+   * - 메모리 효율적인 카운터 기반 관리
+   */
+  private readonly clientConnectionCounts = new Map<string, number>();
 
   /**
    * ⚙️ 서비스 설정
@@ -336,6 +365,144 @@ export class LogStreamingService
       );
       return EMPTY;
     }
+  }
+
+  /**
+   * SSE 클라이언트를 위한 로그 스트림을 생성하거나 기존 스트림을 반환합니다.
+   * 
+   * 브로드캐스팅 시스템 핵심 로직:
+   * 1. 동일한 taskId에 대해서는 하나의 gRPC 연결만 유지
+   * 2. 여러 SSE 클라이언트가 해당 스트림을 공유
+   * 3. 첫 번째 클라이언트 연결 시 gRPC 스트림 생성
+   * 4. 마지막 클라이언트 해제 시 gRPC 스트림 자동 정리
+   * 
+   * 메모리 효율성:
+   * - 10개의 SSE 클라이언트가 같은 작업을 모니터링해도 gRPC 연결은 1개만 사용
+   * - Hot Observable 패턴으로 늦게 구독하는 클라이언트도 실시간 데이터 수신
+   * - Reference counting으로 불필요한 리소스 자동 해제
+   * 
+   * @param taskId CI/CD 작업 고유 식별자
+   * @param filter 로그 필터링 조건
+   * @returns Observable<WorkerLogEntry> 공유 가능한 로그 스트림
+   */
+  getOrCreateSharedLogStream(
+    taskId: string,
+    filter?: LogFilter,
+  ): Observable<WorkerLogEntry> {
+    /**
+     * 1단계: 기존 활성 스트림 확인
+     * 
+     * 캐싱 전략:
+     * - 동일한 taskId에 대한 중복 gRPC 연결 방지
+     * - 이미 생성된 Hot Observable 재사용
+     * - 메모리와 네트워크 리소스 효율성 확보
+     */
+    let sharedStream = this.activeStreams.get(taskId);
+
+    if (!sharedStream) {
+      /**
+       * 2단계: 새로운 공유 스트림 생성
+       * 
+       * Hot Observable 생성 과정:
+       * 1. 기존 startWorkerLogStream 메서드로 Cold Observable 생성
+       * 2. publishReplay(1)으로 마지막 값 1개를 버퍼링 (늦게 구독하는 클라이언트 지원)
+       * 3. refCount()로 자동 구독/해제 관리
+       * 4. takeUntil(destroy$)로 서비스 종료 시 정리 보장
+       * 
+       * publishReplay(1) 사용 이유:
+       * - 새로운 SSE 클라이언트가 연결되면 즉시 최근 로그 1개를 받을 수 있음
+       * - 연결 지연으로 인한 초기 데이터 손실 방지
+       * - 메모리 사용량을 최소화하면서도 사용성 확보
+       */
+      const coldStream = this.startWorkerLogStream(taskId, filter);
+      
+      sharedStream = coldStream.pipe(
+        publishReplay(1), // 마지막 로그 1개를 버퍼링하여 새 구독자에게 즉시 전달
+        refCount(), // 자동 구독/해제: 구독자가 0명이 되면 업스트림 해제
+        takeUntil(this.destroy$), // 서비스 종료 시 스트림 정리
+        tap({
+          /**
+           * 스트림 생성/해제 로깅
+           * 
+           * 모니터링 목적:
+           * - gRPC 연결 생성/해제 추적
+           * - 리소스 사용량 모니터링
+           * - 장애 상황 디버깅 지원
+           */
+          subscribe: () => {
+            this.logger.log(`gRPC 로그 스트림 생성: taskId=${taskId}`);
+            this.updateConnectionMetrics();
+          },
+          finalize: () => {
+            this.logger.log(`gRPC 로그 스트림 정리: taskId=${taskId}`);
+            this.activeStreams.delete(taskId);
+            this.clientConnectionCounts.delete(taskId);
+            this.updateConnectionMetrics();
+          },
+        }),
+      );
+
+      // 활성 스트림 맵에 저장
+      this.activeStreams.set(taskId, sharedStream);
+    }
+
+    return sharedStream;
+  }
+
+  /**
+   * SSE 클라이언트 연결을 등록하고 관리합니다.
+   * 
+   * 연결 관리 시스템:
+   * - 각 taskId별로 연결된 클라이언트 수를 추적
+   * - 연결/해제 시 메트릭 실시간 업데이트
+   * - 리소스 사용량 모니터링 및 최적화
+   * 
+   * @param taskId 작업 식별자
+   * @param clientId 클라이언트 고유 식별자 (세션 ID 등)
+   */
+  registerSSEClient(taskId: string, clientId: string): void {
+    const currentCount = this.clientConnectionCounts.get(taskId) || 0;
+    this.clientConnectionCounts.set(taskId, currentCount + 1);
+
+    this.logger.debug(
+      `SSE 클라이언트 연결 등록: taskId=${taskId}, clientId=${clientId}, 총 연결수=${currentCount + 1}`
+    );
+
+    this.updateConnectionMetrics();
+  }
+
+  /**
+   * SSE 클라이언트 연결 해제를 처리합니다.
+   * 
+   * 자동 정리 메커니즘:
+   * - 클라이언트 수가 0이 되면 해당 taskId의 모든 리소스 정리
+   * - gRPC 스트림은 refCount()에 의해 자동 해제됨
+   * - 메모리 누수 방지를 위한 방어적 정리
+   * 
+   * @param taskId 작업 식별자
+   * @param clientId 클라이언트 고유 식별자
+   */
+  unregisterSSEClient(taskId: string, clientId: string): void {
+    const currentCount = this.clientConnectionCounts.get(taskId) || 0;
+    const newCount = Math.max(0, currentCount - 1);
+
+    if (newCount === 0) {
+      // 마지막 클라이언트 해제 시 완전 정리
+      this.clientConnectionCounts.delete(taskId);
+      this.activeStreams.delete(taskId);
+      
+      this.logger.log(
+        `taskId=${taskId}의 모든 SSE 클라이언트 연결 해제: 리소스 정리 완료`
+      );
+    } else {
+      this.clientConnectionCounts.set(taskId, newCount);
+      
+      this.logger.debug(
+        `SSE 클라이언트 연결 해제: taskId=${taskId}, clientId=${clientId}, 남은 연결수=${newCount}`
+      );
+    }
+
+    this.updateConnectionMetrics();
   }
 
   /**
