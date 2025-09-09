@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { LogStreamingService } from './services/log-streaming.service';
 import { LogStreamingController } from './controllers/log-streaming.controller';
 // import { LogStreamingGateway } from './gateways/log-streaming.gateway';
-import { OttoscalerModule } from '../../integrations/grpc/ottoscaler.module';
+import { OttoscalerModule } from '../../integrations/grpc';
 
 /**
  * 🔄 LogStreamingModule
