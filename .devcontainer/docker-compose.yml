@@ -1,0 +1,96 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/workspace/otto-handler:cached
+    command: sleep infinity
+    ports:
+      - "4000:4000"
+      # 5432 포트 제거 (DB 직접 접근은 db 서비스로)
+    environment:
+      - NODE_ENV=development  # .env.dev 파일 사용
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/otto-handler
+      - REDIS_URL=redis://redis:6379
+      - PORT=4000
+    depends_on:
+      db:
+        condition: service_healthy  # 헬스체크 기반 시작
+      redis:
+        condition: service_healthy  # Redis 헬스체크 기반 시작
+    networks:
+      - otto-network
+    # 리소스 제한 추가 (개발 환경에 적합한 설정)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=otto-handler
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d otto-handler"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - otto-network
+    # DB 리소스 제한
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  redis:
+    image: redis:8.2.1-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - otto-network
+    # Redis 리소스 제한 (개발 환경에 적합한 설정)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    # Redis 설정 최적화 (개발환경용)
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --save 900 1
+
+networks:
+  otto-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:

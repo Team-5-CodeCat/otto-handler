@@ -111,7 +111,7 @@ User → Project → Pipeline → PipelineRun → Job → Log/Error/StatusEvent
 ### 공유 리소스
 
 **Redis 컨테이너**: `redis-{개발자영문명}`
-- otto-handler와 ottoscaler에서 공유 사용
+- otto-handler에서 캐싱 및 세션 관리 사용
 - 자동 생성/재사용 로직 적용
 
 **PostgreSQL 컨테이너**: `postgres-{개발자ID}`
@@ -135,10 +135,6 @@ COOKIE_SECRET=hanjinwoo-cookie-secret-key-for-development
 - **API 통신**: Nestia 생성 SDK 사용
 - **인증**: JWT 토큰 기반
 
-### Ottoscaler
-- **Redis 공유**: 스케일링 이벤트 전송
-- **포트**: 6379-6384 공유
-- **통신**: Redis Streams (gRPC 예정)
 
 ## 📊 데이터베이스
 
