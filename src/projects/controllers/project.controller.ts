@@ -498,7 +498,7 @@ export class ProjectController {
     console.log('[GitHub Install URL] Generating for user:', userId);
 
     const state = this.projectService.generateGithubInstallState(userId);
-    const appSlug = process.env.GITHUB_APP_NAME || 'otto-test-1';
+    const appSlug = process.env.OTTO_GITHUB_APP_NAME || 'otto-test-1';
     const baseUrl = 'https://github.com/apps';
     const installUrl = `${baseUrl}/${appSlug}/installations/new?state=${encodeURIComponent(
       state,
