@@ -14,14 +14,6 @@ export class GithubOauthService {
     const clientId = this.configService.get<string>('GITHUB_CLIENT_ID');
     const clientSecret = this.configService.get<string>('GITHUB_SECRET');
 
-    console.log('[GitHub OAuth] Starting authentication:', {
-      hasCode: !!code,
-      hasState: !!state,
-      hasClientId: !!clientId,
-      hasClientSecret: !!clientSecret,
-      clientIdPreview: clientId?.substring(0, 10) + '...',
-    });
-
     if (!clientId || !clientSecret) {
       throw new HttpException(
         'GitHub OAuth 설정이 누락되었습니다. GITHUB_CLIENT_ID와 GITHUB_SECRET 환경변수를 확인하세요.',
@@ -60,11 +52,11 @@ export class GithubOauthService {
           error_description: tokenResponse.error_description,
           full_response: tokenResponse,
         });
-        const errorMessage = tokenResponse.error_description || tokenResponse.error || '로그인 실패';
-        throw new HttpException(
-          `GitHub OAuth 실패: ${errorMessage}`,
-          HttpStatus.UNAUTHORIZED,
-        );
+        const errorMessage =
+          tokenResponse.error_description ||
+          tokenResponse.error ||
+          '로그인 실패';
+        throw new HttpException(`로그인 실패`, HttpStatus.UNAUTHORIZED);
       }
     } catch (err) {
       console.error('[GitHub OAuth] Token fetch error:', err);
@@ -72,7 +64,7 @@ export class GithubOauthService {
         throw err;
       }
       throw new HttpException(
-        `GitHub 토큰 획득 실패: ${err.message}`,
+        `GitHub 토큰 획득 실패}`,
         HttpStatus.UNAUTHORIZED,
       );
     }
@@ -96,10 +88,7 @@ export class GithubOauthService {
       return githubUser;
     } catch (err) {
       console.error('[GitHub OAuth] User info fetch error:', err);
-      throw new HttpException(
-        `GitHub 사용자 정보 획득 실패: ${err.message}`,
-        HttpStatus.UNAUTHORIZED,
-      );
+      throw new HttpException(`로그인 실패`, HttpStatus.UNAUTHORIZED);
     }
   }
 }
