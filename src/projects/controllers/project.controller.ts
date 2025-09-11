@@ -297,16 +297,16 @@ export class ProjectController {
     status: HttpStatus.BAD_REQUEST,
     description: '잘못된 요청',
   })
-  // @AuthGuard() // 임시로 인증 비활성화
+  @AuthGuard()
   @TypedRoute.Get(
     'github-installations/:installationId/repositories/:repoFullName/branches',
   )
   async getRepositoryBranchesFromInstallation(
     @TypedParam('installationId') installationId: string,
     @TypedParam('repoFullName') repoFullName: string,
+    @Req() req: IRequestType,
   ): Promise<GetBranchesResponseDto> {
-    // 임시로 하드코딩된 userId 사용
-    const userId = '66145edc-945f-401c-b9a4-07fa0bd025d4';
+    const userId = req.user.user_id;
 
     // 보안 검증: 이 설치가 현재 사용자 소유인지 확인
     const installations =
