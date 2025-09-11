@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: otto_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm prisma generate
+
+      - name: Run linting
+        run: pnpm run lint
+
+      - name: Run formatting check
+        run: pnpm run format
+
+      - name: Create test environment file
+        run: |
+          set -e  # Exit on error
+          echo "POSTGRESQL_URL=postgresql://postgres:postgres@localhost:5432/otto_test" > .env.test
+          echo "JWT_SECRET=test-jwt-secret-key-for-ci-testing" >> .env.test
+          echo "REFRESH_TOKEN_SECRET=test-refresh-secret-key-for-ci-testing" >> .env.test
+          echo "OTTO_HANDLER_SERVER_PORT=4000" >> .env.test
+          echo "NODE_ENV=test" >> .env.test
+
+      - name: Run database migrations
+        run: pnpm prisma migrate deploy
+        env:
+          POSTGRESQL_URL: postgresql://postgres:postgres@localhost:5432/otto_test
+
+      - name: Run tests
+        run: pnpm test
+        env:
+          POSTGRESQL_URL: postgresql://postgres:postgres@localhost:5432/otto_test
+
+      - name: Build application
+        run: pnpm build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: otto-handler-build-dev
+          path: |
+            dist
+            prisma
+            package.json
+            pnpm-lock.yaml
+          retention-days: 7

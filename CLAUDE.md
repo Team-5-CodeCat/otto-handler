@@ -126,6 +126,7 @@ User → Project → Pipeline → PipelineRun → Job → Log/Error/StatusEvent
 ```
 
 핵심 엔티티:
+
 - **User**: 인증 및 프로젝트 소유권
 - **Project**: GitHub 저장소 연결 및 웹훅 URL
 - **Pipeline**: 빌드/테스트/배포 워크플로 정의 (YAML 및 블록 기반 PaB 방식 지원)
@@ -144,8 +145,8 @@ User → Project → Pipeline → PipelineRun → Job → Log/Error/StatusEvent
 
 ### 환경 설정
 
-- **포트**: 4000 (PORT 환경변수로 설정 가능)
-- **데이터베이스**: PostgreSQL (DATABASE_URL 환경변수 필요)
+- **포트**: 4000 (OTTO_HANDLER_SERVER_PORT 환경변수로 설정 가능)
+- **데이터베이스**: PostgreSQL (POSTGRESQL_URL 환경변수 필요)
 - **패키지 매니저**: pnpm (Node.js 22+, pnpm 9+ 필요)
 - **API 프리픽스**: `/api/v1` (health, docs 제외)
 - **Swagger 문서**: 개발 모드에서 `/docs`에서 접근 가능
@@ -153,16 +154,19 @@ User → Project → Pipeline → PipelineRun → Job → Log/Error/StatusEvent
 ### 핵심 기능
 
 #### 1. 타입 안전성 및 검증
+
 - **Nestia**: 프론트엔드용 타입 안전 SDK 자동 생성
 - **typia**: 런타임 타입 검증 및 변환
 - **Prisma**: 스키마 우선 접근법으로 데이터베이스 타입 안전성
 
 #### 2. GitHub 통합
+
 - **GitHub App**: OAuth 앱이 아닌 GitHub App 사용
 - **웹훅**: 푸시 이벤트 자동 처리
 - **Octokit**: GitHub API 클라이언트
 
 #### 3. 파이프라인 관리
+
 - **YAML 설정**: 전통적인 CI/CD 설정 방식
 - **블록 기반 PaB**: 시각적 파이프라인 구성
 - **Job 타입**: BUILD, TEST, DEPLOYMENT
@@ -171,6 +175,7 @@ User → Project → Pipeline → PipelineRun → Job → Log/Error/StatusEvent
 ### 코딩 컨벤션
 
 #### 모듈 구조
+
 ```typescript
 // 모듈 예시
 @Module({
@@ -183,6 +188,7 @@ export class SomeModule {}
 ```
 
 #### 컨트롤러 패턴
+
 ```typescript
 @Controller('endpoint')
 export class SomeController {
@@ -196,6 +202,7 @@ export class SomeController {
 ```
 
 #### 서비스 패턴
+
 ```typescript
 @Injectable()
 export class SomeService {
@@ -212,10 +219,11 @@ export class SomeService {
 ### 데이터베이스 스키마 중요사항
 
 #### 열거형 (Enums)
+
 ```prisma
 enum JobStatus {
   pending
-  running  
+  running
   completed
   failed
   cancelled
@@ -234,6 +242,7 @@ enum Language {
 ```
 
 #### 인덱스 최적화
+
 - 모든 주요 검색 필드에 인덱스 설정
 - 타임스탬프 필드 (createdAt, updatedAt)에 인덱스
 - 외래 키 관계에 인덱스
@@ -270,12 +279,13 @@ enum Language {
 ### 일반적인 문제
 
 1. **Prisma 클라이언트 오류**
+
    ```bash
    pnpm prisma generate
    ```
 
 2. **데이터베이스 연결 오류**
-   - DATABASE_URL 환경변수 확인
+   - POSTGRESQL_URL 환경변수 확인
    - PostgreSQL 서버 상태 확인
 
 3. **Redis 연결 오류**
@@ -292,17 +302,20 @@ enum Language {
 ## 중요한 지침
 
 ### 파일 생성 정책
+
 - **기존 파일 우선**: 새 파일 생성보다 기존 파일 편집을 우선
 - **문서 파일 제한**: 명시적 요청 없이는 .md 파일이나 README 생성 금지
 - **필요시에만**: 목표 달성에 절대 필요한 경우에만 파일 생성
 
 ### 코드 품질
+
 - **타입 안전성**: TypeScript strict 모드 준수
 - **Nestia 패턴**: TypedRoute, TypedBody 등 Nestia 데코레이터 사용
 - **에러 처리**: 모든 비동기 작업에 적절한 에러 처리
 - **검증**: typia를 사용한 런타임 타입 검증
 
 ### 성능 고려사항
+
 - **데이터베이스 쿼리**: include 사용 시 N+1 문제 주의
 - **인덱스 활용**: WHERE 절에 사용되는 컬럼에 인덱스 확인
 - **캐싱**: Redis를 활용한 적절한 캐싱 전략

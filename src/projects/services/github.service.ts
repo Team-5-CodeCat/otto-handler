@@ -1,8 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { Octokit } from '@octokit/rest';
 import * as jwt from 'jsonwebtoken';
-import * as fs from 'fs';
-import * as path from 'path';
 import type {
   GetRepositoriesResponseDto,
   GetBranchesResponseDto,
@@ -37,20 +35,11 @@ export class GithubService {
   constructor() {
     this.appId = String(process.env.OTTO_GITHUB_APP_ID || '');
 
-    // PEM 파일에서 Private Key 읽기
-    const pemFilePath =
-      process.env.OTTO_GITHUB_APP_PRIVATE_KEY_PATH ||
-      path.join(process.cwd(), 'secrets', 'otto_github_app_private_key.pem');
+    // Private Key를 string으로 변환하고 \n을 실제 줄바꿈으로 변환
+    const rawPrivateKey = String(process.env.OTTO_GITHUB_APP_PRIVATE_KEY || '');
+    this.privateKey = rawPrivateKey.replace(/\\n/g, '\n');
 
-    try {
-      this.privateKey = fs.readFileSync(pemFilePath, 'utf8');
-    } catch (error) {
-      throw new Error(
-        `GitHub App Private Key 파일을 읽을 수 없습니다: ${pemFilePath}`,
-      );
-    }
-
-    // PEM 형식 확인
+    // PEM 형식 확인 및 추가 정규화
     if (
       !this.privateKey.includes('-----BEGIN RSA PRIVATE KEY-----') &&
       !this.privateKey.includes('-----BEGIN PRIVATE KEY-----')
@@ -64,8 +53,8 @@ export class GithubService {
 
     console.log('[GitHub Service] 인증 정보 로드:', {
       appId: this.appId,
-      pemFilePath,
       privateKeyLength: this.privateKey.length,
+      privateKeyStart: this.privateKey.substring(0, 50),
       hasBeginMarker: this.privateKey.includes('-----BEGIN'),
       hasEndMarker: this.privateKey.includes('-----END'),
     });

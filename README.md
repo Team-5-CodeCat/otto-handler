@@ -66,7 +66,7 @@ pnpm install
 
 # 3. 환경 설정 복사 및 수정
 cp .env.example .env.dev
-# DATABASE_URL, REDIS_URL, GitHub App 정보 설정
+# POSTGRESQL_URL, REDIS_URL, GitHub App 정보 설정
 
 # 4. 데이터베이스 마이그레이션
 pnpm prisma migrate dev
@@ -243,12 +243,12 @@ Otto Handler는 환경별로 분리된 설정 파일을 사용합니다:
 
 ```bash
 # 🚀 서버 설정
-PORT=4000
+OTTO_HANDLER_SERVER_PORT=4000
 NODE_ENV=development
 COOKIE_SECRET=your-secure-cookie-secret
 
 # 🗄️ 데이터베이스
-DATABASE_URL="postgresql://user:password@localhost:5432/otto_handler"
+POSTGRESQL_URL="postgresql://user:password@localhost:5432/otto_handler"
 
 # 🔴 Redis 캐시
 REDIS_URL="redis://localhost:6379"
@@ -465,7 +465,7 @@ const users = await prisma.user.findMany({
 ```bash
 # 테스트 전용 환경변수
 NODE_ENV=test
-DATABASE_URL="postgresql://postgres:password@localhost:5432/otto_handler_test"
+POSTGRESQL_URL="postgresql://postgres:password@localhost:5432/otto_handler_test"
 
 # 테스트 DB 초기화
 pnpm prisma migrate reset --force
@@ -969,7 +969,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url = env("DATABASE_URL")
+  url = env("POSTGRESQL_URL")
   // 연결 풀 설정
   // postgresql://user:password@localhost:5432/db?connection_limit=10&pool_timeout=20
 }
@@ -987,7 +987,7 @@ lsof -ti:4000
 kill -9 $(lsof -ti:4000)
 
 # 또는 다른 포트 사용
-PORT=4001 pnpm run start:dev
+OTTO_HANDLER_SERVER_PORT=4001 pnpm run start:dev
 ```
 
 #### 의존성 문제 해결
@@ -1016,10 +1016,10 @@ pnpm run build
 
 ```bash
 # 1. 데이터베이스 서버 상태 확인
-psql $DATABASE_URL -c "SELECT 1;"
+psql $POSTGRESQL_URL -c "SELECT 1;"
 
 # 2. 연결 문자열 확인
-echo $DATABASE_URL
+echo $POSTGRESQL_URL
 
 # 3. PostgreSQL 서비스 재시작 (로컬)
 sudo systemctl restart postgresql

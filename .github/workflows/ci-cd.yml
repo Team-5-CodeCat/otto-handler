@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: Deloy
 
 on:
   push:
@@ -53,21 +53,21 @@ jobs:
       - name: Create test environment file
         run: |
           set -e  # Exit on error
-          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/otto_test" > .env.test
+          echo "POSTGRESQL_URL=postgresql://postgres:postgres@localhost:5432/otto_test" > .env.test
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env.test
           echo "REFRESH_TOKEN_SECRET=${{ secrets.REFRESH_TOKEN_SECRET }}" >> .env.test
-          echo "PORT=4000" >> .env.test
+          echo "OTTO_HANDLER_SERVER_PORT=4000" >> .env.test
           echo "NODE_ENV=test" >> .env.test
 
       - name: Run database migrations
         run: pnpm prisma migrate deploy
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/otto_test
+          POSTGRESQL_URL: postgresql://postgres:postgres@localhost:5432/otto_test
 
       - name: Run tests
         run: pnpm test
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/otto_test
+          POSTGRESQL_URL: postgresql://postgres:postgres@localhost:5432/otto_test
 
       - name: Build application
         run: pnpm build
@@ -220,12 +220,30 @@ jobs:
             # Create .env.prod file
             echo "Creating .env.prod..."
             {
-              echo "PORT=${{ secrets.PORT }}"
+              echo "# Application Settings"
+              echo "OTTO_HANDLER_SERVER_PORT=${{ secrets.OTTO_HANDLER_SERVER_PORT }}"
               echo "NODE_ENV=production"
               echo "COOKIE_SECRET=${{ secrets.COOKIE_SECRET }}"
-              echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
+              echo ""
+              echo "# Database Settings"
+              echo "POSTGRESQL_URL=${{ secrets.POSTGRESQL_URL }}"
+              echo ""
+              echo "# Cache Settings"
               echo "REDIS_URL=${{ secrets.REDIS_URL }}"
+              echo ""
+              echo "# GitHub App Settings"
+              echo "OTTO_GITHUB_WEBHOOK_SECRET=${{ secrets.OTTO_GITHUB_WEBHOOK_SECRET }}"
               echo "OTTO_GITHUB_APP_ID=${{ secrets.OTTO_GITHUB_APP_ID }}"
+              echo "OTTO_GITHUB_APP_NAME=${{ secrets.OTTO_GITHUB_APP_NAME }}"
+              echo "# Private key is stored separately in secrets/otto_github_app_private_key.pem"
+              echo ""
+              echo "# JWT Token Settings"
+              echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
+              echo "JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}"
+              echo "REFRESH_TOKEN_SECRET=${{ secrets.REFRESH_TOKEN_SECRET }}"
+              echo "REFRESH_TOKEN_EXPIRES_IN=${{ secrets.REFRESH_TOKEN_EXPIRES_IN }}"
+              echo ""
+              echo "# Frontend Settings"
               echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}"
             } > .env.prod || {
               echo "ERROR: Failed to create .env.prod"
