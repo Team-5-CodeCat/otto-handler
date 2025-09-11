@@ -38,13 +38,16 @@ export class GithubService {
     this.appId = String(process.env.OTTO_GITHUB_APP_ID || '');
 
     // PEM 파일에서 Private Key 읽기
-    const pemFilePath = process.env.OTTO_GITHUB_APP_PRIVATE_KEY_PATH || 
-                        path.join(process.cwd(), 'secrets', 'otto_github_app_private_key.pem');
-    
+    const pemFilePath =
+      process.env.OTTO_GITHUB_APP_PRIVATE_KEY_PATH ||
+      path.join(process.cwd(), 'secrets', 'otto_github_app_private_key.pem');
+
     try {
       this.privateKey = fs.readFileSync(pemFilePath, 'utf8');
     } catch (error) {
-      throw new Error(`GitHub App Private Key 파일을 읽을 수 없습니다: ${pemFilePath}`);
+      throw new Error(
+        `GitHub App Private Key 파일을 읽을 수 없습니다: ${pemFilePath}`,
+      );
     }
 
     // PEM 형식 확인
