@@ -226,6 +226,8 @@ jobs:
               echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
               echo "REDIS_URL=${{ secrets.REDIS_URL }}"
               echo "OTTO_GITHUB_APP_ID=${{ secrets.OTTO_GITHUB_APP_ID }}"
+              echo "OTTO_GITHUB_PRIVATE_KEY_PATH=secrets/otto_github_app_private_key.pem"
+              echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
               echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}"
             } > .env.prod || {
               echo "ERROR: Failed to create .env.prod"
