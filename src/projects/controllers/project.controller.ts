@@ -73,6 +73,43 @@ export class ProjectController {
   }
 
   /**
+   * 객체가 특정 속성을 가지고 있는지 확인하는 타입 가드
+   */
+  private hasProperty<T extends string>(
+    obj: unknown,
+    prop: T,
+  ): obj is Record<T, unknown> {
+    return typeof obj === 'object' && obj !== null && prop in obj;
+  }
+
+  /**
+   * 안전한 문자열 변환 헬퍼 메서드
+   */
+  private safeStringify(value: unknown): string {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'object') {
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return '[object Object]';
+      }
+    }
+    // primitive 타입이 아닌 경우 안전하게 처리
+    if (typeof value === 'function') {
+      return '[Function]';
+    }
+    if (typeof value === 'symbol') {
+      return value.toString();
+    }
+    // 기타 모든 경우
+    return '[unknown]';
+  }
+
+  /**
    * @tag project
    * @summary 새 프로젝트 생성
    */
@@ -247,22 +284,27 @@ export class ProjectController {
       console.log('[Repositories API] User installations found:', {
         userId,
         totalInstallations: installations.length,
-        installationIds: installations.map((install: any) => ({
-          id: install.id,
-          installationId: install.installationId,
-          accountLogin: install.accountLogin,
+        // installation 객체의 필드들을 안전하게 변환하여 할당
+        installationIds: installations.map((install) => ({
+          installationId: this.safeStringify(install.installationId),
+          githubInstallationId: this.safeStringify(
+            install.githubInstallationId,
+          ),
+          accountLogin: this.safeStringify(install.accountLogin),
         })),
       });
 
       const hasAccess = installations.some(
-        (install: any) => install.installationId === installationId,
+        (install) => install.githubInstallationId === installationId,
       );
 
       if (!hasAccess) {
         console.log('[Repositories API] Access denied:', {
           userId,
           requestedInstallationId: installationId,
-          availableInstallations: installations.map((i) => i.id),
+          availableInstallations: installations.map((i) =>
+            this.safeStringify(i.installationId),
+          ),
         });
         throw new ForbiddenException(
           '해당 GitHub 설치에 접근할 권한이 없습니다',
@@ -271,27 +313,33 @@ export class ProjectController {
 
       // UUID로 실제 GitHub Installation ID 찾기
       const installation = installations.find(
-        (install: any) => install.installationId === installationId,
+        (install) => install.githubInstallationId === installationId,
       );
 
       if (!installation) {
         console.log('[Repositories API] Installation not found:', {
           userId,
           requestedInstallationId: installationId,
-          availableInstallations: installations.map((i) => i.id),
+          availableInstallations: installations.map((i) =>
+            this.safeStringify(i.installationId),
+          ),
         });
         throw new ForbiddenException('해당 GitHub 설치를 찾을 수 없습니다');
       }
 
       console.log('[Repositories API] Fetching repositories:', {
         userId,
-        uuidInstallationId: installation.id,
-        githubInstallationId: installation.installationId,
-        accountLogin: installation.accountLogin,
+        // installation 객체의 필드들을 안전하게 변환하여 할당
+        installationId: this.safeStringify(installation.installationId),
+        githubInstallationId: this.safeStringify(
+          installation.githubInstallationId,
+        ),
+        accountLogin: this.safeStringify(installation.accountLogin),
       });
 
+      // githubInstallationId를 안전한 문자열로 변환하여 전달
       const repositories = await this.githubService.getAccessibleRepositories(
-        installation.installationId,
+        this.safeStringify(installation.githubInstallationId),
       );
 
       console.log('[Repositories API] Success:', {
@@ -306,12 +354,14 @@ export class ProjectController {
 
       return repositories;
     } catch (error: unknown) {
+      // error 객체를 타입 안전하게 처리
       const errorInfo = this.getErrorInfo(error);
       console.error('[Repositories API] Error occurred:', {
         userId,
         installationId,
         error: errorInfo,
-        errorType: error?.constructor?.name,
+        // 생성자 이름을 안전하게 추출
+        errorType: error instanceof Error ? error.constructor.name : 'unknown',
       });
 
       // 에러를 다시 던져서 NestJS가 적절한 HTTP 응답을 생성하도록 함
@@ -351,7 +401,7 @@ export class ProjectController {
       userId,
     )) as any[];
     const hasAccess = installations.some(
-      (install: any) => install.installationId === installationId,
+      (install) => install.githubInstallationId === installationId,
     );
 
     if (!hasAccess) {
@@ -360,7 +410,7 @@ export class ProjectController {
 
     // UUID로 실제 GitHub Installation ID 찾기
     const installation = installations.find(
-      (install: any) => install.installationId === installationId,
+      (install) => install.githubInstallationId === installationId,
     );
 
     if (!installation) {
@@ -371,7 +421,7 @@ export class ProjectController {
     const decodedRepoFullName = decodeURIComponent(repoFullName);
 
     return this.githubService.getRepositoryBranches(
-      installation.installationId,
+      String(installation.githubInstallationId),
       decodedRepoFullName,
     );
   }
@@ -401,29 +451,18 @@ export class ProjectController {
   ): Promise<ConnectRepositoryResponseDto> {
     const userId = req.user.user_id;
 
-    const result = await this.projectService.connectRepositoryToProject(
+    // DTO 필드들을 타입 안전하게 전달
+    return this.projectService.connectRepositoryToProject(
       userId,
       projectId,
-      connectDto.repoFullName,
-      connectDto.selectedBranch,
-      connectDto.installationId,
-    );
-
-    // DTO 필드명 매핑
-    return {
-      id: result.id, // 레포지토리 연결 ID
-      projectID: result.id,
-      repoFullName: `${result.githubOwner}/${result.githubRepoName}`,
-      selectedBranch: result.defaultBranch,
-      isActive: true,
-      installationId: connectDto.installationId || '',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      project: {
-        projectID: result.id,
-        name: result.name,
-      },
-    };
+      String(connectDto.githubRepoId),
+      String(connectDto.githubRepoUrl),
+      String(connectDto.githubRepoName),
+      String(connectDto.githubOwner),
+      connectDto.isPrivate,
+      String(connectDto.selectedBranch),
+      connectDto.installationId ? String(connectDto.installationId) : undefined,
+    ) as Promise<ConnectRepositoryResponseDto>;
   }
 
   /**
@@ -446,33 +485,30 @@ export class ProjectController {
   @TypedRoute.Get(':projectId/repositories/:repositoryId/branches')
   async projectGetRepositoryBranches(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
-    @TypedParam('repositoryId') repositoryId: string & tags.Format<'uuid'>,
+    @TypedParam('repositoryId') _repositoryId: string & tags.Format<'uuid'>,
     @Req() req: IRequestType,
   ): Promise<GetBranchesResponseDto> {
     const userId = req.user.user_id;
 
-    // 먼저 이 레포지토리가 사용자의 프로젝트에 속하는지 확인
+    // 먼저 이 프로젝트가 사용자 소유인지 확인
     const project = await this.projectService.getProjectDetail(
       userId,
       projectId,
     );
-    const repository = project.repositories.find(
-      (repo) => repo.id === repositoryId,
-    );
 
-    if (!repository) {
-      throw new NotFoundException('레포지토리를 찾을 수 없습니다');
+    if (!project) {
+      throw new NotFoundException('프로젝트를 찾을 수 없습니다');
     }
 
-    if (!repository.installationId) {
+    if (!project.installationId) {
       throw new BadRequestException(
-        '이 레포지토리에는 GitHub 설치 정보가 없습니다',
+        '이 프로젝트에는 GitHub 설치 정보가 없습니다',
       );
     }
 
     return this.githubService.getRepositoryBranches(
-      repository.installationId,
-      repository.repoFullName,
+      project.installationId,
+      `${project.githubOwner}/${project.githubRepoName}`,
     );
   }
 
@@ -496,33 +532,18 @@ export class ProjectController {
   @TypedRoute.Patch(':projectId/repositories/:repositoryId/branch')
   async projectUpdateSelectedBranch(
     @TypedParam('projectId') projectId: string & tags.Format<'uuid'>,
-    @TypedParam('repositoryId') repositoryId: string & tags.Format<'uuid'>,
+    @TypedParam('repositoryId') _repositoryId: string & tags.Format<'uuid'>,
     @TypedBody() updateDto: UpdateBranchRequestDto,
     @Req() req: IRequestType,
   ): Promise<UpdateBranchResponseDto> {
     const userId = req.user.user_id;
 
-    const result = await this.projectService.updateSelectedBranch(
+    // branchName을 타입 안전하게 전달
+    return this.projectService.updateSelectedBranch(
       userId,
       projectId,
-      repositoryId,
-      updateDto.branchName,
-    );
-
-    // DTO 필드명 매핑
-    return {
-      id: repositoryId, // 레포지토리 ID
-      projectID: projectId,
-      repoFullName: `${result.githubOwner}/${result.githubRepoName}`,
-      selectedBranch: result.defaultBranch,
-      installationId: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      project: {
-        projectID: projectId,
-        name: result.name,
-      },
-    };
+      String(updateDto.branchName),
+    ) as Promise<UpdateBranchResponseDto>;
   }
 
   /**
@@ -618,21 +639,35 @@ export class ProjectController {
     @Req() req: IRequestType,
   ): Promise<GithubStatusResponseDto> {
     const userId = req.user.user_id;
-    const status =
-      await this.projectService.getGitHubInstallationStatus(userId);
+    const status = (await this.projectService.getGitHubInstallationStatus(
+      userId,
+    )) as {
+      hasInstallations: boolean;
+      totalInstallations: number;
+      totalConnectedProjects: number;
+      installations: Array<{
+        installationId: string;
+        githubInstallationId: string;
+        accountLogin: string;
+        accountType: string;
+        connectedProjects: number;
+        installedAt: string;
+      }>;
+    };
 
     return {
       hasInstallation: status.hasInstallations,
-      totalInstallations: status.totalInstallations,
-      totalConnectedRepositories: status.totalConnectedRepositories,
-      installations: status.installations.map((installation: any) => ({
-        id: installation.id,
-        installationId: installation.installationId,
-        accountLogin: installation.accountLogin || 'Unknown',
-        accountId: installation.accountId || 'Unknown',
-        connectedRepositories: installation.connectedRepositories,
+      // status 객체의 필드를 안전하게 변환하여 할당
+      totalInstallations: Number(status.totalInstallations),
+      totalConnectedProjects: status.totalConnectedProjects,
+      // 각 필드를 타입 안전하게 매핑
+      installations: status.installations.map((installation) => ({
+        installationId: String(installation.installationId),
+        githubInstallationId: String(installation.githubInstallationId),
+        accountLogin: String(installation.accountLogin),
+        accountType: String(installation.accountType),
+        connectedProjects: Number(installation.connectedProjects),
         installedAt: installation.installedAt,
-        lastUsedAt: installation.lastUsedAt,
       })),
     };
   }
@@ -681,7 +716,7 @@ export class ProjectController {
     @Query('installation_id') installationId: string,
     @Query('setup_action') setupAction: string,
     @Query('state') state: string,
-  ) {
+  ): Promise<{ url: string; statusCode: number }> {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const callbackPath = '/integrations/github/callback';
 
@@ -737,17 +772,18 @@ export class ProjectController {
         installationIdStr,
       )) as any;
 
+      // installation 결과를 타입 안전하게 로깅
       console.log('[GitHub Callback] Installation saved successfully:', {
         userId,
-        installationId: installation.installationId,
-        accountLogin: installation.accountLogin,
-        dbId: installation.id,
+        installationId: String(installation.installationId),
+        accountLogin: String(installation.accountLogin || ''),
+        dbId: String(installation.installationId),
       });
 
-      // 4) 프론트엔드 콜백 페이지로 리다이렉트
+      // URL 파라미터를 타입 안전하게 구성
       const successUrl = `${frontendUrl}${callbackPath}?status=success&installation_id=${encodeURIComponent(
         installationIdStr,
-      )}&account_login=${encodeURIComponent(installation?.accountLogin || '')}`;
+      )}&account_login=${encodeURIComponent(String(installation.accountLogin || ''))}`;
 
       console.log('[GitHub Callback] Redirecting to:', successUrl);
 
@@ -755,11 +791,12 @@ export class ProjectController {
         url: successUrl,
         statusCode: 302,
       };
-    } catch (error) {
-      // 5) 예외 처리 및 에러 리다이렉트
-      console.error('[GitHub Callback] Error occurred:', error);
+    } catch (error: unknown) {
+      // 5) 예외 처리 및 에러 리다이렉트 - error를 타입 안전하게 처리
+      const errorInfo = this.getErrorInfo(error);
+      console.error('[GitHub Callback] Error occurred:', errorInfo);
 
-      // 에러 타입별 세분화
+      // 에러 타입별 세분화 - Error 타입 체크로 안전하게 처리
       let reason = 'installation_failed';
       if (error instanceof Error) {
         if (error.message.includes('유효하지 않은')) {
@@ -803,25 +840,25 @@ export class ProjectController {
     console.log('[Project Controller] Creating GitHub project:', {
       userId,
       name: createDto.name,
-      repository: createDto.repositoryFullName,
+      repository: `${createDto.githubOwner}/${createDto.githubRepoName}`,
       installationId: createDto.installationId,
       selectedBranch: createDto.selectedBranch,
     });
 
-    const result = await this.projectService.createProjectWithGithub(
-      userId,
-      createDto,
-    );
-
-    // DTO 필드명 매핑
-    return {
-      project: {
-        projectID: result.project.id,
-        name: result.project.name,
-        webhookUrl: null,
-        createdAt: result.project.createdAt,
-      },
-      repository: result.repository,
-    };
+    // DTO 필드들을 타입 안전하게 매핑하여 전달
+    return this.projectService.createProjectWithGithub(userId, {
+      name: String(createDto.name),
+      description: createDto.description
+        ? String(createDto.description)
+        : undefined,
+      installationId: String(createDto.installationId),
+      githubRepoId: String(createDto.githubRepoId),
+      githubRepoUrl: String(createDto.githubRepoUrl),
+      githubRepoName: String(createDto.githubRepoName),
+      githubOwner: String(createDto.githubOwner),
+      // isPrivate는 boolean 타입이므로 안전하게 할당
+      isPrivate: Boolean(createDto.isPrivate),
+      selectedBranch: String(createDto.selectedBranch),
+    });
   }
 }

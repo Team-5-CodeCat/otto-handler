@@ -1,14 +1,15 @@
 export interface RegisterInstallationResponseDto {
-  id: string;
-  userID: string;
   installationId: string;
-  accountLogin: string | null;
-  accountId: string | null;
+  userId: string;
+  githubInstallationId: string;
+  accountLogin: string;
+  accountType: string;
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
   user: {
-    userID: string;
+    userId: string;
     email: string;
-    name: string;
+    name: string | null;
   };
 }

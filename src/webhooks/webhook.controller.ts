@@ -16,6 +16,174 @@ export class WebhookController {
   constructor(private readonly projectService: ProjectService) {}
 
   /**
+   * 객체가 특정 속성을 가지고 있는지 확인하는 타입 가드
+   */
+  private hasProperty<T extends string>(
+    obj: unknown,
+    prop: T,
+  ): obj is Record<T, unknown> {
+    return typeof obj === 'object' && obj !== null && prop in obj;
+  }
+
+  /**
+   * GitHub webhook payload의 head_commit 객체 타입 가드
+   */
+  private isHeadCommit(obj: unknown): obj is { message?: string } {
+    if (typeof obj !== 'object' || obj === null) {
+      return false;
+    }
+    const headCommit = obj as Record<string, unknown>;
+    return (
+      typeof headCommit.message === 'string' || headCommit.message === undefined
+    );
+  }
+
+  /**
+   * GitHub webhook payload의 pusher 객체 타입 가드
+   */
+  private isPusher(obj: unknown): obj is { name?: string } {
+    if (typeof obj !== 'object' || obj === null) {
+      return false;
+    }
+    const pusher = obj as Record<string, unknown>;
+    return typeof pusher.name === 'string' || pusher.name === undefined;
+  }
+
+  /**
+   * 프로젝트 배열 타입 가드
+   */
+  private isProjectArray(obj: unknown): obj is Array<{
+    projectId: string;
+    selectedBranch: string;
+  }> {
+    if (!Array.isArray(obj)) {
+      return false;
+    }
+
+    return obj.every((item) => {
+      if (typeof item !== 'object' || item === null) {
+        return false;
+      }
+
+      const projectItem = item as Record<string, unknown>;
+      return (
+        typeof projectItem.projectId === 'string' &&
+        typeof projectItem.selectedBranch === 'string'
+      );
+    });
+  }
+
+  /**
+   * 서비스 메서드 호출을 안전하게 처리하는 래퍼
+   */
+  private async safeServiceCall<T>(
+    serviceCall: () => Promise<T>,
+    errorContext: string,
+  ): Promise<T | undefined> {
+    try {
+      const result = await serviceCall();
+      return result;
+    } catch (error: unknown) {
+      const errorInfo = this.getErrorInfo(error);
+      console.error(`${errorContext}:`, errorInfo);
+      return undefined;
+    }
+  }
+
+  /**
+   * Push 이벤트 기록을 안전하게 처리하는 래퍼
+   */
+  private async safeRecordPushEvent(
+    projectId: string,
+    pushData: {
+      branch: string;
+      commitSha: string;
+      commitMessage?: string;
+      pusherName?: string;
+      pushedAt: Date;
+    },
+  ): Promise<
+    | {
+        projectId: string;
+        createdAt: Date;
+        pushEventId: string;
+        branch: string;
+        commitSha: string;
+        commitMessage: string | null;
+        pusherName: string | null;
+        pushedAt: Date;
+      }
+    | undefined
+  > {
+    try {
+      const result = await (
+        this.projectService.recordPushEvent as (
+          projectId: string,
+          pushData: {
+            branch: string;
+            commitSha: string;
+            commitMessage?: string;
+            pusherName?: string;
+            pushedAt: Date;
+          },
+        ) => Promise<{
+          projectId: string;
+          createdAt: Date;
+          pushEventId: string;
+          branch: string;
+          commitSha: string;
+          commitMessage: string | null;
+          pusherName: string | null;
+          pushedAt: Date;
+        }>
+      )(projectId, pushData);
+      return result as {
+        projectId: string;
+        createdAt: Date;
+        pushEventId: string;
+        branch: string;
+        commitSha: string;
+        commitMessage: string | null;
+        pusherName: string | null;
+        pushedAt: Date;
+      };
+    } catch (error: unknown) {
+      const errorInfo = this.getErrorInfo(error);
+      console.error('Error recording push event:', errorInfo);
+      return undefined;
+    }
+  }
+
+  /**
+   * 프로젝트 배열 타입 정의
+   */
+  private typeProjectArray = Array<{
+    projectId: string;
+    selectedBranch: string;
+  }>;
+
+  /**
+   * 에러 정보를 안전하게 추출하는 헬퍼 메서드
+   */
+  private getErrorInfo(error: unknown): {
+    message: string;
+    name: string;
+    stack?: string;
+  } {
+    if (error instanceof Error) {
+      return {
+        message: error.message,
+        name: error.name,
+        stack: error.stack?.substring(0, 500),
+      };
+    }
+    return {
+      message: 'Unknown error',
+      name: 'UnknownError',
+    };
+  }
+
+  /**
    * @tag webhooks
    * @summary GitHub 웹훅 엔드포인트 확인
    */
@@ -49,457 +217,309 @@ export class WebhookController {
     },
     @Req() request: FastifyRequest & { rawBody?: string },
   ): Promise<WebhookResponseDto> {
-    const { 'x-github-event': event, 'x-github-delivery': delivery } = headers;
+    const eventType = headers['x-github-event'];
+    const deliveryId = headers['x-github-delivery'];
+    const signature = headers['x-hub-signature-256'];
 
-    console.log('[GitHub Webhook] Request received:', {
-      event,
-      delivery,
-      payloadSize: JSON.stringify(payload).length,
+    console.log('[GitHub Webhook] Received event:', {
+      eventType,
+      deliveryId,
+      hasSignature: !!signature,
       hasRawBody: !!request.rawBody,
     });
 
-    try {
-      // 개발 환경에서는 서명 검증 건너뛰기
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(
-          '[GitHub Webhook] Development mode: skipping signature verification',
-        );
-      } else {
-        const signature = headers['x-hub-signature-256'];
-        const rawBody = request.rawBody ?? JSON.stringify(payload);
-        if (!this.verifyGithubSignature(rawBody, signature)) {
-          console.log('[GitHub Webhook] Signature verification failed');
-          return { ok: false, message: 'Invalid signature' };
-        }
-        console.log('[GitHub Webhook] Signature verification successful');
-      }
-
-      console.log(
-        `[GitHub Webhook] Processing ${event} event (delivery: ${delivery})`,
-      );
-
-      // 이벤트 타입별 처리
-      switch (event) {
-        case 'installation':
-          await this.webhookHandleInstallationEvent(payload);
-          break;
-        case 'installation_repositories':
-          await this.webhookHandleInstallationRepositoriesEvent(payload);
-          break;
-        case 'push':
-          await this.webhookHandlePushEvent(payload);
-          break;
-        case 'pull_request':
-          await this.webhookHandlePullRequestEvent(payload);
-          break;
-        default:
-          console.log(`[GitHub Webhook] Unhandled event type: ${event}`);
-          break;
-      }
-
-      console.log(`[GitHub Webhook] Successfully processed ${event} event`);
-      return { ok: true };
-    } catch (error: unknown) {
-      const errorInfo = this.getErrorInfo(error);
-      console.error('[GitHub Webhook] Error processing webhook:', {
-        event,
-        delivery,
-        error: errorInfo,
-      });
-      throw error;
+    // 서명 검증
+    if (
+      request.rawBody &&
+      !this.verifyGithubSignature(request.rawBody, signature)
+    ) {
+      console.log('[GitHub Webhook] Signature verification failed');
+      throw new Error('Invalid signature');
     }
+
+    // 이벤트 타입별 처리
+    switch (eventType) {
+      case 'push':
+        await this.webhookHandlePushEvent(payload);
+        break;
+      case 'installation':
+        this.webhookHandleInstallationEvent(payload);
+        break;
+      case 'pull_request':
+        this.webhookHandlePullRequestEvent(payload);
+        break;
+      default:
+        console.log('[GitHub Webhook] Unhandled event type:', eventType);
+    }
+
+    return { ok: true, message: 'Webhook processed successfully' };
   }
 
-  private async webhookHandleInstallationRepositoriesEvent(
-    payload: GithubWebhookRequestDto,
-  ): Promise<void> {
-    const action = payload.action;
-    const installation = payload.installation;
-
-    console.log('[GitHub Webhook] Installation repositories event received:', {
-      action,
-      installationId: installation?.id,
-      accountLogin: installation?.account
-        ? this.getAccountLogin(installation.account)
-        : 'unknown',
-    });
-
-    if (!installation || !installation.account) {
-      console.log(
-        '[GitHub Webhook] Missing installation or account data in payload',
-      );
-      return;
-    }
-
-    try {
-      if (action === 'added' || action === 'removed') {
-        const account = installation.account as {
-          login: string;
-          id: number;
-          type: 'User' | 'Organization';
-        };
-
-        if (!this.isValidAccount(account)) {
-          console.log('[GitHub Webhook] Invalid account info in payload:', {
-            hasLogin: this.hasProperty(account, 'login'),
-            hasId: this.hasProperty(account, 'id'),
-            hasType: this.hasProperty(account, 'type'),
-          });
-          return;
-        }
-
-        const repositorySelection: 'selected' | 'all' =
-          (installation.repository_selection as 'selected' | 'all') ??
-          'selected';
-
-        console.log('[GitHub Webhook] Updating installation:', {
-          installationId: installation.id,
-          accountLogin: account.login,
-          accountType: account.type,
-          repositorySelection,
-          action,
-        });
-
-        await this.projectService.handleGitHubAppInstalled(installation.id, {
-          account: account.login,
-          targetId: account.id,
-          accountType: account.type,
-          repositorySelection,
-        });
-
-        console.log(
-          `[GitHub Webhook] Installation repositories ${action} processed successfully`,
-        );
-      } else {
-        console.log(
-          `[GitHub Webhook] Unhandled installation repositories action: ${action}`,
-        );
-      }
-    } catch (error: unknown) {
-      const errorInfo = this.getErrorInfo(error);
-      console.error(
-        '[GitHub Webhook] Error handling installation repositories event:',
-        {
-          action,
-          installationId: installation.id,
-          error: errorInfo,
-        },
-      );
-      throw error;
-    }
-  }
-
-  private async webhookHandleInstallationEvent(
-    payload: GithubWebhookRequestDto,
-  ): Promise<void> {
-    const action = payload.action;
-    const installation = payload.installation;
-
-    console.log('[GitHub Webhook] Installation event received:', {
-      action,
-      installationId: installation?.id,
-      accountLogin: installation?.account
-        ? this.getAccountLogin(installation.account)
-        : 'unknown',
-    });
-
-    if (!installation || !installation.account) {
-      console.log(
-        '[GitHub Webhook] Missing installation or account data in payload',
-      );
-      return;
-    }
-
-    try {
-      switch (action) {
-        case 'created': {
-          const account = installation.account as {
-            login: string;
-            id: number;
-            type: 'User' | 'Organization';
-          };
-
-          if (!this.isValidAccount(account)) {
-            console.log(
-              '[GitHub Webhook] Invalid account info in installation payload:',
-              {
-                hasLogin: this.hasProperty(account, 'login'),
-                hasId: this.hasProperty(account, 'id'),
-                hasType: this.hasProperty(account, 'type'),
-              },
-            );
-            return;
-          }
-
-          const repositorySelection: 'selected' | 'all' =
-            (installation.repository_selection as 'selected' | 'all') ??
-            'selected';
-
-          console.log('[GitHub Webhook] Creating installation:', {
-            installationId: installation.id,
-            accountLogin: account.login,
-            accountType: account.type,
-            repositorySelection,
-          });
-
-          await this.projectService.handleGitHubAppInstalled(installation.id, {
-            account: account.login,
-            targetId: account.id,
-            accountType: account.type,
-            repositorySelection,
-          });
-          break;
-        }
-        case 'deleted':
-        case 'suspend': {
-          console.log('[GitHub Webhook] Removing installation:', {
-            installationId: installation.id,
-            action,
-          });
-          await this.projectService.handleGitHubAppUninstalled(installation.id);
-          break;
-        }
-        default:
-          console.log(
-            `[GitHub Webhook] Unhandled installation action: ${action}`,
-          );
-          break;
-      }
-
-      console.log(
-        `[GitHub Webhook] Installation ${action} processed successfully`,
-      );
-    } catch (error: unknown) {
-      const errorInfo = this.getErrorInfo(error);
-      console.error('[GitHub Webhook] Error handling installation event:', {
-        action,
-        installationId: installation.id,
-        error: errorInfo,
-      });
-      throw error;
-    }
-  }
-
+  /**
+   * Push 이벤트 처리
+   */
   private async webhookHandlePushEvent(
     payload: GithubWebhookRequestDto,
   ): Promise<void> {
-    const fullName = payload.repository?.full_name;
-    const installationId = String(payload.installation?.id ?? '');
-    const pushedBranch = payload.ref?.replace('refs/heads/', '');
-
-    console.log('[GitHub Webhook] Push event received:', {
-      repository: fullName,
-      installationId,
-      branch: pushedBranch,
+    console.log('[GitHub Webhook] Processing push event:', {
       ref: payload.ref,
       after: payload.after,
+      repository: payload.repository?.full_name,
     });
 
-    if (!fullName || !installationId || !pushedBranch) {
-      console.log('[GitHub Webhook] Missing required data for push event:', {
-        hasFullName: !!fullName,
-        hasInstallationId: !!installationId,
-        hasPushedBranch: !!pushedBranch,
-      });
+    // payload를 안전하게 처리
+    const payloadObj = payload as Record<string, unknown>;
+
+    // head_commit 정보 추출
+    const headCommit = this.hasProperty(payloadObj, 'head_commit')
+      ? payloadObj.head_commit
+      : undefined;
+
+    const headCommitData = this.isHeadCommit(headCommit)
+      ? headCommit
+      : undefined;
+
+    // pusher 정보 추출
+    const pusher = this.hasProperty(payloadObj, 'pusher')
+      ? payloadObj.pusher
+      : undefined;
+
+    const pusherData = this.isPusher(pusher) ? pusher : undefined;
+
+    // repository 정보 추출
+    const repository = this.hasProperty(payloadObj, 'repository')
+      ? payloadObj.repository
+      : undefined;
+
+    if (!repository || typeof repository !== 'object' || repository === null) {
+      console.log('[GitHub Webhook] Invalid repository data');
       return;
     }
 
+    const repoData = repository as Record<string, unknown>;
+    const fullName =
+      typeof repoData.full_name === 'string' ? repoData.full_name : undefined;
+    const installation = this.hasProperty(repoData, 'installation')
+      ? repoData.installation
+      : undefined;
+
+    const githubInstallationId =
+      installation &&
+      typeof installation === 'object' &&
+      installation !== null &&
+      this.hasProperty(installation, 'id') &&
+      typeof installation.id === 'string'
+        ? installation.id
+        : undefined;
+
+    if (!fullName || !githubInstallationId) {
+      console.log('[GitHub Webhook] Missing required repository data');
+      return;
+    }
+
+    // 브랜치 정보 추출
+    const ref = typeof payloadObj.ref === 'string' ? payloadObj.ref : '';
+    const pushedBranch = ref.replace('refs/heads/', '');
+    const nameParts = fullName.split('/');
+    const githubOwner = nameParts[0] || '';
+    const githubRepoName = nameParts[1] || '';
+
+    if (!githubOwner || !githubRepoName) {
+      console.log('[GitHub Webhook] Invalid repository name format');
+      return;
+    }
+
+    console.log('[GitHub Webhook] Push event details:', {
+      repository: fullName,
+      githubInstallationId,
+      branch: pushedBranch,
+      ref: payloadObj.ref,
+      after: payloadObj.after,
+      commitMessage: headCommitData?.message,
+      pusher: pusherData?.name,
+    });
+
     try {
-      const projects = await this.projectService.findProjectsByRepository(
-        fullName,
-        installationId,
-      );
-      const matchingProjects = projects.filter(
-        (pr) => pr.defaultBranch === pushedBranch,
+      const projectsResult = await this.safeServiceCall<
+        Array<{
+          projectId: string;
+          selectedBranch: string;
+        }>
+      >(
+        () =>
+          this.projectService.findProjectsByRepository(
+            githubOwner,
+            githubRepoName,
+            githubInstallationId,
+          ),
+        'Error finding projects by repository',
       );
 
-      if (!matchingProjects.length) {
-        console.log('[GitHub Webhook] No matching projects found for push:', {
+      if (!projectsResult) {
+        console.log('[GitHub Webhook] Failed to fetch projects:', {
           repository: fullName,
           branch: pushedBranch,
-          totalProjects: projects.length,
+          githubInstallationId,
         });
         return;
       }
 
-      console.log('[GitHub Webhook] Triggering builds:', {
+      if (!this.isProjectArray(projectsResult)) {
+        console.log('[GitHub Webhook] Invalid projects data received:', {
+          repository: fullName,
+          branch: pushedBranch,
+          githubInstallationId,
+        });
+        return;
+      }
+
+      const projects = projectsResult;
+
+      if (!projects || !projects.length) {
+        console.log('[GitHub Webhook] No projects found for push:', {
+          repository: fullName,
+          branch: pushedBranch,
+          githubInstallationId,
+        });
+        return;
+      }
+
+      console.log('[GitHub Webhook] Found projects for push event:', {
         repository: fullName,
         branch: pushedBranch,
-        matchingProjects: matchingProjects.length,
-        projectIds: matchingProjects.map((pr) => pr.id),
+        projectCount: projects.length,
+        projects: projects.map((p) => ({
+          projectId: p.projectId,
+          selectedBranch: p.selectedBranch,
+        })),
       });
 
+      // 모든 연결된 프로젝트에 대해 처리
       await Promise.all(
-        matchingProjects.map((pr) =>
-          this.projectService.createBuildRecord(pr.id, {
-            trigger: 'webhook:push',
-            metadata: {
-              ref: payload.ref,
-              after: payload.after,
+        projects.map(async (project) => {
+          // 1. Push 이벤트 기록 (히스토리 목적)
+          const recordResult = await this.safeRecordPushEvent(
+            project.projectId,
+            {
               branch: pushedBranch,
-              repository: fullName,
+              commitSha:
+                typeof payloadObj.after === 'string' ? payloadObj.after : '',
+              commitMessage: headCommitData?.message,
+              pusherName: pusherData?.name,
+              pushedAt: new Date(),
             },
-          }),
-        ),
-      );
+          );
 
-      console.log(
-        `[GitHub Webhook] Push event processed successfully for ${matchingProjects.length} projects`,
+          if (!recordResult) {
+            console.warn('Failed to record push event');
+          }
+
+          // 2. 해당 브랜치가 프로젝트의 선택된 브랜치인 경우에만 빌드 트리거
+          if (project.selectedBranch === pushedBranch) {
+            console.log(
+              '[GitHub Webhook] Triggering build for matching branch:',
+              {
+                projectId: project.projectId,
+                selectedBranch: project.selectedBranch,
+                pushedBranch,
+              },
+            );
+
+            const buildResult = await this.safeServiceCall<{
+              executionId: string;
+              pipelineId: string;
+              awsBuildId: string;
+              status: string;
+              triggerType: string;
+              branch: string | null;
+              commitSha: string | null;
+              commitMessage: string | null;
+              pipelineYaml: string;
+              createdAt: Date;
+              updatedAt: Date;
+            }>(
+              () =>
+                this.projectService.createBuildRecord(project.projectId, {
+                  triggerType: 'WEBHOOK',
+                  branch: pushedBranch,
+                  commitSha:
+                    typeof payloadObj.after === 'string'
+                      ? payloadObj.after
+                      : '',
+                  commitMessage: headCommitData?.message,
+                  metadata: {
+                    ref:
+                      typeof payloadObj.ref === 'string' ? payloadObj.ref : '',
+                    after:
+                      typeof payloadObj.after === 'string'
+                        ? payloadObj.after
+                        : '',
+                    branch: pushedBranch,
+                    repository: fullName,
+                    pusher: pusherData?.name,
+                  },
+                }),
+              'Error creating build record',
+            );
+
+            if (!buildResult) {
+              console.warn('Failed to create build record');
+            }
+          } else {
+            console.log(
+              '[GitHub Webhook] Branch mismatch, skipping build trigger:',
+              {
+                projectId: project.projectId,
+                selectedBranch: project.selectedBranch,
+                pushedBranch,
+              },
+            );
+          }
+        }),
       );
     } catch (error: unknown) {
       const errorInfo = this.getErrorInfo(error);
-      console.error('[GitHub Webhook] Error handling push event:', {
+      console.error('[GitHub Webhook] Error processing push event:', {
         repository: fullName,
         branch: pushedBranch,
-        installationId,
         error: errorInfo,
       });
-      throw error;
     }
   }
 
-  private async webhookHandlePullRequestEvent(
+  /**
+   * Installation 이벤트 처리
+   */
+  private webhookHandleInstallationEvent(
     payload: GithubWebhookRequestDto,
-  ): Promise<void> {
-    const fullName = payload.repository?.full_name;
-    const installationId = String(payload.installation?.id ?? '');
-    const action = payload.action;
-    const prNumber = payload.pull_request?.number;
-    const sourceBranch = payload.pull_request?.head?.ref;
-    const targetBranch = payload.pull_request?.base?.ref;
-
-    console.log('[GitHub Webhook] Pull request event received:', {
-      repository: fullName,
-      installationId,
-      action,
-      prNumber,
-      sourceBranch,
-      targetBranch,
+  ): void {
+    console.log('[GitHub Webhook] Processing installation event:', {
+      action: payload.action,
+      installation: payload.installation?.id,
     });
 
-    if (!fullName || !installationId) {
-      console.log(
-        '[GitHub Webhook] Missing required data for pull request event:',
-        {
-          hasFullName: !!fullName,
-          hasInstallationId: !!installationId,
-        },
-      );
-      return;
-    }
-
-    try {
-      const projects = await this.projectService.findProjectsByRepository(
-        fullName,
-        installationId,
-      );
-
-      if (!projects.length) {
-        console.log('[GitHub Webhook] No projects found for pull request:', {
-          repository: fullName,
-          installationId,
-        });
-        return;
-      }
-
-      console.log('[GitHub Webhook] Triggering builds for pull request:', {
-        repository: fullName,
-        action,
-        prNumber,
-        projectCount: projects.length,
-        projectIds: projects.map((pr) => pr.id),
-      });
-
-      await Promise.all(
-        projects.map((pr) =>
-          this.projectService.createBuildRecord(pr.id, {
-            trigger: 'webhook:pull_request',
-            metadata: {
-              action,
-              prNumber,
-              sourceBranch,
-              targetBranch,
-            },
-          }),
-        ),
-      );
-
-      console.log(
-        `[GitHub Webhook] Pull request event processed successfully for ${projects.length} projects`,
-      );
-    } catch (error: unknown) {
-      const errorInfo = this.getErrorInfo(error);
-      console.error('[GitHub Webhook] Error handling pull request event:', {
-        repository: fullName,
-        installationId,
-        action,
-        prNumber,
-        error: errorInfo,
-      });
-      throw error;
-    }
+    // Installation 이벤트는 현재 별도 처리 없음
+    // 필요시 사용자 연결 로직 추가
   }
 
-  private isValidAccount(account: unknown): account is {
-    login: string;
-    id: number;
-    type: 'User' | 'Organization';
-  } {
-    if (typeof account !== 'object' || account === null) {
-      return false;
-    }
+  /**
+   * Pull Request 이벤트 처리
+   */
+  private webhookHandlePullRequestEvent(
+    payload: GithubWebhookRequestDto,
+  ): void {
+    console.log('[GitHub Webhook] Processing pull request event:', {
+      action: payload.action,
+      pullRequest: payload.pull_request?.number,
+    });
 
-    const obj = account as Record<string, unknown>;
-    const isValid =
-      typeof obj.login === 'string' &&
-      typeof obj.id === 'number' &&
-      (obj.type === 'User' || obj.type === 'Organization');
-
-    if (!isValid) {
-      console.log('[GitHub Webhook] Invalid account structure:', {
-        hasLogin: typeof obj.login === 'string',
-        hasId: typeof obj.id === 'number',
-        hasValidType: obj.type === 'User' || obj.type === 'Organization',
-        actualType: obj.type,
-      });
-    }
-
-    return isValid;
+    // Pull Request 이벤트는 현재 별도 처리 없음
+    // 필요시 PR 기반 빌드 트리거 로직 추가
   }
 
-  private getAccountLogin(account: unknown): string {
-    if (typeof account === 'object' && account !== null && 'login' in account) {
-      const login = (account as { login: unknown }).login;
-      return typeof login === 'string' ? login : 'unknown';
-    }
-    return 'unknown';
-  }
-
-  private getErrorInfo(error: unknown): {
-    message: string;
-    name: string;
-    stack?: string;
-  } {
-    if (error instanceof Error) {
-      return {
-        message: error.message,
-        name: error.name,
-        stack: error.stack?.substring(0, 500),
-      };
-    }
-    return {
-      message: 'Unknown error',
-      name: 'UnknownError',
-    };
-  }
-
-  private hasProperty<T extends string>(
-    obj: unknown,
-    prop: T,
-  ): obj is Record<T, unknown> {
-    return typeof obj === 'object' && obj !== null && prop in obj;
-  }
-
+  /**
+   * GitHub 웹훅 서명 검증
+   */
   private verifyGithubSignature(rawBody: string, signature: string): boolean {
     const secret = process.env.GITHUB_WEBHOOK_SECRET || '';
 

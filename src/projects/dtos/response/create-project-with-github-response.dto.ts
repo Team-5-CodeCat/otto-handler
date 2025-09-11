@@ -7,7 +7,7 @@ export interface CreateProjectWithGithubResponseDto {
      * 프로젝트 ID
      * @example "6b8fd749-c0c6-4470-a028-f7ae2f96b6a0"
      */
-    projectID: string;
+    projectId: string;
 
     /**
      * 프로젝트 이름
@@ -16,33 +16,22 @@ export interface CreateProjectWithGithubResponseDto {
     name: string;
 
     /**
-     * 웹훅 URL (자동 생성)
-     * @example "https://api.example.com/webhooks/github/project-6b8fd749"
+     * 프로젝트 설명
+     * @example "My awesome project description"
      */
-    webhookUrl: string | null;
+    description: string | null;
 
     /**
-     * 생성 시간
-     * @example "2025-09-08T10:34:23.958Z"
+     * 활성 상태
+     * @example true
      */
-    createdAt: string;
-  };
-
-  /**
-   * 연결된 레포지토리 정보
-   */
-  repository: {
-    /**
-     * 레포지토리 연결 ID
-     * @example "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-     */
-    id: string;
+    isActive: boolean;
 
     /**
-     * 레포지토리 full name
-     * @example "kimkimkimbo/AppleFasting"
+     * GitHub 레포지토리 ID
+     * @example "123456789"
      */
-    repoFullName: string;
+    githubRepoId: string;
 
     /**
      * 선택된 브랜치
@@ -51,15 +40,33 @@ export interface CreateProjectWithGithubResponseDto {
     selectedBranch: string;
 
     /**
-     * Installation ID (숫자)
-     * @example "83162481"
+     * GitHub 레포지토리 URL
+     * @example "https://github.com/owner/repo"
      */
-    installationId: string | null;
+    githubRepoUrl: string;
 
     /**
-     * 활성 상태
+     * GitHub 레포지토리 이름
+     * @example "my-repo"
+     */
+    githubRepoName: string;
+
+    /**
+     * GitHub 소유자
+     * @example "owner"
+     */
+    githubOwner: string;
+
+    /**
+     * 비공개 레포지토리 여부
      * @example true
      */
-    isActive: boolean;
+    isPrivate: boolean;
+
+    /**
+     * 생성 시간
+     * @example "2025-09-08T10:34:23.958Z"
+     */
+    createdAt: string;
   };
 }

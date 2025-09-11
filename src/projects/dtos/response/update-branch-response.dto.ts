@@ -1,13 +1,19 @@
 export interface UpdateBranchResponseDto {
-  id: string;
-  projectID: string;
-  repoFullName: string;
+  projectId: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  githubRepoId: string;
   selectedBranch: string;
   installationId?: string | null;
+  githubRepoUrl: string;
+  githubRepoName: string;
+  githubOwner: string;
+  isPrivate: boolean;
   createdAt: Date;
   updatedAt: Date;
-  project: {
-    projectID: string;
-    name: string;
+  user: {
+    userId: string;
+    name: string | null;
   };
 }

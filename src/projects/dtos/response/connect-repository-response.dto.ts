@@ -1,16 +1,24 @@
 export interface ConnectRepositoryResponseDto {
   /**
-   * 레포지토리 연결 ID
-   */
-  id: string;
-  /**
    * 프로젝트 ID
    */
-  projectID: string;
+  projectId: string;
   /**
-   * 레포지토리 전체 이름
+   * 프로젝트 이름
    */
-  repoFullName: string;
+  name: string;
+  /**
+   * 프로젝트 설명
+   */
+  description: string | null;
+  /**
+   * 활성 상태
+   */
+  isActive: boolean;
+  /**
+   * GitHub 레포지토리 ID
+   */
+  githubRepoId: string;
   /**
    * 선택된 브랜치
    */
@@ -20,9 +28,21 @@ export interface ConnectRepositoryResponseDto {
    */
   installationId?: string | null;
   /**
-   * 활성 상태
+   * GitHub 레포지토리 URL
    */
-  isActive: boolean;
+  githubRepoUrl: string;
+  /**
+   * GitHub 레포지토리 이름
+   */
+  githubRepoName: string;
+  /**
+   * GitHub 소유자
+   */
+  githubOwner: string;
+  /**
+   * 비공개 레포지토리 여부
+   */
+  isPrivate: boolean;
   /**
    * 생성일
    */
@@ -32,16 +52,10 @@ export interface ConnectRepositoryResponseDto {
    */
   updatedAt: Date;
   /**
-   * 프로젝트 정보
+   * 사용자 정보
    */
-  project: {
-    /**
-     * 프로젝트 ID
-     */
-    projectID: string;
-    /**
-     * 프로젝트 이름
-     */
-    name: string;
+  user: {
+    userId: string;
+    name: string | null;
   };
 }
