@@ -208,6 +208,15 @@ jobs:
               exit 1
             }
 
+            # Create GitHub App Private Key file
+            echo "Creating GitHub App Private Key file..."
+            mkdir -p secrets
+            echo "${{ secrets.OTTO_GITHUB_APP_PRIVATE_KEY }}" > secrets/otto_github_app_private_key.pem || {
+              echo "ERROR: Failed to create private key file"
+              exit 1
+            }
+            chmod 600 secrets/otto_github_app_private_key.pem
+
             # Create .env.prod file
             echo "Creating .env.prod..."
             {
@@ -217,7 +226,6 @@ jobs:
               echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
               echo "REDIS_URL=${{ secrets.REDIS_URL }}"
               echo "OTTO_GITHUB_APP_ID=${{ secrets.OTTO_GITHUB_APP_ID }}"
-              echo "OTTO_GITHUB_APP_PRIVATE_KEY=\"${{ secrets.OTTO_GITHUB_APP_PRIVATE_KEY }}\""
               echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}"
             } > .env.prod || {
               echo "ERROR: Failed to create .env.prod"
