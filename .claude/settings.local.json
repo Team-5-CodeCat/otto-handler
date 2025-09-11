@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(pnpm prisma validate:*)",
+      "Bash(export DATABASE_URL=\"postgresql://postgres:postgres@db:5432/otto-handler\")",
+      "Bash(pnpm prisma generate:*)",
+      "Bash(pnpm run lint:*)",
+      "Bash(awk:*)",
+      "Bash(grep:*)",
+      "Bash(pnpm start:dev:*)",
+      "Bash(timeout 10 pnpm start:dev:*)",
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []

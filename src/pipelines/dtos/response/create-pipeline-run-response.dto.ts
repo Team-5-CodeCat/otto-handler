@@ -1,5 +1,5 @@
-import type { PipelineRunDto } from './pipeline-run.dto';
+import type { PipelineExecutionDto } from './pipeline-execution.dto';
 
 export interface CreatePipelineRunResponseDto {
-  run: PipelineRunDto;
+  execution: PipelineExecutionDto;
 }

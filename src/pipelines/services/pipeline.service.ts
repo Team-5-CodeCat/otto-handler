@@ -17,10 +17,10 @@ export class PipelineService {
   constructor(private readonly prisma: PrismaService) {}
 
   async pipelineCreate(
-    projectID: string,
+    projectId: string,
     name: string,
     yamlContent: string,
-    version: number = 1,
+    description?: string,
   ) {
     try {
       // YAML 형식 및 build 필드 검증
@@ -38,41 +38,34 @@ export class PipelineService {
 
       // 프로젝트 존재 여부 확인
       const project = await this.prisma.project.findUnique({
-        where: { projectID },
+        where: { id: projectId },
       });
 
       if (!project) {
         throw new NotFoundException('프로젝트를 찾을 수 없습니다.');
       }
 
-      // YAML 해시 생성 (중복 체크용)
-      const specHash = crypto
-        .createHash('sha256')
-        .update(yamlContent)
-        .digest('hex');
-
       // 파이프라인 생성
       const pipeline = await this.prisma.pipeline.create({
         data: {
-          projectID,
+          projectId,
           name: name.trim(),
-          version,
-          pipelineSpec: parsedSpec,
-          originalSpec: yamlContent,
-          normalizedSpec: parsedSpec,
-          specHash,
+          description,
+          pipelineYaml: yamlContent,
+          visualConfig: parsedSpec,
+          triggerBranches: [],
         },
         include: {
           project: {
             select: {
-              projectID: true,
+              id: true,
               name: true,
             },
           },
         },
       });
 
-      this.logger.log(`파이프라인 생성 완료: ${pipeline.pipelineID}`);
+      this.logger.log(`파이프라인 생성 완료: ${pipeline.id}`);
       return pipeline;
     } catch (error) {
       if (
@@ -89,14 +82,14 @@ export class PipelineService {
     }
   }
 
-  async pipelineGetByProject(projectID: string) {
+  async pipelineGetByProject(projectId: string) {
     const pipelines = await this.prisma.pipeline.findMany({
-      where: { projectID },
+      where: { projectId },
       orderBy: { createdAt: 'desc' },
       include: {
         project: {
           select: {
-            projectID: true,
+            id: true,
             name: true,
           },
         },
@@ -106,17 +99,17 @@ export class PipelineService {
     return pipelines;
   }
 
-  async pipelineGetById(pipelineID: string) {
+  async pipelineGetById(pipelineId: string) {
     const pipeline = await this.prisma.pipeline.findUnique({
-      where: { pipelineID },
+      where: { id: pipelineId },
       include: {
         project: {
           select: {
-            projectID: true,
+            id: true,
             name: true,
           },
         },
-        runs: {
+        executions: {
           orderBy: { createdAt: 'desc' },
           take: 10, // 최근 10개 실행 기록
         },
@@ -134,58 +127,48 @@ export class PipelineService {
    * 수동 실행으로 파이프라인 런을 생성합니다
    */
   async pipelineCreateRun(
-    pipelineID: string,
+    pipelineId: string,
     params: {
-      labels?: Record<string, unknown>;
-      metadata?: Record<string, unknown>;
-      idempotencyKey?: string;
-      externalRunKey?: string;
-      owner?: string;
+      branch?: string;
+      commitSha?: string;
+      commitMessage?: string;
     },
   ) {
     const pipeline = await this.prisma.pipeline.findUnique({
-      where: { pipelineID },
+      where: { id: pipelineId },
+      include: {
+        project: true,
+      },
     });
     if (!pipeline) {
       throw new NotFoundException('파이프라인을 찾을 수 없습니다.');
     }
 
-    // 멱등키가 있으면 동일 키 중복 방지
-    if (params.idempotencyKey) {
-      const existing = await this.prisma.pipelineRun.findUnique({
-        where: { idempotencyKey: params.idempotencyKey },
-      });
-      if (existing) {
-        return existing;
-      }
-    }
-
-    const run = await this.prisma.pipelineRun.create({
+    const execution = await this.prisma.pipelineExecution.create({
       data: {
-        pipelineID: pipeline.pipelineID,
-        pipelineVersion: pipeline.version,
-        status: 'pending' as never,
-        trigger: 'manual',
-        labels: (params.labels ?? {}) as never,
-        metadata: (params.metadata ?? {}) as never,
-        idempotencyKey: params.idempotencyKey,
-        externalRunKey: params.externalRunKey,
-        owner: params.owner,
+        pipelineId: pipeline.id,
+        executionId: crypto.randomUUID(),
+        status: 'PENDING',
+        triggerType: 'MANUAL',
+        branch: params.branch,
+        commitSha: params.commitSha,
+        commitMessage: params.commitMessage,
+        pipelineYaml: pipeline.pipelineYaml || '',
       },
     });
 
-    return run;
+    return execution;
   }
 
   /**
    * 파이프라인 자동 실행 (웹훅 트리거용)
    */
-  startPipelineExecution(runId: string): void {
+  startPipelineExecution(executionId: string): void {
     // 백그라운드에서 실행하여 웹훅 응답 지연 방지
     setImmediate(() => {
-      void this.executePipeline(runId).catch((error: unknown) => {
+      void this.executePipeline(executionId).catch((error: unknown) => {
         console.error(
-          `[Pipeline] Execution failed for run ${runId}:`,
+          `[Pipeline] Execution failed for execution ${executionId}:`,
           String(error),
         );
       });
@@ -195,13 +178,13 @@ export class PipelineService {
   /**
    * 파이프라인 실제 실행 로직
    */
-  private async executePipeline(runId: string) {
+  private async executePipeline(executionId: string) {
     try {
       // 실행 시작 상태로 변경
-      const run = await this.prisma.pipelineRun.update({
-        where: { id: runId },
+      const execution = await this.prisma.pipelineExecution.update({
+        where: { id: executionId },
         data: {
-          status: 'running' as never,
+          status: 'RUNNING',
           startedAt: new Date(),
         },
         include: {
@@ -209,43 +192,44 @@ export class PipelineService {
         },
       });
 
-      console.log(`[Pipeline] Starting execution for run ${runId}`);
+      console.log(`[Pipeline] Starting execution for execution ${executionId}`);
 
       // 파이프라인 스펙 파싱
-      const pipelineSpec = run.pipeline.pipelineSpec as Record<string, unknown>;
+      const pipelineSpec = execution.pipeline.visualConfig as Record<
+        string,
+        unknown
+      >;
       const jobs = this.parseJobsFromPipelineSpec(pipelineSpec);
 
       // Job 순차 실행
       for (const jobConfig of jobs) {
-        await this.executeJob(runId, jobConfig);
+        await this.executeJob(executionId, jobConfig);
       }
 
       // 성공 상태로 변경
-      await this.prisma.pipelineRun.update({
-        where: { id: runId },
+      await this.prisma.pipelineExecution.update({
+        where: { id: executionId },
         data: {
-          status: 'success' as never,
-          finishedAt: new Date(),
-          exitCode: 0,
+          status: 'SUCCESS',
+          completedAt: new Date(),
         },
       });
 
       console.log(
-        `[Pipeline] Execution completed successfully for run ${runId}`,
+        `[Pipeline] Execution completed successfully for execution ${executionId}`,
       );
     } catch (error) {
       // 실패 상태로 변경
-      await this.prisma.pipelineRun.update({
-        where: { id: runId },
+      await this.prisma.pipelineExecution.update({
+        where: { id: executionId },
         data: {
-          status: 'failed' as never,
-          finishedAt: new Date(),
-          exitCode: 1,
+          status: 'FAILED',
+          completedAt: new Date(),
         },
       });
 
       console.error(
-        `[Pipeline] Execution failed for run ${runId}:`,
+        `[Pipeline] Execution failed for execution ${executionId}:`,
         String(error),
       );
       throw error;
@@ -314,16 +298,16 @@ export class PipelineService {
   ) {
     try {
       console.log(
-        `[Job] Starting ${jobConfig.name} (${jobConfig.type}) for run ${runId}`,
+        `[Job] Starting ${jobConfig.name} (${jobConfig.type}) for execution ${runId}`,
       );
 
       // 실제 Job 생성은 생략하고 실행만 시뮬레이션
       await this.simulateJobExecution(jobConfig);
 
-      console.log(`[Job] Completed ${jobConfig.name} for run ${runId}`);
+      console.log(`[Job] Completed ${jobConfig.name} for execution ${runId}`);
     } catch (error) {
       console.error(
-        `[Job] Failed ${jobConfig.name} for run ${runId}:`,
+        `[Job] Failed ${jobConfig.name} for execution ${runId}:`,
         String(error),
       );
       throw error;

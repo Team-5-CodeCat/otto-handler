@@ -8,6 +8,7 @@ Otto Handler는 NestJS 기반의 CI/CD 자동화 플랫폼입니다. 이 파일�
 - 명시적 요청 없이는 문서 파일(.md)을 생성하지 않습니다
 - 타입 안전성을 최우선으로 합니다
 - 일관된 코딩 스타일을 유지합니다
+- **GitHub OAuth 전용**: password 인증은 완전히 제거됨
 
 ## 프로젝트 구조
 
@@ -88,9 +89,10 @@ User → Project → Pipeline → PipelineRun → Job → Log/Error
 
 ### 주요 열거형
 ```prisma
-enum JobStatus { pending, running, completed, failed, cancelled }
-enum JobType { BUILD, TEST, DEPLOYMENT }
-enum Language { NODE, PYTHON }
+enum TriggerType { MANUAL, WEBHOOK, SCHEDULE, API }  # PUSH는 제거됨
+enum ExecutionStatus { PENDING, QUEUED, RUNNING, SUCCESS, FAILED, CANCELLED, SKIPPED }
+enum NodeType { BUILD, TEST, DEPLOY, CUSTOM }
+enum DeploymentStatus { PENDING, DEPLOYING, SUCCESS, FAILED, ROLLED_BACK }
 ```
 
 ## 개발 워크플로
@@ -139,16 +141,17 @@ import { CreateDto } from './dto/create.dto';
 
 #### DTO 구조
 ```typescript
-// Request DTO
+// Request DTO (GitHub OAuth 전용)
 export interface CreateUserRequest {
   email: string;
   name: string;
-  password: string;
+  githubId: string;  // password 대신 GitHub ID
+  githubUsername: string;
 }
 
-// Response DTO
+// Response DTO (필드명 camelCase 주의)
 export interface UserResponse {
-  userID: string;
+  userId: string;  // userID가 아님!
   email: string;
   name: string;
   createdAt: Date;
@@ -184,9 +187,10 @@ try {
 ## 보안 가이드라인
 
 ### 인증/인가
+- **GitHub OAuth 전용** (password 인증 제거됨)
 - JWT Access Token (짧은 만료 시간)
-- Refresh Token (긴 만료 시간, httpOnly 쿠키)
-- bcrypt를 사용한 비밀번호 해싱
+- Refresh Token (긴 만료 시간, Session 모델에 저장)
+- GitHub App 설치를 통한 레포지토리 접근
 
 ### 민감 정보 처리
 ```typescript
@@ -211,7 +215,7 @@ console.log('User data:', safeUser);
 const users = await prisma.user.findMany();
 for (const user of users) {
   user.projects = await prisma.project.findMany({
-    where: { userID: user.userID }
+    where: { userId: user.id }  // 필드명 주의!
   });
 }
 
@@ -224,14 +228,14 @@ const users = await prisma.user.findMany({
 ### Redis 캐싱
 ```typescript
 // 자주 조회되는 데이터 캐싱
-const cacheKey = `user:${userID}`;
+const cacheKey = `user:${userId}`;  // camelCase!
 const cached = await redis.get(cacheKey);
 if (cached) {
   return JSON.parse(cached);
 }
 
 const userData = await this.prisma.user.findUnique({
-  where: { userID }
+  where: { id: userId }  // id 필드 사용
 });
 
 await redis.setex(cacheKey, 3600, JSON.stringify(userData));

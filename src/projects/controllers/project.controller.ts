@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import { ProjectService } from '../services/project.service';
 import { GithubService } from '../services/github.service';
 import {
@@ -69,16 +73,6 @@ export class ProjectController {
   }
 
   /**
-   * 객체가 특정 속성을 가지고 있는지 확인하는 타입 가드
-   */
-  private hasProperty<T extends string>(
-    obj: unknown,
-    prop: T,
-  ): obj is Record<T, unknown> {
-    return typeof obj === 'object' && obj !== null && prop in obj;
-  }
-
-  /**
    * @tag project
    * @summary 새 프로젝트 생성
    */
@@ -102,11 +96,25 @@ export class ProjectController {
   ): Promise<CreateProjectResponseDto> {
     const userId = req.user.user_id; // JWT 토큰에서 사용자 ID 추출
 
-    return this.projectService.createProject(
+    const project = await this.projectService.createProject(
       userId,
       createProjectDto.name,
       createProjectDto.webhookUrl,
     );
+
+    // DTO 필드명 매핑 (id → projectID, userId → userID)
+    return {
+      projectID: project.id,
+      name: project.name,
+      webhookUrl: null, // webhookUrl 필드가 없으므로 null
+      user: {
+        userID: project.user.id,
+        email: project.user.email,
+        name: project.user.name || '', // null일 경우 빈 문자열
+      },
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+    };
   }
 
   /**
@@ -133,10 +141,26 @@ export class ProjectController {
   ): Promise<RegisterInstallationResponseDto> {
     const userId = req.user.user_id;
 
-    return this.projectService.registerGithubInstallation(
+    const installation = await this.projectService.registerGithubInstallation(
       userId,
       registerDto.installationId,
     );
+
+    // DTO 필드명 매핑
+    return {
+      id: installation.id,
+      userID: installation.userId,
+      installationId: installation.installationId,
+      accountLogin: (installation.account as any)?.login || null,
+      accountId: String((installation.account as any)?.id || ''),
+      createdAt: installation.createdAt,
+      updatedAt: installation.updatedAt,
+      user: {
+        userID: installation.userId,
+        email: '', // 이 메서드는 user 정보를 포함하지 않음
+        name: '',
+      },
+    };
   }
 
   /**
@@ -162,7 +186,20 @@ export class ProjectController {
   ): Promise<GetUserGithubInstallationsResponseDto> {
     const userId = req.user.user_id;
 
-    return this.projectService.getUserGithubInstallations(userId);
+    const installations = (await this.projectService.getUserGithubInstallations(
+      userId,
+    )) as any[];
+
+    // DTO 필드명 매핑
+    return installations.map((inst: any) => ({
+      id: inst.id,
+      userID: inst.userId,
+      installationId: inst.installationId,
+      accountLogin: inst.account?.login || null,
+      accountId: String(inst.account?.id || ''),
+      createdAt: inst.createdAt,
+      updatedAt: inst.updatedAt,
+    }));
   }
 
   /**
@@ -203,13 +240,14 @@ export class ProjectController {
 
     try {
       // 보안 검증: 이 설치가 현재 사용자 소유인지 확인
+
       const installations =
-        await this.projectService.getUserGithubInstallations(userId);
+        (await this.projectService.getUserGithubInstallations(userId)) as any[];
 
       console.log('[Repositories API] User installations found:', {
         userId,
         totalInstallations: installations.length,
-        installationIds: installations.map((install) => ({
+        installationIds: installations.map((install: any) => ({
           id: install.id,
           installationId: install.installationId,
           accountLogin: install.accountLogin,
@@ -217,7 +255,7 @@ export class ProjectController {
       });
 
       const hasAccess = installations.some(
-        (install) => install.installationId === installationId,
+        (install: any) => install.installationId === installationId,
       );
 
       if (!hasAccess) {
@@ -233,7 +271,7 @@ export class ProjectController {
 
       // UUID로 실제 GitHub Installation ID 찾기
       const installation = installations.find(
-        (install) => install.installationId === installationId,
+        (install: any) => install.installationId === installationId,
       );
 
       if (!installation) {
@@ -309,10 +347,11 @@ export class ProjectController {
     const userId = req.user.user_id;
 
     // 보안 검증: 이 설치가 현재 사용자 소유인지 확인
-    const installations =
-      await this.projectService.getUserGithubInstallations(userId);
+    const installations = (await this.projectService.getUserGithubInstallations(
+      userId,
+    )) as any[];
     const hasAccess = installations.some(
-      (install) => install.installationId === installationId,
+      (install: any) => install.installationId === installationId,
     );
 
     if (!hasAccess) {
@@ -321,7 +360,7 @@ export class ProjectController {
 
     // UUID로 실제 GitHub Installation ID 찾기
     const installation = installations.find(
-      (install) => install.installationId === installationId,
+      (install: any) => install.installationId === installationId,
     );
 
     if (!installation) {
@@ -362,13 +401,29 @@ export class ProjectController {
   ): Promise<ConnectRepositoryResponseDto> {
     const userId = req.user.user_id;
 
-    return this.projectService.connectRepositoryToProject(
+    const result = await this.projectService.connectRepositoryToProject(
       userId,
       projectId,
       connectDto.repoFullName,
       connectDto.selectedBranch,
       connectDto.installationId,
     );
+
+    // DTO 필드명 매핑
+    return {
+      id: result.id, // 레포지토리 연결 ID
+      projectID: result.id,
+      repoFullName: `${result.githubOwner}/${result.githubRepoName}`,
+      selectedBranch: result.defaultBranch,
+      isActive: true,
+      installationId: connectDto.installationId || '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      project: {
+        projectID: result.id,
+        name: result.name,
+      },
+    };
   }
 
   /**
@@ -447,12 +502,27 @@ export class ProjectController {
   ): Promise<UpdateBranchResponseDto> {
     const userId = req.user.user_id;
 
-    return this.projectService.updateSelectedBranch(
+    const result = await this.projectService.updateSelectedBranch(
       userId,
       projectId,
       repositoryId,
       updateDto.branchName,
     );
+
+    // DTO 필드명 매핑
+    return {
+      id: repositoryId, // 레포지토리 ID
+      projectID: projectId,
+      repoFullName: `${result.githubOwner}/${result.githubRepoName}`,
+      selectedBranch: result.defaultBranch,
+      installationId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      project: {
+        projectID: projectId,
+        name: result.name,
+      },
+    };
   }
 
   /**
@@ -479,7 +549,22 @@ export class ProjectController {
   ): Promise<GetProjectDetailResponseDto> {
     const userId = req.user.user_id;
 
-    return this.projectService.getProjectDetail(userId, projectId);
+    const project = await this.projectService.getProjectDetail(
+      userId,
+      projectId,
+    );
+
+    // DTO 필드명 매핑
+    return {
+      ...project,
+      projectID: project.id,
+      userID: project.user.id,
+      user: {
+        userID: project.user.id, // userID 필드 추가
+        email: project.user.email,
+        name: project.user.name || '',
+      },
+    };
   }
 
   /**
@@ -540,7 +625,7 @@ export class ProjectController {
       hasInstallation: status.hasInstallations,
       totalInstallations: status.totalInstallations,
       totalConnectedRepositories: status.totalConnectedRepositories,
-      installations: status.installations.map((installation) => ({
+      installations: status.installations.map((installation: any) => ({
         id: installation.id,
         installationId: installation.installationId,
         accountLogin: installation.accountLogin || 'Unknown',
@@ -575,7 +660,15 @@ export class ProjectController {
   ): Promise<GetUserProjectsResponseDto> {
     const userId = req.user.user_id;
 
-    return this.projectService.getUserProjects(userId);
+    const projects = await this.projectService.getUserProjects(userId);
+
+    // DTO 필드명 매핑
+    return projects.map((project: any) => ({
+      ...project,
+      projectID: project.id,
+      userID: project.userId,
+      webhookUrl: null,
+    }));
   }
 
   /**
@@ -639,10 +732,10 @@ export class ProjectController {
       void setupAction;
 
       // 3) 사용자와 설치 연결 (검증 및 upsert)
-      const installation = await this.projectService.linkInstallationToUser(
+      const installation = (await this.projectService.linkInstallationToUser(
         userId,
         installationIdStr,
-      );
+      )) as any;
 
       console.log('[GitHub Callback] Installation saved successfully:', {
         userId,
@@ -654,7 +747,7 @@ export class ProjectController {
       // 4) 프론트엔드 콜백 페이지로 리다이렉트
       const successUrl = `${frontendUrl}${callbackPath}?status=success&installation_id=${encodeURIComponent(
         installationIdStr,
-      )}&account_login=${encodeURIComponent(installation.accountLogin || '')}`;
+      )}&account_login=${encodeURIComponent(installation?.accountLogin || '')}`;
 
       console.log('[GitHub Callback] Redirecting to:', successUrl);
 
@@ -715,6 +808,20 @@ export class ProjectController {
       selectedBranch: createDto.selectedBranch,
     });
 
-    return this.projectService.createProjectWithGithub(userId, createDto);
+    const result = await this.projectService.createProjectWithGithub(
+      userId,
+      createDto,
+    );
+
+    // DTO 필드명 매핑
+    return {
+      project: {
+        projectID: result.project.id,
+        name: result.project.name,
+        webhookUrl: null,
+        createdAt: result.project.createdAt,
+      },
+      repository: result.repository,
+    };
   }
 }

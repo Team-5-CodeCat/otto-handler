@@ -12,9 +12,9 @@ export interface CreatePipelineRequestDto {
   /**
    * 소속 프로젝트 ID (UUID 형식)
    */
-  projectID: string & tags.Format<'uuid'>;
+  projectId: string & tags.Format<'uuid'>;
   /**
-   * 파이프라인 버전
+   * 파이프라인 설명
    */
-  version: number;
+  description?: string;
 }

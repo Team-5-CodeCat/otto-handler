@@ -48,7 +48,7 @@ function getEnvFilePath(): string {
     RedisModule.forRoot({
       readyLog: true,
       config: {
-        url: process.env.REDIS_URL || 'redis://localhost:6379',
+        url: process.env.REDIS_URL || 'redis://redis:6379',
         enableReadyCheck: false,
         maxRetriesPerRequest: null,
       },

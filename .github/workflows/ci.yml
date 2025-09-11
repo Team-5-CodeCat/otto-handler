@@ -7,7 +7,7 @@ on:
     branches: [dev, main]
 
 jobs:
-  build-and-test:
+  build-and-test-otto-handler:
     runs-on: ubuntu-latest
 
     services:
