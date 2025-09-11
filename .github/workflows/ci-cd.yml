@@ -238,7 +238,7 @@ jobs:
 
             # Run database migrations
             echo "Running database migrations..."
-            pnpm prisma migrate deploy || {
+            DATABASE_URL="${{ secrets.DATABASE_URL }}" pnpm prisma migrate deploy || {
               echo "WARNING: Database migration failed. This might be expected if database is already up to date."
             }
 
