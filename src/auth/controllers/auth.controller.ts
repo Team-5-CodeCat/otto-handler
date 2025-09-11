@@ -1,6 +1,7 @@
 import { AuthService } from '../services';
 import { TypedBody, TypedException, TypedRoute } from '@nestia/core';
 import type {
+  GithubAuthRequestDto,
   LoginRequestDto,
   LoginResponseDto,
   SignUpRequestDto,
@@ -8,25 +9,27 @@ import type {
 import {
   Controller,
   HttpCode,
-  //HttpException,
   HttpStatus,
-  Res,
   Req,
+  Res,
   UnauthorizedException,
-  //ConflictException,
 } from '@nestjs/common';
-import { TOKEN_CONSTANTS } from '../constants';
+import { AuthErrorEnum, TOKEN_CONSTANTS } from '../constants';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { AuthErrorEnum } from '../constants';
 import type {
   CommonErrorResponseDto,
   CommonMessageResponseDto,
 } from '../../common/dto';
 import { SignUpResponseDto } from '../dtos/response/sign-up-response';
+import { GithubOauthService } from '../services/github-oauth.service';
+import { GithubUserType } from '../services/type';
 
 @Controller('/auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly githubOauthService: GithubOauthService,
+  ) {}
 
   /**
    * @tag auth
@@ -132,5 +135,22 @@ export class AuthController {
   @TypedRoute.Post('/sign_up')
   authSignUp(@TypedBody() body: SignUpRequestDto): Promise<SignUpResponseDto> {
     return this.authService.signUp(body);
+  }
+
+  /**
+   * @tag auth
+   * @summary GitHub OAuth 로그인
+   */
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'GitHub 인증 실패',
+  })
+  @HttpCode(200)
+  @TypedRoute.Post('/github')
+  async authGithub(
+    @TypedBody() body: GithubAuthRequestDto,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ): Promise<GithubUserType> {
+    return await this.githubOauthService.getUserInfo(body);
   }
 }
