@@ -36,9 +36,17 @@ lerna-debug.log*
 !.vscode/extensions.json
 
 # dotenv environment variable files
+.env
 .env.dev
 .env.prod
-.env
+.env.test
+.env.local
+
+# Secrets directory (GitHub App keys, certificates, etc.)
+/secrets/
+*.pem
+*.key
+*.crt
 
 # temp directory
 .temp

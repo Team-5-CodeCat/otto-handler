@@ -4,12 +4,30 @@ import { PrismaModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { ConfigModule } from '@nestjs/config';
+import { RedisModule } from '@liaoliaots/nestjs-redis';
 import { ProjectsModule } from './projects/projects.module';
-import { OttoscalerModule } from './integrations/grpc/ottoscaler.module';
-import { LogStreamingModule } from './modules/log-streaming/log-streaming.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { PipelinesModule } from './pipelines/pipelines.module';
-import { HealthModule } from './health/health.module';
+
+/**
+ * 환경에 따른 .env 파일 경로 반환
+ * @returns 환경별 .env 파일 경로
+ */
+function getEnvFilePath(): string {
+  const env = process.env.NODE_ENV || 'development';
+
+  const envFileMap: Record<string, string> = {
+    production: '.env.prod',
+    development: '.env.dev',
+    test: '.env.test',
+  };
+
+  const envFile = envFileMap[env] || '.env.dev';
+
+  console.log(`🔧 환경: ${env}, 설정 파일: ${envFile}`);
+
+  return envFile;
+}
 
 @Module({
   imports: [
@@ -23,25 +41,26 @@ import { HealthModule } from './health/health.module';
     // ⚙️ 환경 설정 (전역 설정)
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath:
-        process.env.NODE_ENV === 'production' ? '.env.prod' : '.env.dev',
+      envFilePath: getEnvFilePath(),
+    }),
+
+    // 🔴 Redis 연결 (전역 모듈)
+    RedisModule.forRoot({
+      readyLog: true,
+      config: {
+        host: process.env.REDIS_HOST || 'redis',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        enableReadyCheck: false,
+        maxRetriesPerRequest: null,
+      },
     }),
 
     // 📋 비즈니스 로직 모듈들
     ProjectsModule,
 
-    // 🔗 외부 시스템 연동
-    OttoscalerModule, // gRPC 통신 (Ottoscaler)
-
-    // 🔄 실시간 로그 스트리밍 (새로 추가)
-    // 💼 비즈니스 가치: CI/CD 파이프라인의 실시간 로그 모니터링
-    // 🔧 기술 스택: gRPC + SSE + WebSocket
-    LogStreamingModule,
-
     // 🔗 웹훅 및 파이프라인 관리
     WebhooksModule,
     PipelinesModule,
-    HealthModule,
   ],
   controllers: [],
   providers: [AppService],

@@ -1,0 +1,48 @@
+{
+  "name": "Otto Handler Dev",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace/otto-handler",
+  // Features to add to the dev container.
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "username": "otto-handler-dev",
+      "uid": "1000",
+      "gid": "1000",
+      "installOhMyZsh": true,
+      "upgradePackages": false
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  // Forward ports.
+  "forwardPorts": [
+    4000,
+    5432
+  ],
+  // Run commands after the container is created.
+  "postCreateCommand": "bash .devcontainer/init.sh",
+  // Configure tool-specific properties.
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "prisma.prisma",
+        "ms-azuretools.vscode-docker",
+        "Anthropic.claude-code"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "editor.formatOnSave": true,
+        "prettier.prettierPath": "/workspace/otto-handler/node_modules/prettier/index.cjs",
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        }
+      }
+    }
+  },
+  // otto-handler-dev 사용자로 고정
+  "remoteUser": "otto-handler-dev"
+}

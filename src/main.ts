@@ -10,6 +10,47 @@ import { NestiaSwaggerComposer } from '@nestia/sdk';
 import { SwaggerModule, OpenAPIObject } from '@nestjs/swagger';
 import { join } from 'path';
 import { AllExceptionsFilter } from './common/filters/custom-exception.filter';
+import { PrismaService } from './database/prisma.service';
+import { RedisService } from '@liaoliaots/nestjs-redis';
+
+/**
+ * 데이터베이스 연결 상태를 확인합니다.
+ * PostgreSQL과 Redis 연결을 ping하여 상태를 검증합니다.
+ */
+async function checkDatabaseConnections(
+  app: NestFastifyApplication,
+): Promise<void> {
+  console.log('🔍 데이터베이스 연결 상태를 확인합니다...');
+
+  try {
+    // PostgreSQL 연결 확인
+    const prismaService = app.get(PrismaService);
+    await prismaService.$queryRaw`SELECT 1`;
+    console.log('✅ PostgreSQL 연결 성공');
+  } catch (error) {
+    console.error(
+      '❌ PostgreSQL 연결 실패:',
+      error instanceof Error ? error.message : error,
+    );
+    process.exit(1);
+  }
+
+  try {
+    // Redis 연결 확인
+    const redisService = app.get(RedisService);
+    const redis = redisService.getOrThrow();
+    const pong = await redis.ping();
+    console.log(`✅ Redis 연결 성공 (응답: ${pong})`);
+  } catch (error) {
+    console.error(
+      '❌ Redis 연결 실패:',
+      error instanceof Error ? error.message : error,
+    );
+    process.exit(1);
+  }
+
+  console.log('🎉 모든 데이터베이스 연결이 정상입니다!\n');
+}
 
 async function bootstrap() {
   const adapter = new FastifyAdapter({
@@ -75,6 +116,10 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1', {
     exclude: ['health', 'docs', 'test-sse.html'],
   });
+
+  // 🔍 데이터베이스 연결 상태 확인
+  await checkDatabaseConnections(app);
+
   await app.listen(Number(process.env.PORT) || 4000, '0.0.0.0');
 }
 void bootstrap();
