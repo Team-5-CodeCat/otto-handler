@@ -5,18 +5,25 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { LoginRequestDto, LoginResponseDto, SignUpRequestDto } from '../dtos';
+import {
+  LoginRequestDto,
+  LoginResponseDto,
+  SignUpRequestDto,
+  GithubAuthRequestDto,
+} from '../dtos';
 import { AuthErrorEnum, AuthResponseEnum, TOKEN_CONSTANTS } from '../constants';
 import { JwtService } from './jwt.service';
 import { createHash, randomBytes } from 'crypto';
 import type { JwtPayloadType } from '../../common/type';
 import { SignUpResponseDto } from '../dtos/response/sign-up-response';
+import { GithubOauthService } from './github-oauth.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly githubOauthService: GithubOauthService,
   ) {}
 
   /**
