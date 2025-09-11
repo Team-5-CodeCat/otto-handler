@@ -225,6 +225,8 @@ jobs:
               echo "COOKIE_SECRET=${{ secrets.COOKIE_SECRET }}"
               echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
               echo "REDIS_URL=${{ secrets.REDIS_URL }}"
+              echo "REDIS_HOST=${{ secrets.REDIS_HOST }}"
+              echo "REDIS_PORT=${{ secrets.REDIS_PORT }}"
               echo "OTTO_GITHUB_APP_ID=${{ secrets.OTTO_GITHUB_APP_ID }}"
               echo "OTTO_GITHUB_PRIVATE_KEY_PATH=secrets/otto_github_app_private_key.pem"
               echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
