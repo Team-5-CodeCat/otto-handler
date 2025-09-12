@@ -13,7 +13,9 @@
       "Bash(cat:*)",
       "Bash(curl:*)",
       "Bash(python3:*)",
-      "Bash(pnpm tsc:*)"
+      "Bash(pnpm tsc:*)",
+      "Bash(pnpm run:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

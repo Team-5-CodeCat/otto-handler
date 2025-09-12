@@ -48,6 +48,11 @@ export class AuthGuardRole implements CanActivate {
           userId: true,
           username: true,
           githubId: true,
+          githubNodeId: true,
+          isActive: true,
+          lastLoginAt: true,
+          createdAt: true,
+          updatedAt: true,
         },
       });
 
