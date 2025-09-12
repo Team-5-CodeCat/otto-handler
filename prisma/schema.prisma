@@ -1,321 +1,346 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["relationJoins"]
-  binaryTargets   = ["native", "debian-openssl-3.0.x"]
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "darwin-arm64"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("POSTGRESQL_URL")
 }
 
 model User {
-  email         String               @unique @map("email")
-  password      String?              @map("password")
-  name          String               @map("name")
-  memberRole    MemberRole           @default(MEMBER) @map("member_role")
-  createdAt     DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  userID        String               @id @default(uuid()) @map("user_id") @db.Uuid
-  installations GithubInstallation[]
-  projects      Project[]
-  refreshTokens RefreshToken[]
+  email             String               @unique
+  name              String?
+  avatarUrl         String?
+  createdAt         DateTime             @default(now())
+  githubId          String               @unique
+  githubNodeId      String?
+  githubUsername    String               @unique
+  isActive          Boolean              @default(true)
+  lastLoginAt       DateTime?
+  updatedAt         DateTime             @updatedAt
+  userId            String               @id @default(uuid())
+  installations     GithubInstallation[]
+  pipelineTemplates PipelineTemplate[]   @relation("TemplateCreator")
+  projects          Project[]
+  sessions          Session[]
+  sharedTemplates   PipelineTemplate[]   @relation("SharedTemplates")
 
-  @@index([createdAt])
+  @@index([githubId])
+  @@index([githubUsername])
   @@map("users")
 }
 
-model RefreshToken {
-  tokenId    String   @id @default(uuid()) @map("token_id") @db.Uuid
-  userID     String   @map("user_id") @db.Uuid
-  token      String   @unique @map("token")
-  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
-  lastUsedAt DateTime @default(now()) @map("last_used_at") @db.Timestamptz(6)
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  user       User     @relation(fields: [userID], references: [userID], onDelete: Cascade)
+model Session {
+  sessionToken   String    @unique
+  accessToken    String?
+  tokenExpiresAt DateTime?
+  userAgent      String?
+  ipAddress      String?
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  userId         String
+  sessionId      String    @id @default(uuid())
+  user           User      @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
-  @@index([userID])
-  @@index([expiresAt])
-  @@index([createdAt])
-  @@map("refresh_tokens")
+  @@index([sessionToken])
+  @@index([userId])
+  @@map("sessions")
 }
 
 model GithubInstallation {
-  id                  String               @id @default(uuid()) @map("id") @db.Uuid
-  userID              String               @map("user_id") @db.Uuid
-  installationId      String               @unique @map("installation_id")
-  accountLogin        String?              @map("account_login")
-  accountId           String?              @map("account_id")
-  accessToken         String?              @map("access_token")
-  tokenExpiresAt      DateTime?            @map("token_expires_at") @db.Timestamptz(6)
-  lastIssuedAt        DateTime?            @map("last_issued_at") @db.Timestamptz(6)
-  lastUsedAt          DateTime?            @map("last_used_at") @db.Timestamptz(6)
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  accountType         GithubAccountType?   @map("account_type")
-  repositorySelection RepositorySelection? @default(selected) @map("repository_selection")
-  user                User                 @relation(fields: [userID], references: [userID], onDelete: Cascade)
+  createdAt            DateTime  @default(now())
+  installationId       String    @id @default(uuid())
+  isActive             Boolean   @default(true)
+  updatedAt            DateTime  @updatedAt
+  userId               String
+  accountId            String
+  accountLogin         String
+  accountType          String
+  githubInstallationId String    @unique
+  user                 User      @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  projects             Project[]
 
-  @@index([userID])
-  @@index([accountLogin])
-  @@index([accountId])
-  @@index([accountType])
+  @@index([githubInstallationId])
+  @@index([userId])
   @@map("github_installations")
 }
 
 model Project {
-  name         String              @map("name")
-  webhookUrl   String?             @unique @map("webhook_url")
-  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
-  projectID    String              @id @default(uuid()) @map("project_id") @db.Uuid
-  userID       String              @map("user_id") @db.Uuid
-  environments Environment[]
-  pipelines    Pipeline[]
-  repositories ProjectRepository[]
-  user         User                @relation(fields: [userID], references: [userID], onDelete: Cascade)
+  name           String
+  createdAt      DateTime            @default(now())
+  description    String?
+  githubOwner    String
+  githubRepoId   String              @unique
+  githubRepoName String
+  githubRepoUrl  String
+  installationId String?
+  isActive       Boolean             @default(true)
+  isPrivate      Boolean             @default(true)
+  updatedAt      DateTime            @updatedAt
+  userId         String
+  projectId      String              @id @default(uuid())
+  selectedBranch String              @default("main")
+  pipelines      Pipeline[]
+  secrets        ProjectSecret[]
+  installation   GithubInstallation? @relation(fields: [installationId], references: [installationId])
+  user           User                @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  pushEvents     PushEvent[]
 
-  @@unique([userID, name])
-  @@index([userID])
-  @@index([createdAt])
+  @@unique([githubOwner, githubRepoName])
+  @@unique([userId, githubRepoId])
+  @@index([userId])
+  @@index([installationId])
   @@map("projects")
 }
 
-model ProjectRepository {
-  id             String   @id @default(uuid()) @map("id") @db.Uuid
-  projectID      String   @map("project_id") @db.Uuid
-  repoFullName   String   @map("repo_full_name")
-  selectedBranch String   @map("selected_branch")
-  installationId String?  @map("installation_id")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  project        Project  @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
+model ProjectSecret {
+  key       String
+  value     String
+  isSecure  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  projectId String
+  secretId  String   @id @default(uuid())
+  project   Project  @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
 
-  @@unique([projectID, repoFullName])
-  @@index([projectID])
-  @@index([installationId])
-  @@map("project_repositories")
-}
-
-model Environment {
-  language         Language          @map("language")
-  deployEnv        DeployEnvironment @map("deploy_environment")
-  envVariables     Json?             @map("env_variables")
-  credentials      Json?             @map("credentials")
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deploymentPath   String?           @map("deployment_path")
-  deploymentTarget String?           @map("deployment_target")
-  servicePort      Int?              @map("service_port")
-  environmentID    String            @id @default(uuid()) @map("environment_id") @db.Uuid
-  projectID        String            @map("project_id") @db.Uuid
-  project          Project           @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
-
-  @@index([projectID])
-  @@index([createdAt])
-  @@map("environments")
+  @@unique([projectId, key])
+  @@map("project_secrets")
 }
 
 model Pipeline {
-  name           String        @map("name")
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  active         Boolean       @default(true) @map("active")
-  owner          String?       @map("owner")
-  pipelineSpec   Json          @map("pipeline_spec")
-  version        Int           @default(1) @map("version")
-  pipelineID     String        @id @default(uuid()) @map("pipeline_id") @db.Uuid
-  projectID      String        @map("project_id") @db.Uuid
-  normalizedSpec Json?         @map("normalized_spec")
-  originalSpec   String?       @map("original_spec")
-  specHash       String?       @map("spec_hash") @db.VarChar(64)
-  runs           PipelineRun[]
-  project        Project       @relation(fields: [projectID], references: [projectID], onDelete: Cascade)
+  name            String
+  createdAt       DateTime            @default(now())
+  description     String?
+  isActive        Boolean             @default(true)
+  pipelineYaml    String?
+  projectId       String
+  templateId      String?
+  triggerBranches String[]
+  triggerType     TriggerType         @default(MANUAL)
+  updatedAt       DateTime            @updatedAt
+  visualConfig    Json?
+  pipelineId      String              @id @default(uuid())
+  executions      PipelineExecution[]
+  nodes           PipelineNode[]
+  project         Project             @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  template        PipelineTemplate?   @relation(fields: [templateId], references: [templateId])
 
-  @@unique([projectID, name, version])
-  @@index([owner])
-  @@index([projectID])
-  @@index([createdAt])
-  @@index([specHash])
+  @@index([projectId])
   @@map("pipelines")
 }
 
-model PipelineRun {
-  id              String    @id @default(uuid()) @map("id") @db.Uuid
-  pipelineID      String    @map("pipeline_id") @db.Uuid
-  pipelineVersion Int       @map("pipeline_version")
-  status          JobStatus @map("status")
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  queuedAt        DateTime? @map("queued_at") @db.Timestamptz(6)
-  startedAt       DateTime? @map("started_at") @db.Timestamptz(6)
-  finishedAt      DateTime? @map("finished_at") @db.Timestamptz(6)
-  exitCode        Int?      @map("exit_code")
-  owner           String?   @map("owner")
-  agent           String?   @map("agent")
-  containerImage  String?   @map("container_image")
-  trigger         String?   @map("trigger")
-  labels          Json?     @map("labels")
-  metadata        Json?     @map("metadata")
-  externalRunKey  String?   @unique @map("external_run_key")
-  idempotencyKey  String?   @unique @map("idempotency_key")
-  jobs            Job[]
-  pipeline        Pipeline  @relation(fields: [pipelineID], references: [pipelineID])
+model PipelineTemplate {
+  name          String
+  description   String?
+  category      String?
+  tags          String[]
+  isPublic      Boolean    @default(false)
+  isOfficial    Boolean    @default(false)
+  pipelineYaml  String
+  visualConfig  Json
+  nodeConfig    Json
+  dockerfile    String?
+  dockerCompose String?
+  buildSpec     Json?
+  ecrImageUri   String?
+  imageVersion  String?
+  usageCount    Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  creatorId     String
+  templateId    String     @id @default(uuid())
+  creator       User       @relation("TemplateCreator", fields: [creatorId], references: [userId])
+  pipelines     Pipeline[]
+  sharedWith    User[]     @relation("SharedTemplates")
 
-  @@index([pipelineID, createdAt])
-  @@index([status, createdAt])
-  @@index([createdAt])
-  @@map("pipeline_runs")
+  @@index([isPublic, category])
+  @@map("pipeline_templates")
 }
 
-model Job {
-  runID          String           @map("run_id") @db.Uuid
-  name           String           @map("name")
-  type           JobType          @map("type")
-  testType       TestType?        @map("test_type")
-  status         JobStatus        @map("status")
-  attemptCurrent Int              @default(0) @map("attempt_current")
-  attemptMax     Int              @default(3) @map("attempt_max")
-  exitCode       Int?             @map("exit_code")
-  envVariables   Json?            @map("env_variables")
-  s3ArtifactUrl  String?          @map("s3_artifact_url")
-  targetUrl      String?          @map("target_url")
-  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  queuedAt       DateTime?        @map("queued_at") @db.Timestamptz(6)
-  startedAt      DateTime?        @map("started_at") @db.Timestamptz(6)
-  finishedAt     DateTime?        @map("finished_at") @db.Timestamptz(6)
-  owner          String?          @map("owner")
-  agent          String?          @map("agent")
-  containerImage String?          @map("container_image")
-  command        String?          @map("command")
-  inputs         Json?            @map("inputs")
-  outputs        Json?            @map("outputs")
-  externalJobKey String?          @unique @map("external_job_key")
-  id             String           @id @default(uuid()) @map("id") @db.Uuid
-  errors         JobError[]
-  statusEvents   JobStatusEvent[]
-  run            PipelineRun      @relation(fields: [runID], references: [id], onDelete: Cascade)
-  logs           Log[]
+model PipelineNode {
+  nodeId         String          @id @default(uuid())
+  name           String
+  type           NodeType
+  order          Int
+  position       Json?
+  config         Json
+  parentNodeIds  String[]
+  childNodeIds   String[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  pipelineId     String
+  clientNodeId   String
+  nodeExecutions NodeExecution[]
+  pipeline       Pipeline        @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
 
-  @@unique([runID, name])
-  @@index([runID, createdAt])
-  @@index([status, createdAt])
-  @@index([type, createdAt])
-  @@index([agent])
-  @@index([createdAt])
-  @@map("jobs")
+  @@unique([pipelineId, clientNodeId])
+  @@index([pipelineId, order])
+  @@map("pipeline_nodes")
 }
 
-model JobStatusEvent {
-  id         String     @id @default(uuid()) @map("id") @db.Uuid
-  fromStatus JobStatus? @map("from_status")
-  toStatus   JobStatus  @map("to_status")
-  reason     String?    @map("reason")
-  data       Json?      @map("data")
-  at         DateTime   @default(now()) @map("at") @db.Timestamptz(6)
-  jobID      String     @map("job_id") @db.Uuid
-  job        Job        @relation(fields: [jobID], references: [id], onDelete: Cascade)
+model PipelineExecution {
+  executionId            String          @id @default(uuid())
+  status                 ExecutionStatus @default(PENDING)
+  triggerType            TriggerType
+  branch                 String?
+  commitSha              String?
+  commitMessage          String?
+  pipelineYaml           String
+  dockerfile             String?
+  dockerCompose          String?
+  buildSpec              Json?
+  codeBuildArn           String?
+  codeBuildLogGroupName  String?
+  codeBuildLogStreamName String?
+  ecrImageUri            String?
+  ecrImageTag            String?
+  startedAt              DateTime?
+  completedAt            DateTime?
+  duration               Int?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  pipelineId             String
+  awsBuildId             String          @unique
+  deployments            Deployment[]
+  logs                   ExecutionLog[]
+  nodeExecutions         NodeExecution[]
+  pipeline               Pipeline        @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
 
-  @@index([jobID, at])
-  @@map("job_status_events")
+  @@index([pipelineId, status])
+  @@index([awsBuildId])
+  @@map("pipeline_executions")
 }
 
-model JobError {
-  id         String   @id @default(uuid()) @map("id") @db.Uuid
-  attemptNo  Int      @map("attempt_no")
-  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
-  errorType  String?  @map("error_type")
-  message    String?  @map("message") @db.VarChar(4096)
-  stacktrace String?  @map("stacktrace") @db.VarChar(8192)
-  context    Json?    @map("context")
-  dedupeKey  String?  @map("dedupe_key")
-  jobID      String   @map("job_id") @db.Uuid
-  job        Job      @relation(fields: [jobID], references: [id], onDelete: Cascade)
+model NodeExecution {
+  status          ExecutionStatus   @default(PENDING)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  duration        Int?
+  output          String?
+  error           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  executionId     String
+  nodeId          String
+  nodeExecutionId String            @id @default(uuid())
+  execution       PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
+  node            PipelineNode      @relation(fields: [nodeId], references: [nodeId])
 
-  @@unique([jobID, dedupeKey])
-  @@index([jobID, attemptNo])
-  @@index([occurredAt])
-  @@index([errorType])
-  @@map("job_errors")
+  @@index([executionId])
+  @@map("node_executions")
 }
 
-model Log {
-  content       String?   @map("content")
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  attemptNo     Int       @map("attempt_no")
-  contentType   String?   @map("content_type")
-  sizeBytes     BigInt?   @map("size_bytes")
-  storageBucket String?   @map("storage_bucket")
-  storageKey    String?   @map("storage_key")
-  stream        LogStream @map("stream")
-  logID         String    @id @default(uuid()) @map("log_id") @db.Uuid
-  jobID         String    @map("job_id") @db.Uuid
-  job           Job       @relation(fields: [jobID], references: [id], onDelete: Cascade)
+model Deployment {
+  status         DeploymentStatus   @default(PENDING)
+  serverHost     String
+  serverPort     Int                @default(22)
+  deployPath     String?
+  strategy       DeploymentStrategy @default(ROLLING)
+  dockerImageUri String
+  containerName  String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  executionId    String
+  deploymentId   String             @id @default(uuid())
+  logs           DeploymentLog[]
+  execution      PipelineExecution  @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
 
-  @@unique([jobID, attemptNo, stream])
-  @@index([jobID, attemptNo])
-  @@index([createdAt])
-  @@map("logs")
+  @@index([executionId])
+  @@map("deployments")
 }
 
-model Outbox {
-  id          BigInt    @id @default(autoincrement()) @map("id")
-  eventType   String    @map("event_type")
-  payload     Json      @map("payload")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
-  attempts    Int       @default(0) @map("attempts")
+model ExecutionLog {
+  level       LogLevel          @default(INFO)
+  message     String
+  source      String?
+  s3Bucket    String?
+  s3Key       String?
+  timestamp   DateTime          @default(now())
+  executionId String
+  logId       String            @id @default(uuid())
+  execution   PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
 
-  @@index([createdAt])
-  @@index([publishedAt])
-  @@map("outbox")
+  @@index([executionId, timestamp])
+  @@map("execution_logs")
 }
 
-enum MemberRole {
-  ADMIN
-  MEMBER
-  VIEWER
+model DeploymentLog {
+  level        LogLevel   @default(INFO)
+  message      String
+  source       String?
+  s3Bucket     String?
+  s3Key        String?
+  timestamp    DateTime   @default(now())
+  deploymentId String
+  logId        String     @id @default(uuid())
+  deployment   Deployment @relation(fields: [deploymentId], references: [deploymentId], onDelete: Cascade)
+
+  @@index([deploymentId, timestamp])
+  @@map("deployment_logs")
 }
 
-enum Language {
-  NODE
-  PYTHON
+model PushEvent {
+  pushEventId   String   @id @default(uuid())
+  branch        String
+  commitSha     String
+  commitMessage String?
+  pusherName    String?
+  pushedAt      DateTime
+  createdAt     DateTime @default(now())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+
+  @@index([projectId, pushedAt])
+  @@index([branch])
+  @@map("push_events")
 }
 
-enum DeployEnvironment {
-  EC2
+enum TriggerType {
+  MANUAL
+  WEBHOOK
+  SCHEDULE
+  API
 }
 
-enum JobType {
+enum NodeType {
   BUILD
   TEST
-  DEPLOYMENT
+  DEPLOY
+  CUSTOM
 }
 
-enum JobStatus {
-  pending
-  running
-  completed
-  failed
-  cancelled
+enum ExecutionStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+  SKIPPED
 }
 
-enum LogStream {
-  stdout
-  stderr
+enum DeploymentStatus {
+  PENDING
+  DEPLOYING
+  SUCCESS
+  FAILED
+  ROLLED_BACK
 }
 
-enum TestType {
-  UNIT
-  E2E
+enum DeploymentStrategy {
+  ROLLING
+  BLUE_GREEN
+  CANARY
 }
 
-enum GithubAccountType {
-  User
-  Organization
-}
-
-enum RepositorySelection {
-  selected
-  all
+enum LogLevel {
+  DEBUG
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
 }

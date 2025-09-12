@@ -84,7 +84,7 @@ async function bootstrap() {
       openapi: '3.1',
       servers: [
         {
-          url: `http://localhost:${process.env.PORT || 4000}/api/v1`,
+          url: `http://localhost:${process.env.OTTO_HANDLER_SERVER_PORT || 4000}/api/v1`,
           description: 'Localhost',
         },
       ],
@@ -120,6 +120,9 @@ async function bootstrap() {
   // 🔍 데이터베이스 연결 상태 확인
   await checkDatabaseConnections(app);
 
-  await app.listen(Number(process.env.PORT) || 4000, '0.0.0.0');
+  await app.listen(
+    Number(process.env.OTTO_HANDLER_SERVER_PORT) || 4000,
+    '0.0.0.0',
+  );
 }
 void bootstrap();

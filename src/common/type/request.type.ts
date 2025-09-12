@@ -1,11 +1,11 @@
 import { FastifyRequest } from 'fastify';
-import { MemberRole } from '@prisma/client';
+import { UserRole } from '../decorators/role-guard';
 
 export interface IRequestType extends FastifyRequest {
   user: {
     user_id: string;
     nickname: string;
     email: string;
-    role: MemberRole;
+    role: UserRole;
   };
 }

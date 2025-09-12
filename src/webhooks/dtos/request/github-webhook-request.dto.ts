@@ -36,6 +36,18 @@ export interface GithubWebhookRequestDto {
     };
     url: string & tags.Format<'uri'>;
   }>;
+  head_commit?: {
+    id: string;
+    message: string;
+    author: {
+      name: string;
+      email: string & tags.Format<'email'>;
+    };
+  };
+  pusher?: {
+    name: string;
+    email: string & tags.Format<'email'>;
+  };
   pull_request?: {
     id: number;
     number: number;

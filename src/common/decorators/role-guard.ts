@@ -1,12 +1,14 @@
 // roles.decorator.ts
 import { applyDecorators, SetMetadata, UseGuards } from '@nestjs/common';
-import { MemberRole } from '@prisma/client';
 import { AuthGuardRole } from '../guards/auth-guard-role.service';
 
-export const ROLES_KEY = Symbol('roles');
-export const Roles = (...roles: MemberRole[]) => SetMetadata(ROLES_KEY, roles);
+// Role type definition (since MemberRole doesn't exist in schema)
+export type UserRole = 'ADMIN' | 'USER';
 
-export const AuthGuard = (roles?: MemberRole | MemberRole[]) => {
+export const ROLES_KEY = Symbol('roles');
+export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
+
+export const AuthGuard = (roles?: UserRole | UserRole[]) => {
   const decorators = [UseGuards(AuthGuardRole)];
 
   if (roles) {

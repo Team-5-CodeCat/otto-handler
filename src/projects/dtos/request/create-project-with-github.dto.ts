@@ -6,13 +6,33 @@ export interface CreateProjectWithGithubDto {
    */
   name: string & tags.MinLength<1> & tags.MaxLength<100>;
   /**
+   * 프로젝트 설명
+   */
+  description?: string & tags.MaxLength<500>;
+  /**
    * GitHub Installation ID
    */
   installationId: string;
   /**
-   * 레포지토리 전체 이름
+   * GitHub Repository ID
    */
-  repositoryFullName: string & tags.MinLength<1>;
+  githubRepoId: string;
+  /**
+   * GitHub Repository URL
+   */
+  githubRepoUrl: string;
+  /**
+   * GitHub Repository Name
+   */
+  githubRepoName: string;
+  /**
+   * GitHub Owner
+   */
+  githubOwner: string;
+  /**
+   * 비공개 레포지토리 여부
+   */
+  isPrivate: boolean;
   /**
    * 선택된 브랜치
    */
