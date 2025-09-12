@@ -12,7 +12,7 @@ import type {
   PipelineListResponseDto,
 } from '../dto';
 import type { PipelineFlowData } from '../dto/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Pipeline, Project, PipelineExecution } from '@prisma/client';
 
 @Injectable()
 export class PipelineService {
@@ -195,9 +195,17 @@ export class PipelineService {
     }
 
     return {
-      ...this.mapToPipelineResponse(pipeline),
-      project: (pipeline as any).project || null,
-      recentExecutions: (pipeline as any).executions || [],
+      ...this.mapToPipelineResponse(
+        pipeline as Pipeline & {
+          pipelineData?: Prisma.JsonValue;
+          visualConfig?: Prisma.JsonValue;
+        },
+      ),
+      project: 'project' in pipeline ? (pipeline.project as Project) : null,
+      recentExecutions:
+        'executions' in pipeline
+          ? (pipeline.executions as PipelineExecution[])
+          : [],
     };
   }
 
@@ -383,14 +391,21 @@ export class PipelineService {
   /**
    * Prisma Pipeline 객체를 PipelineResponseDto로 변환
    */
-  private mapToPipelineResponse(pipeline: any): PipelineResponseDto {
+  private mapToPipelineResponse(
+    pipeline: Pipeline & {
+      pipelineData?: Prisma.JsonValue;
+      visualConfig?: Prisma.JsonValue;
+    },
+  ): PipelineResponseDto {
     return {
       pipelineId: pipeline.pipelineId,
       name: pipeline.name,
       description: pipeline.description,
       isActive: pipeline.isActive,
       projectId: pipeline.projectId,
-      pipelineData: this.safeParsePipelineData(pipeline.pipelineData || pipeline.visualConfig || null),
+      pipelineData: this.safeParsePipelineData(
+        pipeline.pipelineData || pipeline.visualConfig || null,
+      ),
       createdAt: pipeline.createdAt,
       updatedAt: pipeline.updatedAt,
     };

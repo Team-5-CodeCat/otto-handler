@@ -35,6 +35,7 @@ import {
 import { tags } from 'typia';
 import { AuthGuard } from '../../common/decorators';
 import type { IRequestType } from '../../common/type';
+import { Project, User } from '@prisma/client';
 import { CommonErrorResponseDto } from '../../common/dto/response/common-error-response.dto';
 import { GetUserGithubInstallationsResponseDto } from '../dtos/response/get-user-github-installations-response.dto';
 import { GetProjectDetailResponseDto } from '../dtos/response/get-project-detail-response.dto';
@@ -46,6 +47,22 @@ export class ProjectController {
     private readonly projectService: ProjectService,
     private readonly githubService: GithubService,
   ) {}
+
+  /**
+   * 프로젝트가 사용자 정보를 포함하는지 확인하는 타입 가드
+   */
+  private hasUserInfo(
+    project: unknown,
+  ): project is Project & { user: User & { username?: string } } {
+    if (!project || typeof project !== 'object' || project === null) {
+      return false;
+    }
+
+    const proj = project as Record<string, unknown>;
+    return (
+      'user' in proj && proj.user !== null && typeof proj.user === 'object'
+    );
+  }
 
   /**
    * 에러 정보를 안전하게 추출하는 헬퍼 메서드
@@ -257,7 +274,7 @@ export class ProjectController {
       userId,
       createProjectDto.name,
       createProjectDto.webhookUrl,
-    )) as any;
+    )) as Project & { user?: User & { username?: string } };
 
     // DTO 필드명 매핑 (projectId → projectID, userId → userID)
     return {
@@ -751,11 +768,15 @@ export class ProjectController {
     return {
       ...project,
       projectId: project.projectId,
-      userId: (project as any).user?.userId || project.userId,
+      userId: this.hasUserInfo(project) ? project.user.userId : project.userId,
       user: {
-        userId: (project as any).user?.userId || project.userId, // userID 필드 추가
-        email: `${(project as any).user?.username || 'user'}@github.user`, // GitHub 사용자는 가상 이메일 사용
-        name: (project as any).user?.username || 'User',
+        userId: this.hasUserInfo(project)
+          ? project.user.userId
+          : project.userId, // userID 필드 추가
+        email: `${this.hasUserInfo(project) ? project.user.username || 'user' : 'user'}@github.user`, // GitHub 사용자는 가상 이메일 사용
+        name: this.hasUserInfo(project)
+          ? project.user.username || 'User'
+          : 'User',
       },
       installation: null, // installation 정보
       pipelines: [], // pipelines 정보
