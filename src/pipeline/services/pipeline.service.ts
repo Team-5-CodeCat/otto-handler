@@ -194,6 +194,15 @@ export class PipelineService {
       );
     }
 
+    // 프로젝트 정보가 포함되어 있는지 확인
+    if (!('project' in pipeline) || !pipeline.project) {
+      throw new NotFoundException(
+        '파이프라인과 연결된 프로젝트 정보를 찾을 수 없습니다.',
+      );
+    }
+
+    const projectData = pipeline.project as Project;
+
     return {
       ...this.mapToPipelineResponse(
         pipeline as Pipeline & {
@@ -201,7 +210,12 @@ export class PipelineService {
           visualConfig?: Prisma.JsonValue;
         },
       ),
-      project: 'project' in pipeline ? (pipeline.project as Project) : null,
+      project: {
+        projectId: projectData.projectId,
+        name: projectData.name,
+        githubRepoName: projectData.githubRepoName,
+        githubOwner: projectData.githubOwner,
+      },
       recentExecutions:
         'executions' in pipeline
           ? (pipeline.executions as PipelineExecution[])
