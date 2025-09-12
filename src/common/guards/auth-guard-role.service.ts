@@ -1,4 +1,3 @@
-import { UserRole } from '../decorators/role-guard';
 import { FastifyRequest } from 'fastify';
 import {
   CanActivate,
@@ -9,25 +8,18 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '../../auth/services';
 import { PrismaService } from '../../database/prisma.service';
-import { Reflector } from '@nestjs/core';
 import { AuthErrorEnum, TOKEN_CONSTANTS } from '../../auth/constants';
 import { IRequestType, JwtPayloadType } from '../type';
-import { ROLES_KEY } from '../decorators/role-guard';
 
 @Injectable()
 export class AuthGuardRole implements CanActivate {
   constructor(
-    private readonly reflector: Reflector,
     private readonly jwtService: JwtService,
     private readonly prismaService: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<IRequestType>();
-    const requiredRoles = this.reflector.get<UserRole[]>(
-      ROLES_KEY, // 하드코딩된 'roles' 대신 상수 사용
-      context.getHandler(),
-    );
 
     const token = this.extractTokenFromRequest(request);
     if (!token) {
@@ -63,14 +55,10 @@ export class AuthGuardRole implements CanActivate {
       // request.user에 사용자 정보 설정
       request.user = {
         user_id: user.userId,
-        nickname: user.username,
+        nickname: (user as any).username || 'user',
       };
 
-      // 역할 권한 체크
-      if (requiredRoles && requiredRoles.length > 0) {
-        // For now, skip role check since User model doesn't have role field
-        // TODO: Implement proper role management if needed
-      }
+      // 역할 권한 체크는 현재 구현되지 않음
 
       return true;
     } catch (error) {

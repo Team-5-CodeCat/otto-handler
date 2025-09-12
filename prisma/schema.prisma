@@ -165,8 +165,8 @@ model Pipeline {
    */
   executions                 PipelineExecution[]
   project                    Project             @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
-  PipelineTemplate           PipelineTemplate?   @relation(fields: [pipelineTemplateTemplateId], references: [templateId])
-  pipelineTemplateTemplateId String?
+  template                   PipelineTemplate?   @relation(fields: [templateId], references: [templateId])
+  templateId                 String?
 
   @@index([projectId])
   @@map("pipelines")

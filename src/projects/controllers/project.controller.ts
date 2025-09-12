@@ -253,11 +253,11 @@ export class ProjectController {
   ): Promise<CreateProjectResponseDto> {
     const userId = req.user.user_id; // JWT 토큰에서 사용자 ID 추출
 
-    const project = await this.projectService.createProject(
+    const project = (await this.projectService.createProject(
       userId,
       createProjectDto.name,
       createProjectDto.webhookUrl,
-    );
+    )) as any;
 
     // DTO 필드명 매핑 (projectId → projectID, userId → userID)
     return {
@@ -265,9 +265,9 @@ export class ProjectController {
       name: project.name,
       webhookUrl: null, // webhookUrl 필드가 없으므로 null
       user: {
-        userId: project.user.userId,
-        email: `${project.user.username}@github.user`, // GitHub 사용자는 가상 이메일 사용
-        name: project.user.username, // username을 name으로 사용
+        userId: project.user?.userId || userId,
+        email: `${project.user?.username || 'user'}@github.user`, // GitHub 사용자는 가상 이메일 사용
+        name: project.user?.username || 'User', // username을 name으로 사용
       },
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
@@ -602,7 +602,7 @@ export class ProjectController {
     const userId = req.user.user_id;
 
     // DTO 필드들을 타입 안전하게 전달
-    return this.projectService.connectRepositoryToProject(
+    const result = await this.projectService.connectRepositoryToProject(
       userId,
       projectId,
       String(connectDto.githubRepoId),
@@ -612,7 +612,18 @@ export class ProjectController {
       connectDto.isPrivate,
       String(connectDto.selectedBranch),
       connectDto.installationId ? String(connectDto.installationId) : undefined,
-    ) as Promise<ConnectRepositoryResponseDto>;
+    );
+
+    // 응답 DTO 형태로 변환
+    return {
+      ...result,
+      user: {
+        userId: result.userId,
+        username: 'user',
+        email: 'user@github.user',
+        name: 'User',
+      },
+    } as ConnectRepositoryResponseDto;
   }
 
   /**
@@ -689,11 +700,22 @@ export class ProjectController {
     const userId = req.user.user_id;
 
     // branchName을 타입 안전하게 전달
-    return this.projectService.updateSelectedBranch(
+    const result = await this.projectService.updateSelectedBranch(
       userId,
       projectId,
       String(updateDto.branchName),
-    ) as Promise<UpdateBranchResponseDto>;
+    );
+
+    // 응답 DTO 형태로 변환
+    return {
+      ...result,
+      user: {
+        userId: result.userId,
+        username: 'user',
+        email: 'user@github.user',
+        name: 'User',
+      },
+    } as UpdateBranchResponseDto;
   }
 
   /**
@@ -729,12 +751,14 @@ export class ProjectController {
     return {
       ...project,
       projectId: project.projectId,
-      userId: project.user.userId,
+      userId: (project as any).user?.userId || project.userId,
       user: {
-        userId: project.user.userId, // userID 필드 추가
-        email: `${project.user.username}@github.user`, // GitHub 사용자는 가상 이메일 사용
-        name: project.user.username,
+        userId: (project as any).user?.userId || project.userId, // userID 필드 추가
+        email: `${(project as any).user?.username || 'user'}@github.user`, // GitHub 사용자는 가상 이메일 사용
+        name: (project as any).user?.username || 'User',
       },
+      installation: null, // installation 정보
+      pipelines: [], // pipelines 정보
     };
   }
 
@@ -866,6 +890,7 @@ export class ProjectController {
       projectId: project.projectId,
       userID: project.userId,
       webhookUrl: null,
+      installation: null, // installation 정보 추가
     }));
   }
 
