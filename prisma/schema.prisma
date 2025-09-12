@@ -11,7 +11,7 @@ datasource db {
 }
 // ==================== User & Auth ====================
 model User {
-  id        String   @id @default(uuid())
+  userId    String   @id @default(uuid())
   email     String   @unique
   name      String?
   avatarUrl String?
@@ -41,7 +41,7 @@ model User {
 }
 // ==================== Session Management ====================
 model Session {
-  id           String   @id @default(uuid())
+  sessionId    String   @id @default(uuid())
   sessionToken String   @unique
   
   // OAuth Token (암호화 저장, 짧은 TTL)
@@ -58,7 +58,7 @@ model Session {
   
   // Relations
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [userId], onDelete: Cascade)
   
   @@index([sessionToken])
   @@index([userId])
@@ -66,92 +66,74 @@ model Session {
 }
 // ==================== GitHub App & Installation ====================
 model GithubInstallation {
-  id             String   @id @default(uuid())
-  installationId String   @unique // GitHub Installation ID
+  installationId String   @id @default(uuid())
+  githubInstallationId String   @unique // GitHub Installation ID
   
-  // GitHub App Installation Info
-  appId          String   // GitHub App ID
-  appSlug        String?  // GitHub App slug name
-  targetType     String   // "User" or "Organization"
-  targetId       String   // GitHub User/Org ID
-  account        Json     // GitHub account info (login, avatar_url, etc.)
-  
-  // Installation Permissions & Events (리포지토리 작업용)
-  permissions    Json     // Installation permissions (contents: read/write, metadata: read, pull_requests: write, etc.)
-  events         String[] // Webhook events (push, pull_request, etc.)
-  repositorySelection String @default("selected") // "all" or "selected"
-  
-  // Installation Token Management (암호화 저장) - 모든 리포지토리 작업용
-  installationToken    String?  // 암호화된 installation token
-  tokenExpiresAt       DateTime?
-  privateKey           String   // 암호화된 GitHub App private key
-  webhookSecret        String   // 암호화된 webhook secret
+  // GitHub App Installation Info (최소한의 식별 정보만 저장)
+  accountLogin   String   // GitHub 계정 로그인명
+  accountId      String   // GitHub 계정 ID (숫자)
+  accountType    String   // "User" or "Organization"
   
   // Installation Status
   isActive      Boolean  @default(true)
-  suspendedAt   DateTime?
-  suspendedBy   String?
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
   // Relations
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
   
   projects  Project[]
   
-  @@index([installationId])
+  @@index([githubInstallationId])
   @@index([userId])
   @@map("github_installations")
 }
 // ==================== Project ====================
 model Project {
-  id          String   @id @default(uuid())
+  projectId   String   @id @default(uuid())
   name        String
   description String?
   isActive    Boolean  @default(true)
   
-  // GitHub Repository Info
-  githubRepoUrl    String
-  githubRepoName   String
-  githubOwner      String
+  // GitHub 연결 정보 (핵심 - 반드시 저장)
   githubRepoId     String   // GitHub Repository ID
-  defaultBranch    String   @default("main")
+  selectedBranch   String   @default("main")
+  
+  // 설치 정보
+  installationId String?
+  installation   GithubInstallation? @relation(fields: [installationId], references: [installationId])
+  
+  // GitHub Repository Info (UI 표시용)
+  githubRepoUrl    String   // "https://github.com/owner/repo"
+  githubRepoName   String   // "my-app"  
+  githubOwner      String   // "owner"
   isPrivate        Boolean  @default(true)
-  
-  // AWS Resources
-  ecrRepositoryUri String?  // ECR Repository URI
-  codeBuildProjectName String? // AWS CodeBuild project name
-  
-  // Deployment Configuration (암호화 저장)
-  sshPrivateKey    String?  @db.Text // 암호화된 SSH private key
-  sshPublicKey     String?  @db.Text // SSH public key
-  deploymentConfig String?  @db.Text // 암호화된 deployment 설정 (server info, etc.)
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
   // Relations
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
   
-  installationId String
-  installation   GithubInstallation @relation(fields: [installationId], references: [id])
-  
-  pipelines Pipeline[]
-  webhooks  Webhook[]
-  secrets   ProjectSecret[]
+  pipelines  Pipeline[]
+  secrets    ProjectSecret[]
+  pushEvents PushEvent[]
   
   @@unique([githubOwner, githubRepoName])
   @@unique([githubRepoId])
+  @@unique([userId, githubRepoId]) // 사용자당 동일 레포는 하나의 프로젝트만
   @@index([userId])
   @@index([installationId])
   @@map("projects")
 }
+
+
 // ==================== Secrets Management ====================
 model ProjectSecret {
-  id        String   @id @default(uuid())
+  secretId  String   @id @default(uuid())
   key       String
   value     String   @db.Text // 암호화된 값 저장
   isSecure  Boolean  @default(true) // 암호화 여부
@@ -161,14 +143,14 @@ model ProjectSecret {
   
   // Relations
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
   
   @@unique([projectId, key])
   @@map("project_secrets")
 }
 // ==================== Pipeline ====================
 model Pipeline {
-  id          String   @id @default(uuid())
+  pipelineId  String   @id @default(uuid())
   name        String
   description String?
   isActive    Boolean  @default(true)
@@ -186,10 +168,10 @@ model Pipeline {
   
   // Relations
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
   
   templateId String?
-  template   PipelineTemplate? @relation(fields: [templateId], references: [id])
+  template   PipelineTemplate? @relation(fields: [templateId], references: [templateId])
   
   nodes     PipelineNode[]
   executions PipelineExecution[]
@@ -199,7 +181,7 @@ model Pipeline {
 }
 // ==================== Pipeline Template (for Asset Sharing) ====================
 model PipelineTemplate {
-  id          String   @id @default(uuid())
+  templateId  String   @id @default(uuid())
   name        String
   description String?
   category    String?  // e.g., "Node.js", "Python", "Docker"
@@ -229,7 +211,7 @@ model PipelineTemplate {
   
   // Relations
   creatorId String
-  creator   User     @relation("TemplateCreator", fields: [creatorId], references: [id])
+  creator   User     @relation("TemplateCreator", fields: [creatorId], references: [userId])
   
   sharedWith User[]   @relation("SharedTemplates")
   pipelines  Pipeline[]
@@ -239,8 +221,8 @@ model PipelineTemplate {
 }
 // ==================== Pipeline Node ====================
 model PipelineNode {
-  id       String   @id @default(uuid())
-  nodeId   String   // 클라이언트에서 생성한 고유 Node ID
+  nodeId   String   @id @default(uuid())
+  clientNodeId String   // 클라이언트에서 생성한 고유 Node ID
   name     String   // e.g., "build", "test", "deploy"
   type     NodeType
   order    Int      // 실행 순서
@@ -270,18 +252,18 @@ model PipelineNode {
   
   // Relations
   pipelineId String
-  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
   
   nodeExecutions NodeExecution[]
   
-  @@unique([pipelineId, nodeId])
+  @@unique([pipelineId, clientNodeId])
   @@index([pipelineId, order])
   @@map("pipeline_nodes")
 }
 // ==================== Pipeline Execution ====================
 model PipelineExecution {
-  id          String   @id @default(uuid())
-  executionId String   @unique // AWS CodeBuild Build ID
+  executionId String   @id @default(uuid())
+  awsBuildId  String   @unique // AWS CodeBuild Build ID
   
   status      ExecutionStatus @default(PENDING)
   triggerType TriggerType
@@ -313,19 +295,19 @@ model PipelineExecution {
   
   // Relations
   pipelineId String
-  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
   
   nodeExecutions NodeExecution[]
   logs          ExecutionLog[]
   deployments   Deployment[]
   
   @@index([pipelineId, status])
-  @@index([executionId])
+  @@index([awsBuildId])
   @@map("pipeline_executions")
 }
 // ==================== Node Execution ====================
 model NodeExecution {
-  id        String   @id @default(uuid())
+  nodeExecutionId String   @id @default(uuid())
   
   status    ExecutionStatus @default(PENDING)
   startedAt DateTime?
@@ -341,17 +323,17 @@ model NodeExecution {
   
   // Relations
   executionId String
-  execution   PipelineExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  execution   PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
   
   nodeId    String
-  node      PipelineNode @relation(fields: [nodeId], references: [id])
+  node      PipelineNode @relation(fields: [nodeId], references: [nodeId])
   
   @@index([executionId])
   @@map("node_executions")
 }
 // ==================== Deployment ====================
 model Deployment {
-  id        String   @id @default(uuid())
+  deploymentId String   @id @default(uuid())
   
   status    DeploymentStatus @default(PENDING)
   
@@ -375,7 +357,7 @@ model Deployment {
   
   // Relations
   executionId String
-  execution   PipelineExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  execution   PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
   
   logs DeploymentLog[]
   
@@ -384,7 +366,7 @@ model Deployment {
 }
 // ==================== Logs ====================
 model ExecutionLog {
-  id        String   @id @default(uuid())
+  logId     String   @id @default(uuid())
   
   level     LogLevel @default(INFO)
   message   String   @db.Text
@@ -398,13 +380,13 @@ model ExecutionLog {
   
   // Relations
   executionId String
-  execution   PipelineExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  execution   PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
   
   @@index([executionId, timestamp])
   @@map("execution_logs")
 }
 model DeploymentLog {
-  id        String   @id @default(uuid())
+  logId     String   @id @default(uuid())
   
   level     LogLevel @default(INFO)
   message   String   @db.Text
@@ -418,30 +400,48 @@ model DeploymentLog {
   
   // Relations
   deploymentId String
-  deployment   Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  deployment   Deployment @relation(fields: [deploymentId], references: [deploymentId], onDelete: Cascade)
   
   @@index([deploymentId, timestamp])
   @@map("deployment_logs")
 }
-// ==================== Webhook ====================
-model Webhook {
-  id        String   @id @default(uuid())
+
+// ==================== Push Event History ====================
+model PushEvent {
+  pushEventId String   @id @default(uuid())
   
-  eventType String   // e.g., "push", "pull_request"
-  payload   Json     // GitHub webhook payload
+  // Push Event Info
+  branch    String   // main
+  commitSha String   // commit SHA
+  commitMessage String? // commit message
   
-  processed Boolean  @default(false)
-  processedAt DateTime?
+  // Push Details
+  pusherName  String?  // Who pushed
+  pushedAt    DateTime // When the push happened
   
   createdAt DateTime @default(now())
   
   // Relations
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
   
-  @@index([projectId, processed])
-  @@map("webhooks")
+  @@index([projectId, pushedAt])
+  @@index([branch])
+  @@map("push_events")
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 // ==================== Enums ====================
 enum TriggerType {
   MANUAL

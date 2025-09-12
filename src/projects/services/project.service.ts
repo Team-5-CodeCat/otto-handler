@@ -5,13 +5,10 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
-  Inject,
-  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { GithubService } from './github.service';
 import { JwtService } from '../../auth/services/jwt.service';
-import { PipelineService } from '../../pipelines/services/pipeline.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -20,8 +17,6 @@ export class ProjectService {
     private prisma: PrismaService,
     private githubService: GithubService,
     private jwtService: JwtService,
-    @Inject(forwardRef(() => PipelineService))
-    private pipelineService: PipelineService,
   ) {}
 
   /**
@@ -35,11 +30,30 @@ export class ProjectService {
   }
 
   /**
+   * 문자열 타입 가드
+   */
+  private isString(value: unknown): value is string {
+    return typeof value === 'string';
+  }
+
+  /**
+   * 숫자 타입 가드
+   */
+  private isNumber(value: unknown): value is number {
+    return typeof value === 'number';
+  }
+
+  /**
    * 안전하게 문자열 값을 추출하는 헬퍼
    */
   private getStringValue(obj: unknown, key: string): string | undefined {
-    if (this.hasProperty(obj, key) && typeof obj[key] === 'string') {
-      return obj[key];
+    if (
+      typeof obj === 'object' &&
+      obj !== null &&
+      key in obj &&
+      typeof (obj as Record<string, unknown>)[key] === 'string'
+    ) {
+      return (obj as Record<string, unknown>)[key] as string;
     }
     return undefined;
   }
@@ -48,8 +62,13 @@ export class ProjectService {
    * 안전하게 숫자 값을 추출하는 헬퍼
    */
   private getNumberValue(obj: unknown, key: string): number | undefined {
-    if (this.hasProperty(obj, key) && typeof obj[key] === 'number') {
-      return obj[key];
+    if (
+      typeof obj === 'object' &&
+      obj !== null &&
+      key in obj &&
+      typeof (obj as Record<string, unknown>)[key] === 'number'
+    ) {
+      return (obj as Record<string, unknown>)[key] as number;
     }
     return undefined;
   }
@@ -99,24 +118,24 @@ export class ProjectService {
    * 새 프로젝트를 생성합니다
    * 동일한 사용자가 같은 이름의 프로젝트를 만들 수 없도록 유니크 제약조건이 있습니다
    */
-  async createProject(userId: string, name: string, _webhookUrl?: string) {
+  async createProject(userId: string, name: string, description?: string) {
     try {
       const project = await this.prisma.project.create({
         data: {
+          projectId: crypto.randomUUID(),
           userId: userId,
           name: name.trim(),
-          // webhookUrl 필드가 스키마에 없으므로 제거
+          description,
+          githubRepoId: '',
           githubRepoUrl: '',
           githubRepoName: '',
           githubOwner: '',
-          githubRepoId: '',
-          installationId: '',
         },
         // 생성된 프로젝트와 함께 사용자 정보도 포함해서 반환
         include: {
           user: {
             select: {
-              id: true,
+              userId: true,
               email: true,
               name: true,
             },
@@ -143,40 +162,39 @@ export class ProjectService {
    * GitHub 설치 정보를 등록하거나 업데이트합니다 (upsert)
    * 같은 설치 ID가 이미 있으면 업데이트하고, 없으면 새로 생성합니다
    */
-  async registerGithubInstallation(userId: string, installationId: string) {
+  async registerGithubInstallation(
+    userId: string,
+    githubInstallationId: string,
+  ) {
     // 1. 먼저 GitHub에서 이 설치가 유효한지 검증
     const installationInfo =
-      await this.githubService.validateInstallation(installationId);
+      await this.githubService.validateInstallation(githubInstallationId);
 
     // 2. 데이터베이스에 upsert (있으면 업데이트, 없으면 생성)
     const installation = await this.prisma.githubInstallation.upsert({
       where: {
-        installationId: installationId,
+        githubInstallationId: githubInstallationId,
       },
       update: {
         // 기존 설치 정보 업데이트 - 소유자가 바뀔 수 있으니 최신 정보로 갱신
         userId: userId,
-        account: installationInfo.account,
-        targetId: installationInfo.account.id.toString(),
-        updatedAt: new Date(),
+        accountLogin: installationInfo.account.login,
+        accountId: installationInfo.account.id.toString(),
+        accountType: installationInfo.account.type,
       },
       create: {
         // 새 설치 정보 생성
+        installationId: crypto.randomUUID(),
         userId: userId,
-        installationId: installationId,
-        account: installationInfo.account,
-        targetId: installationInfo.account.id.toString(),
-        appId: process.env.GITHUB_APP_ID || '',
-        targetType: installationInfo.account.type || 'User',
-        permissions: {},
-        events: [],
-        privateKey: process.env.GITHUB_APP_PRIVATE_KEY || '',
-        webhookSecret: process.env.GITHUB_WEBHOOK_SECRET || '',
+        githubInstallationId: githubInstallationId,
+        accountLogin: installationInfo.account.login,
+        accountId: installationInfo.account.id.toString(),
+        accountType: installationInfo.account.type,
       },
       include: {
         user: {
           select: {
-            id: true,
+            userId: true,
             email: true,
             name: true,
           },
@@ -210,6 +228,16 @@ export class ProjectService {
       where: {
         userId: userId,
       },
+      include: {
+        installation: {
+          select: {
+            installationId: true,
+            githubInstallationId: true,
+            accountLogin: true,
+            accountType: true,
+          },
+        },
+      },
       orderBy: {
         createdAt: 'desc',
       },
@@ -222,9 +250,9 @@ export class ProjectService {
       repositories: project.githubRepoUrl
         ? [
             {
-              id: project.id,
+              id: project.projectId,
               repoFullName: `${project.githubOwner}/${project.githubRepoName}`,
-              selectedBranch: project.defaultBranch,
+              selectedBranch: project.selectedBranch,
               isActive: project.isActive,
             },
           ]
@@ -239,14 +267,18 @@ export class ProjectService {
   async connectRepositoryToProject(
     userId: string,
     projectId: string,
-    repoFullName: string,
+    githubRepoId: string,
+    githubRepoUrl: string,
+    githubRepoName: string,
+    githubOwner: string,
+    isPrivate: boolean,
     selectedBranch: string,
     installationId?: string,
   ) {
     // 1. 프로젝트 소유권 확인
     const project = await this.prisma.project.findFirst({
       where: {
-        id: projectId,
+        projectId: projectId,
         userId: userId,
       },
     });
@@ -271,24 +303,28 @@ export class ProjectService {
       }
     }
 
-    // 3. 트랜잭션으로 레포지토리 연결 처리
+    // 3. 프로젝트에 GitHub 정보 업데이트
     try {
       const updatedProject = await this.prisma.project.update({
-        where: { id: projectId },
+        where: {
+          projectId: projectId,
+        },
         data: {
-          githubRepoUrl: `https://github.com/${repoFullName}`,
-          githubRepoName: repoFullName.split('/')[1],
-          githubOwner: repoFullName.split('/')[0],
-          defaultBranch: selectedBranch,
+          githubRepoId: githubRepoId,
+          githubRepoUrl: githubRepoUrl,
+          githubRepoName: githubRepoName,
+          githubOwner: githubOwner,
+          isPrivate: isPrivate,
+          selectedBranch: selectedBranch,
           installationId: installationId,
         },
-        select: {
-          id: true,
-          name: true,
-          githubRepoUrl: true,
-          githubRepoName: true,
-          githubOwner: true,
-          defaultBranch: true,
+        include: {
+          user: {
+            select: {
+              userId: true,
+              name: true,
+            },
+          },
         },
       });
 
@@ -301,7 +337,7 @@ export class ProjectService {
         (error as { code: string }).code === 'P2002'
       ) {
         throw new ConflictException(
-          '이 레포지토리는 이미 프로젝트에 연결되어 있습니다',
+          '이 레포지토리는 이미 다른 프로젝트에 연결되어 있습니다',
         );
       }
       throw error;
@@ -314,14 +350,16 @@ export class ProjectService {
   async updateSelectedBranch(
     userId: string,
     projectId: string,
-    repositoryId: string,
     newBranch: string,
   ) {
-    // 1. 해당 프로젝트가 사용자의 프로젝트인지 확인
+    // 1. 해당 프로젝트가 사용자 소유인지 확인
     const project = await this.prisma.project.findFirst({
       where: {
-        id: projectId,
+        projectId: projectId,
         userId: userId,
+      },
+      include: {
+        installation: true,
       },
     });
 
@@ -332,11 +370,11 @@ export class ProjectService {
     }
 
     // 2. 새 브랜치가 실제로 존재하는지 GitHub에서 확인 (선택사항이지만 권장)
-    if (project.installationId) {
-      const repoFullName = `${project.githubOwner}/${project.githubRepoName}`;
+    if (project.installation) {
       try {
+        const repoFullName = `${project.githubOwner}/${project.githubRepoName}`;
         const branches = await this.githubService.getRepositoryBranches(
-          project.installationId,
+          project.installation.githubInstallationId,
           repoFullName,
         );
 
@@ -360,18 +398,18 @@ export class ProjectService {
     // 3. 브랜치 업데이트
     const updated = await this.prisma.project.update({
       where: {
-        id: projectId,
+        projectId: projectId,
       },
       data: {
-        defaultBranch: newBranch,
-        updatedAt: new Date(),
+        selectedBranch: newBranch,
       },
-      select: {
-        id: true,
-        name: true,
-        githubOwner: true,
-        githubRepoName: true,
-        defaultBranch: true,
+      include: {
+        user: {
+          select: {
+            userId: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -384,13 +422,34 @@ export class ProjectService {
   async getProjectDetail(userId: string, projectId: string) {
     const project = await this.prisma.project.findFirst({
       where: {
-        id: projectId,
+        projectId: projectId,
         userId: userId,
       },
       include: {
+        installation: {
+          select: {
+            installationId: true,
+            githubInstallationId: true,
+            accountLogin: true,
+            accountType: true,
+          },
+        },
+        pipelines: {
+          select: {
+            pipelineId: true,
+            name: true,
+            description: true,
+            isActive: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
         user: {
           select: {
-            id: true,
+            userId: true,
             email: true,
             name: true,
           },
@@ -408,9 +467,9 @@ export class ProjectService {
       repositories: project.githubRepoUrl
         ? [
             {
-              id: project.id,
+              id: project.projectId,
               repoFullName: `${project.githubOwner}/${project.githubRepoName}`,
-              selectedBranch: project.defaultBranch,
+              selectedBranch: project.selectedBranch,
               isActive: project.isActive,
               installationId: project.installationId,
               createdAt: project.createdAt,
@@ -459,62 +518,35 @@ export class ProjectService {
   /**
    * installationId를 사용자와 연결
    */
-  async linkInstallationToUser(userId: string, installationId: string) {
-    return this.registerGithubInstallation(userId, installationId);
+  async linkInstallationToUser(userId: string, githubInstallationId: string) {
+    return this.registerGithubInstallation(userId, githubInstallationId);
   }
 
   /**
    * 레포지토리로 연결된 프로젝트들 조회
    */
-  async findProjectsByRepository(repoFullName: string, installationId: string) {
-    const [owner, repoName] = repoFullName.split('/');
+  async findProjectsByRepository(
+    githubOwner: string,
+    githubRepoName: string,
+    githubInstallationId: string,
+  ) {
     return this.prisma.project.findMany({
       where: {
-        githubOwner: owner,
-        githubRepoName: repoName,
-        installationId,
+        githubOwner,
+        githubRepoName,
+        installation: {
+          githubInstallationId,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            userId: true,
+            name: true,
+          },
+        },
       },
     });
-  }
-
-  /**
-   * 빌드 레코드 생성 및 웹훅 트리거시 자동 실행
-   */
-  async createBuildRecord(
-    projectId: string,
-    buildInfo: { trigger: string; metadata?: Record<string, unknown> },
-  ) {
-    // 프로젝트에 활성 파이프라인 1개 선택 후 실행 레코드 생성
-    const pipeline = await this.prisma.pipeline.findFirst({
-      where: { projectId: projectId, isActive: true },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!pipeline) {
-      throw new BadRequestException('활성 파이프라인이 없습니다');
-    }
-
-    const execution = await this.prisma.pipelineExecution.create({
-      data: {
-        pipelineId: pipeline.id,
-        executionId: crypto.randomUUID(),
-        status: 'PENDING',
-        triggerType:
-          buildInfo.trigger === 'webhook:push' ? 'WEBHOOK' : 'MANUAL',
-        branch: buildInfo.metadata?.branch as string | undefined,
-        commitSha: buildInfo.metadata?.after as string | undefined,
-        pipelineYaml: pipeline.pipelineYaml || '',
-      },
-    });
-
-    // 웹훅 트리거인 경우 자동으로 파이프라인 실행
-    if (buildInfo.trigger.startsWith('webhook:')) {
-      console.log(
-        `[Webhook] Auto-triggering pipeline execution for execution ${execution.id}`,
-      );
-      void this.pipelineService.startPipelineExecution(execution.id);
-    }
-
-    return execution;
   }
 
   /**
@@ -524,15 +556,20 @@ export class ProjectService {
     userId: string,
     data: {
       name: string;
+      description?: string;
       installationId: string;
-      repositoryFullName: string;
+      githubRepoId: string;
+      githubRepoUrl: string;
+      githubRepoName: string;
+      githubOwner: string;
+      isPrivate: boolean;
       selectedBranch: string;
     },
   ) {
     console.log('[Project Service] Creating project with GitHub integration:', {
       userId,
       name: data.name,
-      repository: data.repositoryFullName,
+      repository: `${data.githubOwner}/${data.githubRepoName}`,
       branch: data.selectedBranch,
     });
 
@@ -552,39 +589,39 @@ export class ProjectService {
         );
       }
 
-      const [owner, repoName] = data.repositoryFullName.split('/');
-
       // 2. 프로젝트 생성 (GitHub 정보 포함)
       const project = await tx.project.create({
         data: {
+          projectId: crypto.randomUUID(),
           userId: userId,
           name: data.name,
-          githubRepoUrl: `https://github.com/${data.repositoryFullName}`,
-          githubRepoName: repoName,
-          githubOwner: owner,
-          githubRepoId: '', // repositoryId는 나중에 GitHub API로 가져옴
-          defaultBranch: data.selectedBranch,
+          description: data.description,
+          githubRepoId: data.githubRepoId,
+          githubRepoUrl: data.githubRepoUrl,
+          githubRepoName: data.githubRepoName,
+          githubOwner: data.githubOwner,
+          isPrivate: data.isPrivate,
+          selectedBranch: data.selectedBranch,
           installationId: installation.installationId,
-          isPrivate: true,
         },
       });
 
-      console.log('[Project Service] Project created:', project.id);
+      console.log('[Project Service] Project created:', project.projectId);
 
       // 3. 생성된 데이터 반환
       return {
         project: {
-          id: project.id,
+          projectId: project.projectId,
           name: project.name,
-          githubRepoUrl: project.githubRepoUrl,
-          createdAt: project.createdAt.toISOString(),
-        },
-        repository: {
-          id: project.id,
-          repoFullName: data.repositoryFullName,
-          selectedBranch: project.defaultBranch,
-          installationId: project.installationId,
+          description: project.description,
           isActive: project.isActive,
+          githubRepoId: project.githubRepoId,
+          selectedBranch: project.selectedBranch,
+          githubRepoUrl: project.githubRepoUrl,
+          githubRepoName: project.githubRepoName,
+          githubOwner: project.githubOwner,
+          isPrivate: project.isPrivate,
+          createdAt: project.createdAt.toISOString(),
         },
       };
     });
@@ -595,7 +632,7 @@ export class ProjectService {
    * 새로 설치된 앱의 정보를 데이터베이스에 저장하거나 업데이트합니다
    */
   async handleGitHubAppInstalled(
-    installationId: number,
+    githubInstallationId: number,
     installationInfo?: {
       account: string;
       targetId: number;
@@ -603,55 +640,53 @@ export class ProjectService {
       repositorySelection?: 'selected' | 'all';
     },
   ) {
-    const installationIdStr = installationId.toString();
+    const githubInstallationIdStr = githubInstallationId.toString();
 
     console.log(
-      `[ProjectService] Handling GitHub app installation: ${installationIdStr} (${installationInfo?.account || 'unknown'})`,
+      `[ProjectService] Handling GitHub app installation: ${githubInstallationIdStr} (${installationInfo?.account || 'unknown'})`,
     );
 
     try {
-      let accountInfo: { login: string; id: number };
+      let accountInfo: {
+        login: string;
+        id: number;
+        type: 'User' | 'Organization';
+      };
 
       if (installationInfo) {
         // 웹훅에서 제공된 정보 사용
         accountInfo = {
           login: installationInfo.account,
           id: installationInfo.targetId,
+          type: installationInfo.accountType,
         };
       } else {
         // 기존 방식: GitHub API에서 설치 정보 조회 (fallback)
-        const apiInfo =
-          await this.githubService.validateInstallation(installationIdStr);
+        const apiInfo = await this.githubService.validateInstallation(
+          githubInstallationIdStr,
+        );
         accountInfo = apiInfo.account;
       }
 
       // 기존 설치 정보가 있는지 확인
       const existingInstallation =
         await this.prisma.githubInstallation.findUnique({
-          where: { installationId: installationIdStr },
+          where: { githubInstallationId: githubInstallationIdStr },
         });
 
       if (existingInstallation) {
         // 기존 설치 정보 업데이트
         const updated = await this.prisma.githubInstallation.update({
-          where: { installationId: installationIdStr },
+          where: { githubInstallationId: githubInstallationIdStr },
           data: {
-            account: accountInfo.login,
-            targetId: accountInfo.id.toString(),
-            targetType:
-              installationInfo?.accountType === 'User'
-                ? 'User'
-                : 'Organization',
-            repositorySelection:
-              installationInfo?.repositorySelection === 'all'
-                ? 'all'
-                : 'selected',
-            updatedAt: new Date(),
+            accountLogin: accountInfo.login,
+            accountId: accountInfo.id.toString(),
+            accountType: accountInfo.type,
           },
         });
 
         console.log(
-          `[ProjectService] Updated existing installation: ${updated.id}`,
+          `[ProjectService] Updated existing installation: ${updated.installationId}`,
         );
         return updated;
       } else {
@@ -659,7 +694,7 @@ export class ProjectService {
         // 웹훅만으로는 어느 사용자가 설치했는지 알 수 없으므로
         // 하지만 기본 정보는 로그로 기록
         console.log(
-          `[ProjectService] New installation detected: ${installationIdStr} for ${accountInfo.login} (ID: ${accountInfo.id})`,
+          `[ProjectService] New installation detected: ${githubInstallationIdStr} for ${accountInfo.login} (ID: ${accountInfo.id})`,
         );
         console.log(
           `[ProjectService] Installation will be linked when user connects it manually`,
@@ -685,22 +720,22 @@ export class ProjectService {
    * GitHub App 제거 이벤트 처리 (웹훅에서 호출)
    * 제거된 앱의 설치 정보를 비활성화하거나 삭제합니다
    */
-  async handleGitHubAppUninstalled(installationId: number) {
-    const installationIdStr = installationId.toString();
+  async handleGitHubAppUninstalled(githubInstallationId: number) {
+    const githubInstallationIdStr = githubInstallationId.toString();
 
     console.log(
-      `[ProjectService] Handling GitHub app uninstallation: ${installationIdStr}`,
+      `[ProjectService] Handling GitHub app uninstallation: ${githubInstallationIdStr}`,
     );
 
     try {
       // 관련된 설치 정보 조회
       const installation = await this.prisma.githubInstallation.findUnique({
-        where: { installationId: installationIdStr },
+        where: { githubInstallationId: githubInstallationIdStr },
       });
 
       if (!installation) {
         console.log(
-          `[ProjectService] Installation not found: ${installationIdStr}`,
+          `[ProjectService] Installation not found: ${githubInstallationIdStr}`,
         );
         return null;
       }
@@ -709,10 +744,9 @@ export class ProjectService {
       return await this.prisma.$transaction(async (tx) => {
         // 1. 해당 설치와 연결된 모든 프로젝트를 비활성화
         const updatedProjects = await tx.project.updateMany({
-          where: { installationId: installationIdStr },
+          where: { installationId: installation.installationId },
           data: {
             isActive: false,
-            updatedAt: new Date(),
           },
         });
 
@@ -722,11 +756,11 @@ export class ProjectService {
 
         // 2. 설치 정보 삭제
         const deletedInstallation = await tx.githubInstallation.delete({
-          where: { installationId: installationIdStr },
+          where: { githubInstallationId: githubInstallationIdStr },
         });
 
         console.log(
-          `[ProjectService] Deleted installation: ${deletedInstallation.id}`,
+          `[ProjectService] Deleted installation: ${deletedInstallation.installationId}`,
         );
 
         return {
@@ -751,17 +785,17 @@ export class ProjectService {
     const installations = await this.prisma.githubInstallation.findMany({
       where: { userId: userId },
       select: {
-        id: true,
         installationId: true,
-        account: true,
-        targetId: true,
+        githubInstallationId: true,
+        accountLogin: true,
+        accountId: true,
+        accountType: true,
         createdAt: true,
-        updatedAt: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    // 각 설치에 연결된 레포지토리 개수 조회
+    // 각 설치에 연결된 프로젝트 개수 조회
     const installationsWithCount = await Promise.all(
       installations.map(async (installation) => {
         const projectCount = await this.prisma.project.count({
@@ -769,56 +803,86 @@ export class ProjectService {
         });
 
         return {
-          id: installation.id,
           installationId: installation.installationId,
-          account: this.getStringValue(installation.account, 'login') || '',
-          targetId: installation.targetId,
-          connectedRepositories: projectCount,
+          githubInstallationId: installation.githubInstallationId,
+          accountLogin: installation.accountLogin,
+          accountId: String(installation.accountId),
+          accountType: installation.accountType,
+          connectedProjects: projectCount,
           installedAt: installation.createdAt.toISOString(),
-          lastUsedAt: installation.updatedAt.toISOString(),
         };
       }),
     );
 
-    const totalRepositories = installationsWithCount.reduce(
-      (sum, installation) => sum + installation.connectedRepositories,
+    const totalProjects = installationsWithCount.reduce(
+      (sum, installation) => sum + installation.connectedProjects,
       0,
     );
 
     return {
       hasInstallations: installations.length > 0,
       totalInstallations: installations.length,
-      totalConnectedRepositories: totalRepositories,
+      totalConnectedProjects: totalProjects,
       installations: installationsWithCount,
     };
   }
 
   /**
-   * 파이프라인 상태를 빌드 상태로 매핑
+   * Push 이벤트 기록 (사용자 히스토리용)
    */
-  private mapPipelineStatusToBuildStatus(
-    status: string,
-  ): 'pending' | 'running' | 'success' | 'failed' | 'cancelled' {
-    switch (status.toLowerCase()) {
-      case 'pending':
-      case 'queued':
-        return 'pending';
-      case 'running':
-      case 'in_progress':
-        return 'running';
-      case 'completed':
-      case 'success':
-      case 'succeeded':
-        return 'success';
-      case 'failed':
-      case 'error':
-        return 'failed';
-      case 'cancelled':
-      case 'canceled':
-      case 'aborted':
-        return 'cancelled';
-      default:
-        return 'pending';
+  async recordPushEvent(
+    projectId: string,
+    pushData: {
+      branch: string;
+      commitSha: string;
+      commitMessage?: string;
+      pusherName?: string;
+      pushedAt: Date;
+    },
+  ) {
+    return this.prisma.pushEvent.create({
+      data: {
+        pushEventId: crypto.randomUUID(),
+        projectId: projectId,
+        branch: pushData.branch,
+        commitSha: pushData.commitSha,
+        commitMessage: pushData.commitMessage,
+        pusherName: pushData.pusherName,
+        pushedAt: pushData.pushedAt,
+      },
+    });
+  }
+
+  /**
+   * 프로젝트의 Push 히스토리 조회
+   */
+  async getProjectPushHistory(
+    userId: string,
+    projectId: string,
+    limit: number = 50,
+  ) {
+    // 프로젝트 소유권 확인
+    const project = await this.prisma.project.findFirst({
+      where: {
+        projectId: projectId,
+        userId: userId,
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException(
+        '프로젝트를 찾을 수 없거나 접근 권한이 없습니다',
+      );
     }
+
+    return this.prisma.pushEvent.findMany({
+      where: {
+        projectId: projectId,
+      },
+      orderBy: {
+        pushedAt: 'desc',
+      },
+      take: limit,
+    });
   }
 }

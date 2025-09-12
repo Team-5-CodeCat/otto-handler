@@ -1,11 +1,11 @@
 export interface CreateProjectResponseDto {
-  projectID: string;
+  projectId: string;
   name: string;
   webhookUrl?: string | null;
   user: {
-    userID: string;
+    userId: string;
     email: string;
-    name: string;
+    name: string | null;
   };
   createdAt: Date;
   updatedAt: Date;

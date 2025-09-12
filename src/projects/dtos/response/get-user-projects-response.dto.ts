@@ -1,14 +1,22 @@
 export type GetUserProjectsResponseDto = Array<{
-  projectID: string;
-  userID: string;
+  projectId: string;
+  userId: string;
   name: string;
-  webhookUrl?: string | null;
+  description: string | null;
+  isActive: boolean;
+  githubRepoId: string;
+  selectedBranch: string;
+  installationId?: string | null;
+  githubRepoUrl: string;
+  githubRepoName: string;
+  githubOwner: string;
+  isPrivate: boolean;
   createdAt: Date;
   updatedAt: Date;
-  repositories: Array<{
-    id: string;
-    repoFullName: string;
-    selectedBranch: string;
-    isActive: boolean;
-  }>;
+  installation: {
+    installationId: string;
+    githubInstallationId: string;
+    accountLogin: string;
+    accountType: string;
+  } | null;
 }>;
