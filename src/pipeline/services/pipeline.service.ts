@@ -12,7 +12,7 @@ import type {
   PipelineListResponseDto,
 } from '../dto';
 import type { PipelineFlowData } from '../dto/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Pipeline, Project, PipelineExecution } from '@prisma/client';
 
 @Injectable()
 export class PipelineService {
@@ -194,10 +194,32 @@ export class PipelineService {
       );
     }
 
+    // 프로젝트 정보가 포함되어 있는지 확인
+    if (!('project' in pipeline) || !pipeline.project) {
+      throw new NotFoundException(
+        '파이프라인과 연결된 프로젝트 정보를 찾을 수 없습니다.',
+      );
+    }
+
+    const projectData = pipeline.project as Project;
+
     return {
-      ...this.mapToPipelineResponse(pipeline),
-      project: (pipeline as any).project || null,
-      recentExecutions: (pipeline as any).executions || [],
+      ...this.mapToPipelineResponse(
+        pipeline as Pipeline & {
+          pipelineData?: Prisma.JsonValue;
+          visualConfig?: Prisma.JsonValue;
+        },
+      ),
+      project: {
+        projectId: projectData.projectId,
+        name: projectData.name,
+        githubRepoName: projectData.githubRepoName,
+        githubOwner: projectData.githubOwner,
+      },
+      recentExecutions:
+        'executions' in pipeline
+          ? (pipeline.executions as PipelineExecution[])
+          : [],
     };
   }
 
@@ -383,14 +405,21 @@ export class PipelineService {
   /**
    * Prisma Pipeline 객체를 PipelineResponseDto로 변환
    */
-  private mapToPipelineResponse(pipeline: any): PipelineResponseDto {
+  private mapToPipelineResponse(
+    pipeline: Pipeline & {
+      pipelineData?: Prisma.JsonValue;
+      visualConfig?: Prisma.JsonValue;
+    },
+  ): PipelineResponseDto {
     return {
       pipelineId: pipeline.pipelineId,
       name: pipeline.name,
       description: pipeline.description,
       isActive: pipeline.isActive,
       projectId: pipeline.projectId,
-      pipelineData: this.safeParsePipelineData(pipeline.pipelineData || pipeline.visualConfig || null),
+      pipelineData: this.safeParsePipelineData(
+        pipeline.pipelineData || pipeline.visualConfig || null,
+      ),
       createdAt: pipeline.createdAt,
       updatedAt: pipeline.updatedAt,
     };

@@ -198,7 +198,7 @@ export class AuthService {
 
     // 기존 사용자 찾기 또는 새로 생성
     let user = await this.prismaService.user.findUnique({
-      where: { githubId: githubUser.id as number },
+      where: { githubId: githubUser.id },
     });
 
     if (!user) {
@@ -207,7 +207,7 @@ export class AuthService {
         data: {
           userId: randomUUID(),
           username: githubUser.login,
-          githubId: githubUser.id as number,
+          githubId: githubUser.id,
           githubNodeId: githubUser.node_id,
           lastLoginAt: new Date(),
         },

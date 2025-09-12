@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '../../auth/services';
 import { PrismaService } from '../../database/prisma.service';
+import { User } from '@prisma/client';
 import { AuthErrorEnum, TOKEN_CONSTANTS } from '../../auth/constants';
 import { IRequestType, JwtPayloadType } from '../type';
 
@@ -55,7 +56,10 @@ export class AuthGuardRole implements CanActivate {
       // request.user에 사용자 정보 설정
       request.user = {
         user_id: user.userId,
-        nickname: (user as any).username || 'user',
+        nickname:
+          'username' in user
+            ? (user as User & { username: string }).username
+            : 'user',
       };
 
       // 역할 권한 체크는 현재 구현되지 않음
