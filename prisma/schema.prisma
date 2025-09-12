@@ -1,6 +1,7 @@
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "darwin-arm64"]
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "darwin-arm64"]
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
@@ -9,58 +10,78 @@ datasource db {
 }
 
 model User {
-  email             String               @unique
-  name              String?
-  avatarUrl         String?
-  createdAt         DateTime             @default(now())
-  githubId          String               @unique
-  githubNodeId      String?
-  githubUsername    String               @unique
-  isActive          Boolean              @default(true)
-  lastLoginAt       DateTime?
-  updatedAt         DateTime             @updatedAt
-  userId            String               @id @default(uuid())
+  /**
+   * 유저아이디
+   */
+  userId String @id @default(uuid()) @map("user_id") @db.Uuid
+
+  /**
+   * 깃허브 사용자명
+   */
+  username     String    @unique
+  /**
+   * 깃허브 고유 아이디
+   */
+  githubId     Int       @unique @map("github_id")
+  /**
+   * 생성 시간
+   */
+  createdAt    DateTime  @default(now()) @map("created_at")
+  /**
+   * 깃허브 고유 노드 아이디(내부적 graphql용)
+   */
+  githubNodeId String?   @map("github_node_id")
+  /**
+   * 활성화 여부
+   */
+  isActive     Boolean   @default(true) @map("is_active")
+  /**
+   * 마지막 로그인 시간
+   */
+  lastLoginAt  DateTime? @map("last_login_at")
+  /**
+   */
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  /**
+   * 깃허브 앱
+   */
   installations     GithubInstallation[]
   pipelineTemplates PipelineTemplate[]   @relation("TemplateCreator")
   projects          Project[]
-  sessions          Session[]
+  refreshToken      RefreshToken[]
   sharedTemplates   PipelineTemplate[]   @relation("SharedTemplates")
 
-  @@index([githubId])
-  @@index([githubUsername])
   @@map("users")
 }
 
-model Session {
-  sessionToken   String    @unique
-  accessToken    String?
-  tokenExpiresAt DateTime?
-  userAgent      String?
-  ipAddress      String?
-  expiresAt      DateTime
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  userId         String
-  sessionId      String    @id @default(uuid())
-  user           User      @relation(fields: [userId], references: [userId], onDelete: Cascade)
+model RefreshToken {
+  tokenId    String   @id @default(uuid()) @map("token_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  token      String   @unique @map("token")
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+  lastUsedAt DateTime @default(now()) @map("last_used_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
-  @@index([sessionToken])
-  @@index([userId])
-  @@map("sessions")
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@map("refresh_tokens")
 }
 
 model GithubInstallation {
-  createdAt            DateTime  @default(now())
-  installationId       String    @id @default(uuid())
-  isActive             Boolean   @default(true)
-  updatedAt            DateTime  @updatedAt
-  userId               String
-  accountId            String
-  accountLogin         String
-  accountType          String
-  githubInstallationId String    @unique
-  user                 User      @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  projects             Project[]
+  createdAt            DateTime @default(now()) @map("created_at")
+  installationId       String   @id @default(uuid()) @map("installation_id")
+  isActive             Boolean  @default(true) @map("is_active")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  userId               String   @map("user_id") @db.Uuid
+  accountId            String   @map("account_id")
+  accountLogin         String   @map("account_login")
+  accountType          String   @map("account_type")
+  githubInstallationId String   @unique @map("github_installation_id")
+
+  user     User      @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  projects Project[]
 
   @@index([githubInstallationId])
   @@index([userId])
@@ -68,25 +89,26 @@ model GithubInstallation {
 }
 
 model Project {
-  name           String
-  createdAt      DateTime            @default(now())
-  description    String?
-  githubOwner    String
-  githubRepoId   String              @unique
-  githubRepoName String
-  githubRepoUrl  String
-  installationId String?
-  isActive       Boolean             @default(true)
-  isPrivate      Boolean             @default(true)
-  updatedAt      DateTime            @updatedAt
-  userId         String
-  projectId      String              @id @default(uuid())
-  selectedBranch String              @default("main")
-  pipelines      Pipeline[]
-  secrets        ProjectSecret[]
-  installation   GithubInstallation? @relation(fields: [installationId], references: [installationId])
-  user           User                @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  pushEvents     PushEvent[]
+  projectId      String   @id @default(uuid()) @map("project_id")
+  name           String   @map("name")
+  description    String?  @map("description")
+  githubOwner    String   @map("github_owner")
+  githubRepoId   String   @unique @map("github_repo_id")
+  githubRepoName String   @map("github_repo_name")
+  githubRepoUrl  String   @map("github_repo_url")
+  installationId String?  @map("installation_id")
+  userId         String   @map("user_id") @db.Uuid
+  selectedBranch String   @default("main") @map("selected_branch")
+  isActive       Boolean  @default(true) @map("is_active")
+  isPrivate      Boolean  @default(true) @map("is_private")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  pipelines    Pipeline[]
+  secrets      ProjectSecret[]
+  installation GithubInstallation? @relation(fields: [installationId], references: [installationId])
+  user         User                @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  pushEvents   PushEvent[]
 
   @@unique([githubOwner, githubRepoName])
   @@unique([userId, githubRepoId])
@@ -96,82 +118,86 @@ model Project {
 }
 
 model ProjectSecret {
-  key       String
-  value     String
-  isSecure  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  projectId String
-  secretId  String   @id @default(uuid())
-  project   Project  @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  secretId  String   @id @default(uuid()) @map("secret_id")
+  key       String   @map("key")
+  value     String   @map("value")
+  isSecure  Boolean  @default(true) @map("is_secure")
+  projectId String   @map("project_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
 
   @@unique([projectId, key])
   @@map("project_secrets")
 }
 
 model Pipeline {
-  name            String
-  createdAt       DateTime            @default(now())
-  description     String?
-  isActive        Boolean             @default(true)
-  pipelineYaml    String?
-  projectId       String
-  templateId      String?
-  triggerBranches String[]
-  triggerType     TriggerType         @default(MANUAL)
-  updatedAt       DateTime            @updatedAt
-  visualConfig    Json?
-  pipelineId      String              @id @default(uuid())
-  executions      PipelineExecution[]
-  nodes           PipelineNode[]
-  project         Project             @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
-  template        PipelineTemplate?   @relation(fields: [templateId], references: [templateId])
+  pipelineId      String      @id @default(uuid()) @map("pipeline_id")
+  name            String      @map("name")
+  description     String?     @map("description")
+  pipelineYaml    String?     @map("pipeline_yaml")
+  visualConfig    Json?       @map("visual_config")
+  triggerBranches String[]    @map("trigger_branches")
+  triggerType     TriggerType @default(MANUAL) @map("trigger_type")
+  isActive        Boolean     @default(true) @map("is_active")
+  projectId       String      @map("project_id")
+  templateId      String?     @map("template_id")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  executions PipelineExecution[]
+  nodes      PipelineNode[]
+  project    Project             @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  template   PipelineTemplate?   @relation(fields: [templateId], references: [templateId])
 
   @@index([projectId])
   @@map("pipelines")
 }
 
 model PipelineTemplate {
-  name          String
-  description   String?
-  category      String?
-  tags          String[]
-  isPublic      Boolean    @default(false)
-  isOfficial    Boolean    @default(false)
-  pipelineYaml  String
-  visualConfig  Json
-  nodeConfig    Json
-  dockerfile    String?
-  dockerCompose String?
-  buildSpec     Json?
-  ecrImageUri   String?
-  imageVersion  String?
-  usageCount    Int        @default(0)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  creatorId     String
-  templateId    String     @id @default(uuid())
-  creator       User       @relation("TemplateCreator", fields: [creatorId], references: [userId])
-  pipelines     Pipeline[]
-  sharedWith    User[]     @relation("SharedTemplates")
+  templateId    String   @id @default(uuid()) @map("template_id")
+  name          String   @map("name")
+  description   String?  @map("description")
+  category      String?  @map("category")
+  tags          String[] @map("tags")
+  isPublic      Boolean  @default(false) @map("is_public")
+  isOfficial    Boolean  @default(false) @map("is_official")
+  pipelineYaml  String   @map("pipeline_yaml")
+  visualConfig  Json     @map("visual_config")
+  nodeConfig    Json     @map("node_config")
+  dockerfile    String?  @map("dockerfile")
+  dockerCompose String?  @map("docker_compose")
+  buildSpec     Json?    @map("build_spec")
+  ecrImageUri   String?  @map("ecr_image_uri")
+  imageVersion  String?  @map("image_version")
+  usageCount    Int      @default(0) @map("usage_count")
+  creatorId     String   @map("creator_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  creator    User       @relation("TemplateCreator", fields: [creatorId], references: [userId])
+  pipelines  Pipeline[]
+  sharedWith User[]     @relation("SharedTemplates")
 
   @@index([isPublic, category])
   @@map("pipeline_templates")
 }
 
 model PipelineNode {
-  nodeId         String          @id @default(uuid())
-  name           String
-  type           NodeType
-  order          Int
-  position       Json?
-  config         Json
-  parentNodeIds  String[]
-  childNodeIds   String[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  pipelineId     String
-  clientNodeId   String
+  nodeId        String   @id @default(uuid()) @map("node_id")
+  name          String   @map("name")
+  type          NodeType @map("type")
+  order         Int      @map("order")
+  position      Json?    @map("position")
+  config        Json     @map("config")
+  parentNodeIds String[] @map("parent_node_ids")
+  childNodeIds  String[] @map("child_node_ids")
+  pipelineId    String   @map("pipeline_id")
+  clientNodeId  String   @map("client_node_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
   nodeExecutions NodeExecution[]
   pipeline       Pipeline        @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
 
@@ -181,32 +207,33 @@ model PipelineNode {
 }
 
 model PipelineExecution {
-  executionId            String          @id @default(uuid())
-  status                 ExecutionStatus @default(PENDING)
-  triggerType            TriggerType
-  branch                 String?
-  commitSha              String?
-  commitMessage          String?
-  pipelineYaml           String
-  dockerfile             String?
-  dockerCompose          String?
-  buildSpec              Json?
-  codeBuildArn           String?
-  codeBuildLogGroupName  String?
-  codeBuildLogStreamName String?
-  ecrImageUri            String?
-  ecrImageTag            String?
-  startedAt              DateTime?
-  completedAt            DateTime?
-  duration               Int?
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
-  pipelineId             String
-  awsBuildId             String          @unique
-  deployments            Deployment[]
-  logs                   ExecutionLog[]
-  nodeExecutions         NodeExecution[]
-  pipeline               Pipeline        @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
+  executionId            String          @id @default(uuid()) @map("execution_id")
+  status                 ExecutionStatus @default(PENDING) @map("status")
+  triggerType            TriggerType     @map("trigger_type")
+  branch                 String?         @map("branch")
+  commitSha              String?         @map("commit_sha")
+  commitMessage          String?         @map("commit_message")
+  pipelineYaml           String          @map("pipeline_yaml")
+  dockerfile             String?         @map("dockerfile")
+  dockerCompose          String?         @map("docker_compose")
+  buildSpec              Json?           @map("build_spec")
+  codeBuildArn           String?         @map("code_build_arn")
+  codeBuildLogGroupName  String?         @map("code_build_log_group_name")
+  codeBuildLogStreamName String?         @map("code_build_log_stream_name")
+  ecrImageUri            String?         @map("ecr_image_uri")
+  ecrImageTag            String?         @map("ecr_image_tag")
+  awsBuildId             String          @unique @map("aws_build_id")
+  pipelineId             String          @map("pipeline_id")
+  startedAt              DateTime?       @map("started_at")
+  completedAt            DateTime?       @map("completed_at")
+  duration               Int?            @map("duration")
+  createdAt              DateTime        @default(now()) @map("created_at")
+  updatedAt              DateTime        @updatedAt @map("updated_at")
+
+  deployments    Deployment[]
+  logs           ExecutionLog[]
+  nodeExecutions NodeExecution[]
+  pipeline       Pipeline        @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
 
   @@index([pipelineId, status])
   @@index([awsBuildId])
@@ -214,85 +241,90 @@ model PipelineExecution {
 }
 
 model NodeExecution {
-  status          ExecutionStatus   @default(PENDING)
-  startedAt       DateTime?
-  completedAt     DateTime?
-  duration        Int?
-  output          String?
-  error           String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  executionId     String
-  nodeId          String
-  nodeExecutionId String            @id @default(uuid())
-  execution       PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
-  node            PipelineNode      @relation(fields: [nodeId], references: [nodeId])
+  nodeExecutionId String          @id @default(uuid()) @map("node_execution_id")
+  status          ExecutionStatus @default(PENDING) @map("status")
+  output          String?         @map("output")
+  error           String?         @map("error")
+  executionId     String          @map("execution_id")
+  nodeId          String          @map("node_id")
+  startedAt       DateTime?       @map("started_at")
+  completedAt     DateTime?       @map("completed_at")
+  duration        Int?            @map("duration")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  execution PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
+  node      PipelineNode      @relation(fields: [nodeId], references: [nodeId])
 
   @@index([executionId])
   @@map("node_executions")
 }
 
 model Deployment {
-  status         DeploymentStatus   @default(PENDING)
-  serverHost     String
-  serverPort     Int                @default(22)
-  deployPath     String?
-  strategy       DeploymentStrategy @default(ROLLING)
-  dockerImageUri String
-  containerName  String?
-  startedAt      DateTime?
-  completedAt    DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  executionId    String
-  deploymentId   String             @id @default(uuid())
-  logs           DeploymentLog[]
-  execution      PipelineExecution  @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
+  deploymentId   String             @id @default(uuid()) @map("deployment_id")
+  status         DeploymentStatus   @default(PENDING) @map("status")
+  serverHost     String             @map("server_host")
+  serverPort     Int                @default(22) @map("server_port")
+  deployPath     String?            @map("deploy_path")
+  strategy       DeploymentStrategy @default(ROLLING) @map("strategy")
+  dockerImageUri String             @map("docker_image_uri")
+  containerName  String?            @map("container_name")
+  executionId    String             @map("execution_id")
+  startedAt      DateTime?          @map("started_at")
+  completedAt    DateTime?          @map("completed_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  logs      DeploymentLog[]
+  execution PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
 
   @@index([executionId])
   @@map("deployments")
 }
 
 model ExecutionLog {
-  level       LogLevel          @default(INFO)
-  message     String
-  source      String?
-  s3Bucket    String?
-  s3Key       String?
-  timestamp   DateTime          @default(now())
-  executionId String
-  logId       String            @id @default(uuid())
-  execution   PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
+  logId       String   @id @default(uuid()) @map("log_id")
+  level       LogLevel @default(INFO) @map("level")
+  message     String   @map("message")
+  source      String?  @map("source")
+  s3Bucket    String?  @map("s3_bucket")
+  s3Key       String?  @map("s3_key")
+  executionId String   @map("execution_id")
+  timestamp   DateTime @default(now()) @map("timestamp")
+
+  execution PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
 
   @@index([executionId, timestamp])
   @@map("execution_logs")
 }
 
 model DeploymentLog {
-  level        LogLevel   @default(INFO)
-  message      String
-  source       String?
-  s3Bucket     String?
-  s3Key        String?
-  timestamp    DateTime   @default(now())
-  deploymentId String
-  logId        String     @id @default(uuid())
-  deployment   Deployment @relation(fields: [deploymentId], references: [deploymentId], onDelete: Cascade)
+  logId        String   @id @default(uuid()) @map("log_id")
+  level        LogLevel @default(INFO) @map("level")
+  message      String   @map("message")
+  source       String?  @map("source")
+  s3Bucket     String?  @map("s3_bucket")
+  s3Key        String?  @map("s3_key")
+  deploymentId String   @map("deployment_id")
+  timestamp    DateTime @default(now()) @map("timestamp")
+
+  deployment Deployment @relation(fields: [deploymentId], references: [deploymentId], onDelete: Cascade)
 
   @@index([deploymentId, timestamp])
   @@map("deployment_logs")
 }
 
 model PushEvent {
-  pushEventId   String   @id @default(uuid())
-  branch        String
-  commitSha     String
-  commitMessage String?
-  pusherName    String?
-  pushedAt      DateTime
-  createdAt     DateTime @default(now())
-  projectId     String
-  project       Project  @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  pushEventId   String   @id @default(uuid()) @map("push_event_id")
+  branch        String   @map("branch")
+  commitSha     String   @map("commit_sha")
+  commitMessage String?  @map("commit_message")
+  pusherName    String?  @map("pusher_name")
+  pushedAt      DateTime @map("pushed_at")
+  projectId     String   @map("project_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
 
   @@index([projectId, pushedAt])
   @@index([branch])

@@ -46,8 +46,8 @@ export class AuthGuardRole implements CanActivate {
         where: { userId: payload.sub },
         select: {
           userId: true,
-          email: true,
-          name: true,
+          username: true,
+          githubId: true,
         },
       });
 
@@ -58,9 +58,7 @@ export class AuthGuardRole implements CanActivate {
       // request.user에 사용자 정보 설정
       request.user = {
         user_id: user.userId,
-        nickname: user.name || '',
-        email: user.email,
-        role: 'USER' as UserRole, // Default role since schema doesn't have role field
+        nickname: user.username,
       };
 
       // 역할 권한 체크

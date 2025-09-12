@@ -14,6 +14,6 @@ export interface UpdateBranchResponseDto {
   updatedAt: Date;
   user: {
     userId: string;
-    name: string | null;
+    username: string | null;
   };
 }

@@ -56,6 +56,6 @@ export interface ConnectRepositoryResponseDto {
    */
   user: {
     userId: string;
-    name: string | null;
+    username: string | null;
   };
 }

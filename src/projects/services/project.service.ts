@@ -136,8 +136,8 @@ export class ProjectService {
           user: {
             select: {
               userId: true,
-              email: true,
-              name: true,
+              username: true,
+              githubId: true,
             },
           },
         },
@@ -195,8 +195,8 @@ export class ProjectService {
         user: {
           select: {
             userId: true,
-            email: true,
-            name: true,
+            username: true,
+            githubId: true,
           },
         },
       },
@@ -322,7 +322,7 @@ export class ProjectService {
           user: {
             select: {
               userId: true,
-              name: true,
+              username: true,
             },
           },
         },
@@ -407,7 +407,7 @@ export class ProjectService {
         user: {
           select: {
             userId: true,
-            name: true,
+            username: true,
           },
         },
       },
@@ -450,8 +450,7 @@ export class ProjectService {
         user: {
           select: {
             userId: true,
-            email: true,
-            name: true,
+            username: true,
           },
         },
       },
@@ -542,7 +541,7 @@ export class ProjectService {
         user: {
           select: {
             userId: true,
-            name: true,
+            username: true,
           },
         },
       },

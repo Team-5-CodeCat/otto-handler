@@ -266,8 +266,8 @@ export class ProjectController {
       webhookUrl: null, // webhookUrl 필드가 없으므로 null
       user: {
         userId: project.user.userId,
-        email: project.user.email,
-        name: project.user.name || '', // null일 경우 빈 문자열
+        email: `${project.user.username}@github.user`, // GitHub 사용자는 가상 이메일 사용
+        name: project.user.username, // username을 name으로 사용
       },
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
@@ -732,8 +732,8 @@ export class ProjectController {
       userId: project.user.userId,
       user: {
         userId: project.user.userId, // userID 필드 추가
-        email: project.user.email,
-        name: project.user.name || '',
+        email: `${project.user.username}@github.user`, // GitHub 사용자는 가상 이메일 사용
+        name: project.user.username,
       },
     };
   }
