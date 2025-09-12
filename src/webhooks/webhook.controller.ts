@@ -161,8 +161,8 @@ export class WebhookController {
         });
 
         await this.projectService.handleGitHubAppInstalled(installation.id, {
-          accountLogin: account.login,
-          accountId: account.id,
+          account: account.login,
+          targetId: account.id,
           accountType: account.type,
           repositorySelection,
         });
@@ -243,8 +243,8 @@ export class WebhookController {
           });
 
           await this.projectService.handleGitHubAppInstalled(installation.id, {
-            accountLogin: account.login,
-            accountId: account.id,
+            account: account.login,
+            targetId: account.id,
             accountType: account.type,
             repositorySelection,
           });
@@ -310,7 +310,7 @@ export class WebhookController {
         installationId,
       );
       const matchingProjects = projects.filter(
-        (pr) => pr.selectedBranch === pushedBranch,
+        (pr) => pr.defaultBranch === pushedBranch,
       );
 
       if (!matchingProjects.length) {
@@ -326,12 +326,12 @@ export class WebhookController {
         repository: fullName,
         branch: pushedBranch,
         matchingProjects: matchingProjects.length,
-        projectIds: matchingProjects.map((pr) => pr.project.projectID),
+        projectIds: matchingProjects.map((pr) => pr.id),
       });
 
       await Promise.all(
         matchingProjects.map((pr) =>
-          this.projectService.createBuildRecord(pr.project.projectID, {
+          this.projectService.createBuildRecord(pr.id, {
             trigger: 'webhook:push',
             metadata: {
               ref: payload.ref,
@@ -407,12 +407,12 @@ export class WebhookController {
         action,
         prNumber,
         projectCount: projects.length,
-        projectIds: projects.map((pr) => pr.project.projectID),
+        projectIds: projects.map((pr) => pr.id),
       });
 
       await Promise.all(
         projects.map((pr) =>
-          this.projectService.createBuildRecord(pr.project.projectID, {
+          this.projectService.createBuildRecord(pr.id, {
             trigger: 'webhook:pull_request',
             metadata: {
               action,

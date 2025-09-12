@@ -11,13 +11,28 @@
   [![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
 </div>
 
+## 📢 최신 업데이트 (2025.09.11)
+
+### 🔐 GitHub OAuth 전용 인증 시스템 전환 완료
+- ✅ Password 기반 인증 완전 제거
+- ✅ 모든 사용자는 GitHub 계정으로만 로그인
+- ✅ 필드명 camelCase 통일 (userID → userId)
+- ✅ TriggerType enum 수정 (PUSH 제거, WEBHOOK 사용)
+- ✅ 21개 API 엔드포인트 통신 테스트 완료
+
+### 🛠️ 주요 변경사항
+- `User` 모델에서 `password` 필드 제거
+- `Session` 모델로 RefreshToken 관리
+- GitHub App 설치를 통한 레포지토리 접근
+- 모든 ID 필드 camelCase로 통일
+
 ## 🎯 프로젝트 개요
 
 Otto Handler는 GitHub과 완전히 통합된 현대적인 CI/CD 자동화 플랫폼의 핵심 백엔드 서비스입니다. 복잡한 DevOps 설정 없이도 개발팀이 빠르고 안전하게 빌드, 테스트, 배포 파이프라인을 구축할 수 있도록 설계되었습니다.
 
 ### ✨ 핵심 기능
 
-- 🔐 **강력한 인증**: JWT Access/Refresh Token 기반 보안 시스템
+- 🔐 **GitHub OAuth 전용 인증**: Password 인증 제거, GitHub 계정으로만 로그인
 - 🔗 **GitHub 통합**: GitHub App을 통한 완전한 저장소 연동
 - ⚡ **실시간 파이프라인**: 빌드/테스트/배포 워크플로우 실시간 실행
 - 🎛️ **환경 관리**: 언어별, 배포 환경별 세밀한 설정 제어
@@ -32,7 +47,7 @@ Otto Handler는 GitHub과 완전히 통합된 현대적인 CI/CD 자동화 플�
 - **Framework**: NestJS with Fastify adapter (고성능)
 - **Database**: PostgreSQL with Prisma ORM (타입 안전성)
 - **Cache**: Redis (세션 및 고속 데이터 액세스)
-- **Authentication**: JWT + bcrypt (보안)
+- **Authentication**: GitHub OAuth + JWT (password 인증 제거)
 - **API**: Nestia (타입 안전 SDK 자동 생성) + Swagger
 - **Validation**: typia (런타임 타입 검증)
 - **Language**: TypeScript (Strict 모드)

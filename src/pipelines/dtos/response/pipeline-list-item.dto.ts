@@ -4,43 +4,39 @@ export interface PipelineListItemDto {
   /**
    * 파이프라인 고유 ID
    */
-  pipelineID: string;
+  id: string;
   /**
    * 파이프라인 이름
    */
   name: string;
   /**
-   * 파이프라인 버전
+   * 파이프라인 설명
    */
-  version: number;
+  description: string | null;
   /**
    * 활성 상태 여부
    */
-  active: boolean;
+  isActive: boolean;
   /**
    * 소속 프로젝트 ID
    */
-  projectID: string;
+  projectId: string;
   /**
-   * 소유자 정보
+   * 트리거 타입
    */
-  owner: string | null;
+  triggerType: string;
   /**
-   * 파이프라인 스펙 (JSON 객체)
+   * 트리거 브랜치 리스트
    */
-  pipelineSpec: KVType;
+  triggerBranches: string[];
   /**
-   * 원본 YAML/JSON 스펙
+   * 파이프라인 YAML
    */
-  originalSpec: string | null;
+  pipelineYaml: string | null;
   /**
-   * 정규화된 스펙 (JSON 객체)
+   * 시각화 설정 (JSON 객체)
    */
-  normalizedSpec: KVType | null;
-  /**
-   * 스펙 해시 (SHA-256)
-   */
-  specHash: string | null;
+  visualConfig: KVType | null;
   /**
    * 생성일시 (ISO 8601)
    */
@@ -53,7 +49,7 @@ export interface PipelineListItemDto {
    * 소속 프로젝트 정보
    */
   project: {
-    projectID: string;
+    id: string;
     name: string;
   };
 }

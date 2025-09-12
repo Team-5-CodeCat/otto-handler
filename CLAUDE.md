@@ -274,6 +274,91 @@ enum Language {
 - **데이터베이스**: 외부 PostgreSQL 인스턴스
 - **로그**: S3를 통한 아티팩트 및 로그 저장
 
+## 대규모 리팩토링 원칙 (2025.09.11 추가)
+
+### Prisma 스키마 변경 시 체계적 접근법
+
+1. **스키마 우선 원칙 (Schema-First)**
+   - Prisma 스키마를 진실의 원천(Source of Truth)으로 삼음
+   - 모든 코드를 스키마에 맞춰 수정, 반대는 하지 않음
+
+2. **모델 통합 원칙**
+   - 삭제된 모델은 유사한 기존 모델로 대체
+   - 예: ProjectRepository → Project 모델에 GitHub 필드 통합
+
+3. **필드명 일관성 원칙**
+   - camelCase로 통일 (projectID → projectId, userID → userId)
+   - snake_case, PascalCase 모두 제거
+
+4. **타입 안전성 원칙**
+   - 없는 enum은 type으로 대체 (MemberRole → UserRole type)
+   - 없는 모델은 유사 모델로 대체 (RefreshToken → Session)
+
+### 린트 에러 해결 순서
+
+1. 필드명 불일치 → 일괄 치환으로 즉시 해결
+2. 모델 참조 오류 → 대체 모델로 로직 변경
+3. 타입 추론 실패 → `pnpm prisma generate` 실행
+4. 남은 타입 에러 → 명시적 타입 선언 추가
+
+## GitHub OAuth 전환 완료 (2025.09.11 업데이트)
+
+### 인증 시스템 변경사항
+
+1. **Password 인증 제거**
+   - User 모델에서 `password` 필드 완전 제거
+   - 모든 password 기반 로그인 비활성화
+   - `POST /api/v1/auth/sign_in`은 GitHub OAuth 전용 메시지 반환
+
+2. **GitHub OAuth 필수**
+   - 모든 사용자는 GitHub 계정으로만 인증
+   - `githubId`, `githubUsername` 필드 필수
+   - GitHub App 설치를 통한 레포지토리 접근
+
+3. **필드명 통일**
+   - `userID` → `userId` (모든 ID 필드 camelCase로)
+   - `lastUsedAt` → `updatedAt` (표준 Prisma 필드 사용)
+   - `selectedBranch` → `defaultBranch`
+
+4. **Enum 값 수정**
+   - TriggerType: `PUSH` 제거, `WEBHOOK` 사용
+   - 실제 스키마: `MANUAL`, `WEBHOOK`, `SCHEDULE`, `API`
+
+### 주요 수정 파일 및 변경사항
+
+| 파일 | 주요 변경사항 |
+|-----|-------------|
+| `auth.service.ts` | password 인증 로직 제거, OAuth 전용 메시지 |
+| `auth-guard-role.service.ts` | userID → id 필드명 변경 |
+| `project.service.ts` | TriggerType enum 값 수정, 필수 필드 추가 |
+| `webhook.controller.ts` | 파라미터명 통일 (account, targetId) |
+| `pipeline-execution.dto.ts` | pipelineId 필드 추가 |
+
+## API 엔드포인트 현황 (2025.09.11 테스트 완료)
+
+### 공개 엔드포인트 (인증 불필요)
+- `POST /api/v1/auth/sign_out` - 로그아웃
+- `GET /api/v1/webhooks/github` - 웹훅 상태 확인
+- `GET /api/v1/projects/github/callback` - OAuth 콜백 (302 리다이렉트)
+
+### 보호된 엔드포인트 (JWT 토큰 필요)
+- 모든 `/api/v1/user/*` 엔드포인트
+- 모든 `/api/v1/projects/*` 엔드포인트 (callback 제외)
+- 모든 `/api/v1/pipelines/*` 엔드포인트
+
+### 테스트 명령어
+```bash
+# 모든 엔드포인트 통신 테스트
+curl -s -o /dev/null -w "%{http_code}" http://localhost:4000/api/v1/[endpoint]
+
+# 개발 서버 실행
+pnpm start:dev
+
+# Prisma 관련
+pnpm prisma generate  # 클라이언트 재생성
+pnpm prisma migrate dev  # 마이그레이션 적용
+```
+
 ## 문제 해결
 
 ### 일반적인 문제

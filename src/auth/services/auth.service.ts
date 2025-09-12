@@ -5,15 +5,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import * as bcrypt from 'bcrypt';
-import {
-  LoginRequestDto,
-  LoginResponseDto,
-  SignUpRequestDto,
-  GithubAuthRequestDto,
-} from '../dtos';
+import { LoginRequestDto, LoginResponseDto, SignUpRequestDto } from '../dtos';
 import { AuthErrorEnum, AuthResponseEnum, TOKEN_CONSTANTS } from '../constants';
 import { JwtService } from './jwt.service';
-import { createHash, randomBytes } from 'crypto';
+import { randomBytes } from 'crypto';
 import type { JwtPayloadType } from '../../common/type';
 import { SignUpResponseDto } from '../dtos/response/sign-up-response';
 import { GithubOauthService } from './github-oauth.service';
@@ -34,53 +29,17 @@ export class AuthService {
   async login({ email, password }: LoginRequestDto): Promise<LoginResponseDto> {
     const user = await this.prismaService.user.findUnique({
       where: { email },
-      select: { userID: true, email: true, password: true },
+      select: { id: true, email: true },
     });
 
     if (!user) {
       throw new UnauthorizedException(AuthErrorEnum.LOGIN_FAIL);
     }
-    if (user.password === null) {
-      throw new UnauthorizedException(AuthErrorEnum.GITHUB_USER);
-    }
-    const passwordValid = await bcrypt.compare(password, user.password);
 
-    if (!passwordValid) {
-      throw new UnauthorizedException(AuthErrorEnum.LOGIN_FAIL);
-    }
-
-    const now: number = Math.floor(Date.now() / 1000);
-    const accessTokenExpiresIn: number = TOKEN_CONSTANTS.ACCESS_TOKEN_TTL_SEC;
-    const refreshTokenExpiresIn: number = TOKEN_CONSTANTS.REFRESH_TOKEN_TTL_SEC;
-
-    const accessToken: string = this.jwtService.encode<JwtPayloadType>(
-      { sub: user.userID },
-      { expiresIn: accessTokenExpiresIn },
+    // GitHub OAuth only - password authentication is no longer supported
+    throw new UnauthorizedException(
+      'Password authentication is disabled. Please use GitHub OAuth.',
     );
-    const refreshToken: string = randomBytes(64).toString('hex');
-    const refreshTokenHash: string = createHash('sha256')
-      .update(refreshToken)
-      .digest('hex');
-
-    const refreshExpiresAt: Date = new Date(
-      (now + refreshTokenExpiresIn) * 1000,
-    );
-
-    await this.prismaService.refreshToken.create({
-      data: {
-        userID: user.userID,
-        token: refreshTokenHash,
-        expiresAt: refreshExpiresAt,
-      },
-    });
-
-    return {
-      message: AuthResponseEnum.LOGIN_SUCCESS,
-      accessToken,
-      refreshToken,
-      accessTokenExpiresIn,
-      refreshTokenExpiresIn,
-    };
   }
 
   /**
@@ -95,15 +54,11 @@ export class AuthService {
     const accessTokenExpiresIn: number = TOKEN_CONSTANTS.ACCESS_TOKEN_TTL_SEC;
     const refreshTokenExpiresIn: number = TOKEN_CONSTANTS.REFRESH_TOKEN_TTL_SEC;
 
-    const incomingHash: string = createHash('sha256')
-      .update(refreshToken)
-      .digest('hex');
-
-    const existing = await this.prismaService.refreshToken.findUnique({
-      where: { token: incomingHash },
+    const existing = await this.prismaService.session.findUnique({
+      where: { sessionToken: refreshToken },
       select: {
-        tokenId: true,
-        userID: true,
+        id: true,
+        userId: true,
         expiresAt: true,
         user: { select: { email: true } },
       },
@@ -115,32 +70,29 @@ export class AuthService {
 
     if (existing.expiresAt.getTime() <= Date.now()) {
       // 만료된 토큰은 정리
-      await this.prismaService.refreshToken.delete({
-        where: { tokenId: existing.tokenId },
+      await this.prismaService.session.delete({
+        where: { id: existing.id },
       });
       throw new UnauthorizedException(AuthErrorEnum.REFRESH_FAIL);
     }
 
-    await this.prismaService.refreshToken.delete({
-      where: { tokenId: existing.tokenId },
+    await this.prismaService.session.delete({
+      where: { id: existing.id },
     });
 
     const newAccessToken: string = this.jwtService.encode(
-      { sub: existing.userID, email: existing.user?.email, type: 'access' },
+      { sub: existing.userId, email: existing.user?.email, type: 'access' },
       { expiresIn: accessTokenExpiresIn },
     );
-    const newRefreshTokenPlain: string = randomBytes(64).toString('hex');
-    const newRefreshTokenHash: string = createHash('sha256')
-      .update(newRefreshTokenPlain)
-      .digest('hex');
+    const newRefreshToken: string = randomBytes(64).toString('hex');
     const newRefreshExpiresAt: Date = new Date(
       (nowSec + refreshTokenExpiresIn) * 1000,
     );
 
-    await this.prismaService.refreshToken.create({
+    await this.prismaService.session.create({
       data: {
-        userID: existing.userID,
-        token: newRefreshTokenHash,
+        userId: existing.userId,
+        sessionToken: newRefreshToken,
         expiresAt: newRefreshExpiresAt,
       },
     });
@@ -148,7 +100,7 @@ export class AuthService {
     return {
       message: AuthResponseEnum.LOGIN_SUCCESS,
       accessToken: newAccessToken,
-      refreshToken: newRefreshTokenPlain,
+      refreshToken: newRefreshToken,
       accessTokenExpiresIn,
       refreshTokenExpiresIn,
     };
@@ -175,7 +127,8 @@ export class AuthService {
     await this.prismaService.user.create({
       data: {
         email,
-        password: passwordHash,
+        githubId: '', // This will need to be set via GitHub OAuth
+        githubUsername: username || email.split('@')[0], // Temporary username
         name: username,
       },
     });

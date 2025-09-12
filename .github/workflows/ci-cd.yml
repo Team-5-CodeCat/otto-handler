@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  build-test-for-deploy-otto-handler:
     runs-on: ubuntu-latest
 
     services:
@@ -84,7 +84,7 @@ jobs:
             pnpm-lock.yaml
           retention-days: 7
 
-  deploy:
+  deploy-otto-handler:
     needs: build-and-test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
