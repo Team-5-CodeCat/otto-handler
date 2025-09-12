@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { RedisModule } from '@liaoliaots/nestjs-redis';
 import { ProjectsModule } from './projects/projects.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { PipelineModule } from './pipeline/pipeline.module';
 
 /**
  * 환경에 따른 .env 파일 경로 반환
@@ -55,6 +56,7 @@ function getEnvFilePath(): string {
 
     // 📋 비즈니스 로직 모듈들
     ProjectsModule,
+    PipelineModule,
 
     // 🔗 웹훅 관리
     WebhooksModule,

@@ -133,23 +133,40 @@ model ProjectSecret {
 }
 
 model Pipeline {
-  pipelineId      String      @id @default(uuid()) @map("pipeline_id")
-  name            String      @map("name")
-  description     String?     @map("description")
-  pipelineYaml    String?     @map("pipeline_yaml")
-  visualConfig    Json?       @map("visual_config")
-  triggerBranches String[]    @map("trigger_branches")
-  triggerType     TriggerType @default(MANUAL) @map("trigger_type")
-  isActive        Boolean     @default(true) @map("is_active")
-  projectId       String      @map("project_id")
-  templateId      String?     @map("template_id")
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
+  /**
+   * 파이프라인 아이디
+   */
+  pipelineId  String  @id @default(uuid()) @map("pipeline_id")
+  /**
+   * 파이프라인 이름
+   */
+  name        String  @map("name")
+  /**
+   * 파이프라인 설명
+   */
+  description String? @map("description")
 
-  executions PipelineExecution[]
-  nodes      PipelineNode[]
-  project    Project             @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
-  template   PipelineTemplate?   @relation(fields: [templateId], references: [templateId])
+  /**
+   * 활성화 여부
+   */
+  isActive                   Boolean             @default(true) @map("is_active")
+  /**
+   * 프로젝트 정보
+   */
+  projectId                  String              @map("project_id")
+  /**
+   * 파이브라인 정보
+   */
+  pipelineData               Json                @map("pipeline_data")
+  createdAt                  DateTime            @default(now()) @map("created_at")
+  updatedAt                  DateTime            @updatedAt @map("updated_at")
+  /**
+   * 파이프라인 실행 로그
+   */
+  executions                 PipelineExecution[]
+  project                    Project             @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  PipelineTemplate           PipelineTemplate?   @relation(fields: [pipelineTemplateTemplateId], references: [templateId])
+  pipelineTemplateTemplateId String?
 
   @@index([projectId])
   @@map("pipelines")
@@ -184,59 +201,29 @@ model PipelineTemplate {
   @@map("pipeline_templates")
 }
 
-model PipelineNode {
-  nodeId        String   @id @default(uuid()) @map("node_id")
-  name          String   @map("name")
-  type          NodeType @map("type")
-  order         Int      @map("order")
-  position      Json?    @map("position")
-  config        Json     @map("config")
-  parentNodeIds String[] @map("parent_node_ids")
-  childNodeIds  String[] @map("child_node_ids")
-  pipelineId    String   @map("pipeline_id")
-  clientNodeId  String   @map("client_node_id")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  nodeExecutions NodeExecution[]
-  pipeline       Pipeline        @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
-
-  @@unique([pipelineId, clientNodeId])
-  @@index([pipelineId, order])
-  @@map("pipeline_nodes")
-}
-
 model PipelineExecution {
-  executionId            String          @id @default(uuid()) @map("execution_id")
-  status                 ExecutionStatus @default(PENDING) @map("status")
-  triggerType            TriggerType     @map("trigger_type")
-  branch                 String?         @map("branch")
-  commitSha              String?         @map("commit_sha")
-  commitMessage          String?         @map("commit_message")
-  pipelineYaml           String          @map("pipeline_yaml")
-  dockerfile             String?         @map("dockerfile")
-  dockerCompose          String?         @map("docker_compose")
-  buildSpec              Json?           @map("build_spec")
-  codeBuildArn           String?         @map("code_build_arn")
-  codeBuildLogGroupName  String?         @map("code_build_log_group_name")
-  codeBuildLogStreamName String?         @map("code_build_log_stream_name")
-  ecrImageUri            String?         @map("ecr_image_uri")
-  ecrImageTag            String?         @map("ecr_image_tag")
-  awsBuildId             String          @unique @map("aws_build_id")
-  pipelineId             String          @map("pipeline_id")
-  startedAt              DateTime?       @map("started_at")
-  completedAt            DateTime?       @map("completed_at")
-  duration               Int?            @map("duration")
-  createdAt              DateTime        @default(now()) @map("created_at")
-  updatedAt              DateTime        @updatedAt @map("updated_at")
+  executionId   String           @id @default(uuid()) @map("execution_id")
+  status        ExecutionStatus  @default(PENDING) @map("status")
+  githubAction  GithubActionType @map("github_action_type")
+  branch        String?          @map("branch")
+  commitSha     String?          @map("commit_sha")
+  commitMessage String?          @map("commit_message")
 
-  deployments    Deployment[]
+  buildSpec String? @map("build_spec")
+
+  pipelineId  String    @map("pipeline_id")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  duration    Int?      @map("duration")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  deployment     Deployment?
   logs           ExecutionLog[]
   nodeExecutions NodeExecution[]
   pipeline       Pipeline        @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
 
   @@index([pipelineId, status])
-  @@index([awsBuildId])
   @@map("pipeline_executions")
 }
 
@@ -254,7 +241,6 @@ model NodeExecution {
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
   execution PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
-  node      PipelineNode      @relation(fields: [nodeId], references: [nodeId])
 
   @@index([executionId])
   @@map("node_executions")
@@ -269,7 +255,7 @@ model Deployment {
   strategy       DeploymentStrategy @default(ROLLING) @map("strategy")
   dockerImageUri String             @map("docker_image_uri")
   containerName  String?            @map("container_name")
-  executionId    String             @map("execution_id")
+  executionId    String             @unique @map("execution_id")
   startedAt      DateTime?          @map("started_at")
   completedAt    DateTime?          @map("completed_at")
   createdAt      DateTime           @default(now()) @map("created_at")
@@ -331,11 +317,9 @@ model PushEvent {
   @@map("push_events")
 }
 
-enum TriggerType {
-  MANUAL
-  WEBHOOK
-  SCHEDULE
-  API
+enum GithubActionType {
+  PUSH
+  MERGE
 }
 
 enum NodeType {

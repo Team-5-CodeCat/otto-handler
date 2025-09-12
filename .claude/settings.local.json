@@ -12,7 +12,8 @@
       "Bash(timeout 10 pnpm start:dev:*)",
       "Bash(cat:*)",
       "Bash(curl:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(pnpm tsc:*)"
     ],
     "deny": [],
     "ask": []
