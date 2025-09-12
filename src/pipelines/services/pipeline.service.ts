@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { InputJsonValue } from '@prisma/client/runtime/library';
-import { YamlValidatorUtil } from '../../common/utils';
+import { YamlValidatorUtil } from '../../common/utils/yaml-validator.util';
 import * as crypto from 'crypto';
 import * as yaml from 'js-yaml';
 
@@ -38,7 +38,7 @@ export class PipelineService {
 
       // 프로젝트 존재 여부 확인
       const project = await this.prisma.project.findUnique({
-        where: { id: projectId },
+        where: { projectId: projectId },
       });
 
       if (!project) {
@@ -48,6 +48,7 @@ export class PipelineService {
       // 파이프라인 생성
       const pipeline = await this.prisma.pipeline.create({
         data: {
+          pipelineId: crypto.randomUUID(),
           projectId,
           name: name.trim(),
           description,
@@ -58,14 +59,14 @@ export class PipelineService {
         include: {
           project: {
             select: {
-              id: true,
+              projectId: true,
               name: true,
             },
           },
         },
       });
 
-      this.logger.log(`파이프라인 생성 완료: ${pipeline.id}`);
+      this.logger.log(`파이프라인 생성 완료: ${pipeline.pipelineId}`);
       return pipeline;
     } catch (error) {
       if (
@@ -89,7 +90,7 @@ export class PipelineService {
       include: {
         project: {
           select: {
-            id: true,
+            projectId: true,
             name: true,
           },
         },
@@ -101,11 +102,11 @@ export class PipelineService {
 
   async pipelineGetById(pipelineId: string) {
     const pipeline = await this.prisma.pipeline.findUnique({
-      where: { id: pipelineId },
+      where: { pipelineId: pipelineId },
       include: {
         project: {
           select: {
-            id: true,
+            projectId: true,
             name: true,
           },
         },
@@ -135,7 +136,7 @@ export class PipelineService {
     },
   ) {
     const pipeline = await this.prisma.pipeline.findUnique({
-      where: { id: pipelineId },
+      where: { pipelineId: pipelineId },
       include: {
         project: true,
       },
@@ -146,8 +147,9 @@ export class PipelineService {
 
     const execution = await this.prisma.pipelineExecution.create({
       data: {
-        pipelineId: pipeline.id,
         executionId: crypto.randomUUID(),
+        pipelineId: pipeline.pipelineId,
+        awsBuildId: crypto.randomUUID(),
         status: 'PENDING',
         triggerType: 'MANUAL',
         branch: params.branch,
@@ -182,7 +184,7 @@ export class PipelineService {
     try {
       // 실행 시작 상태로 변경
       const execution = await this.prisma.pipelineExecution.update({
-        where: { id: executionId },
+        where: { executionId: executionId },
         data: {
           status: 'RUNNING',
           startedAt: new Date(),
@@ -208,7 +210,7 @@ export class PipelineService {
 
       // 성공 상태로 변경
       await this.prisma.pipelineExecution.update({
-        where: { id: executionId },
+        where: { executionId: executionId },
         data: {
           status: 'SUCCESS',
           completedAt: new Date(),
@@ -221,7 +223,7 @@ export class PipelineService {
     } catch (error) {
       // 실패 상태로 변경
       await this.prisma.pipelineExecution.update({
-        where: { id: executionId },
+        where: { executionId: executionId },
         data: {
           status: 'FAILED',
           completedAt: new Date(),

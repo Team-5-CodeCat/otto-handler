@@ -53,7 +53,7 @@ export class PipelineController {
     );
 
     return {
-      id: pipeline.id,
+      id: pipeline.pipelineId,
       name: pipeline.name,
       description: pipeline.description,
       isActive: pipeline.isActive,
@@ -82,7 +82,7 @@ export class PipelineController {
     console.log(pipelines);
     return {
       pipelines: pipelines.map((pipeline) => ({
-        id: pipeline.id,
+        id: pipeline.pipelineId,
         name: pipeline.name,
         description: pipeline.description,
         isActive: pipeline.isActive,
@@ -94,7 +94,7 @@ export class PipelineController {
         createdAt: pipeline.createdAt.toISOString(),
         updatedAt: pipeline.updatedAt.toISOString(),
         project: {
-          id: pipeline.project.id,
+          id: pipeline.project.projectId,
           name: pipeline.project.name,
         },
       })),
@@ -113,7 +113,7 @@ export class PipelineController {
     const pipeline = await this.pipelineService.pipelineGetById(pipelineId);
 
     return {
-      id: pipeline.id,
+      id: pipeline.pipelineId,
       name: pipeline.name,
       description: pipeline.description,
       isActive: pipeline.isActive,
@@ -125,11 +125,11 @@ export class PipelineController {
       createdAt: pipeline.createdAt.toISOString(),
       updatedAt: pipeline.updatedAt.toISOString(),
       project: {
-        id: pipeline.project.id,
+        id: pipeline.project.projectId,
         name: pipeline.project.name,
       },
       executions: pipeline.executions.map((execution) => ({
-        id: execution.id,
+        id: execution.executionId,
         pipelineId: execution.pipelineId,
         executionId: execution.executionId,
         status: execution.status,
@@ -173,7 +173,7 @@ export class PipelineController {
 
     return {
       execution: {
-        id: execution.id,
+        id: execution.executionId,
         pipelineId: execution.pipelineId,
         executionId: execution.executionId,
         status: execution.status,

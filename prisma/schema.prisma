@@ -71,6 +71,7 @@ model GithubInstallation {
   
   // GitHub App Installation Info (최소한의 식별 정보만 저장)
   accountLogin   String   // GitHub 계정 로그인명
+  accountId      String   // GitHub 계정 ID (숫자)
   accountType    String   // "User" or "Organization"
   
   // Installation Status

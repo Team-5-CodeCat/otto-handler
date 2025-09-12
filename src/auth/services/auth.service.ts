@@ -8,7 +8,7 @@ import * as bcrypt from 'bcrypt';
 import { LoginRequestDto, LoginResponseDto, SignUpRequestDto } from '../dtos';
 import { AuthErrorEnum, AuthResponseEnum, TOKEN_CONSTANTS } from '../constants';
 import { JwtService } from './jwt.service';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import type { JwtPayloadType } from '../../common/type';
 import { SignUpResponseDto } from '../dtos/response/sign-up-response';
 import { GithubOauthService } from './github-oauth.service';
@@ -29,7 +29,7 @@ export class AuthService {
   async login({ email, password }: LoginRequestDto): Promise<LoginResponseDto> {
     const user = await this.prismaService.user.findUnique({
       where: { email },
-      select: { id: true, email: true },
+      select: { userId: true, email: true },
     });
 
     if (!user) {
@@ -57,7 +57,7 @@ export class AuthService {
     const existing = await this.prismaService.session.findUnique({
       where: { sessionToken: refreshToken },
       select: {
-        id: true,
+        sessionId: true,
         userId: true,
         expiresAt: true,
         user: { select: { email: true } },
@@ -71,13 +71,13 @@ export class AuthService {
     if (existing.expiresAt.getTime() <= Date.now()) {
       // 만료된 토큰은 정리
       await this.prismaService.session.delete({
-        where: { id: existing.id },
+        where: { sessionId: existing.sessionId },
       });
       throw new UnauthorizedException(AuthErrorEnum.REFRESH_FAIL);
     }
 
     await this.prismaService.session.delete({
-      where: { id: existing.id },
+      where: { sessionId: existing.sessionId },
     });
 
     const newAccessToken: string = this.jwtService.encode(
@@ -91,6 +91,7 @@ export class AuthService {
 
     await this.prismaService.session.create({
       data: {
+        sessionId: randomUUID(),
         userId: existing.userId,
         sessionToken: newRefreshToken,
         expiresAt: newRefreshExpiresAt,
@@ -126,6 +127,7 @@ export class AuthService {
 
     await this.prismaService.user.create({
       data: {
+        userId: randomUUID(),
         email,
         githubId: '', // This will need to be set via GitHub OAuth
         githubUsername: username || email.split('@')[0], // Temporary username

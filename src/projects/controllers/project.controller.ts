@@ -139,13 +139,13 @@ export class ProjectController {
       createProjectDto.webhookUrl,
     );
 
-    // DTO 필드명 매핑 (id → projectID, userId → userID)
+    // DTO 필드명 매핑 (projectId → projectID, userId → userID)
     return {
-      projectID: project.id,
+      projectId: project.projectId,
       name: project.name,
       webhookUrl: null, // webhookUrl 필드가 없으므로 null
       user: {
-        userID: project.user.id,
+        userId: project.user.userId,
         email: project.user.email,
         name: project.user.name || '', // null일 경우 빈 문자열
       },
@@ -185,15 +185,17 @@ export class ProjectController {
 
     // DTO 필드명 매핑
     return {
-      id: installation.id,
-      userID: installation.userId,
       installationId: installation.installationId,
-      accountLogin: (installation.account as any)?.login || null,
-      accountId: String((installation.account as any)?.id || ''),
+      userId: installation.userId,
+      githubInstallationId: installation.githubInstallationId,
+      accountLogin: installation.accountLogin,
+      accountId: installation.accountId,
+      accountType: installation.accountType,
+      isActive: installation.isActive,
       createdAt: installation.createdAt,
       updatedAt: installation.updatedAt,
       user: {
-        userID: installation.userId,
+        userId: installation.userId,
         email: '', // 이 메서드는 user 정보를 포함하지 않음
         name: '',
       },
@@ -229,11 +231,13 @@ export class ProjectController {
 
     // DTO 필드명 매핑
     return installations.map((inst: any) => ({
-      id: inst.id,
-      userID: inst.userId,
       installationId: inst.installationId,
-      accountLogin: inst.account?.login || null,
-      accountId: String(inst.account?.id || ''),
+      userId: inst.userId,
+      githubInstallationId: inst.githubInstallationId,
+      accountLogin: inst.accountLogin,
+      accountId: inst.accountId,
+      accountType: inst.accountType,
+      isActive: inst.isActive,
       createdAt: inst.createdAt,
       updatedAt: inst.updatedAt,
     }));
@@ -578,10 +582,10 @@ export class ProjectController {
     // DTO 필드명 매핑
     return {
       ...project,
-      projectID: project.id,
-      userID: project.user.id,
+      projectId: project.projectId,
+      userId: project.user.userId,
       user: {
-        userID: project.user.id, // userID 필드 추가
+        userId: project.user.userId, // userID 필드 추가
         email: project.user.email,
         name: project.user.name || '',
       },
@@ -700,7 +704,7 @@ export class ProjectController {
     // DTO 필드명 매핑
     return projects.map((project: any) => ({
       ...project,
-      projectID: project.id,
+      projectId: project.projectId,
       userID: project.userId,
       webhookUrl: null,
     }));
