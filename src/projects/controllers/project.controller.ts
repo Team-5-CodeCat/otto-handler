@@ -22,11 +22,15 @@ import type {
   GithubInstallUrlResponseDto,
   GithubStatusResponseDto,
 } from '../dtos';
+import type { CreateOnboardingProjectRequestDto } from '../dtos/request/create-onboarding-project-request.dto';
+import type { OnboardingProjectResponseDto } from '../dtos/response/onboarding-project-response.dto';
+import type { RecentPipelineResponseDto } from '../dtos/response/recent-pipeline-response.dto';
 import {
   Controller,
   ForbiddenException,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Req,
   HttpStatus,
   Query,
@@ -1078,5 +1082,54 @@ export class ProjectController {
       isPrivate: Boolean(createDto.isPrivate),
       selectedBranch: String(createDto.selectedBranch),
     });
+  }
+
+  /**
+   * @tag project
+   * @summary 온보딩 프로젝트 생성
+   * @description 신규 유저용 첫 프로젝트와 기본 파이프라인을 생성합니다.
+   */
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: '로그인 필요',
+  })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.FORBIDDEN,
+    description: 'GitHub App 설치를 찾을 수 없음',
+  })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.CONFLICT,
+    description: '이미 존재하는 레포지토리',
+  })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 요청 데이터',
+  })
+  @AuthGuard()
+  @TypedRoute.Post('onboarding')
+  async projectCreateOnboardingProject(
+    @TypedBody() createDto: CreateOnboardingProjectRequestDto,
+    @Req() req: IRequestType,
+  ): Promise<OnboardingProjectResponseDto> {
+    const userId = req.user.user_id;
+    return this.projectService.createOnboardingProject(userId, createDto);
+  }
+
+  /**
+   * @tag project
+   * @summary 최근 파이프라인 조회
+   * @description 기존 유저의 최근 활동 파이프라인을 조회합니다.
+   */
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: '로그인 필요',
+  })
+  @AuthGuard()
+  @TypedRoute.Get('recent-pipeline')
+  async projectGetRecentPipeline(
+    @Req() req: IRequestType,
+  ): Promise<RecentPipelineResponseDto | null> {
+    const userId = req.user.user_id;
+    return this.projectService.getRecentPipeline(userId);
   }
 }
