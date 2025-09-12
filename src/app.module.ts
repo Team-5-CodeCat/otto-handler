@@ -8,6 +8,7 @@ import { RedisModule } from '@liaoliaots/nestjs-redis';
 import { ProjectsModule } from './projects/projects.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { PipelineModule } from './pipeline/pipeline.module';
+import { CodeBuildModule } from './codebuild/codebuild.module';
 
 /**
  * 환경에 따른 .env 파일 경로 반환
@@ -60,6 +61,9 @@ function getEnvFilePath(): string {
 
     // 🔗 웹훅 관리
     WebhooksModule,
+
+    // 🚀 AWS CodeBuild 통합
+    CodeBuildModule,
   ],
   controllers: [],
   providers: [AppService],
