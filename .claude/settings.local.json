@@ -16,7 +16,9 @@
       "Bash(pnpm tsc:*)",
       "Bash(pnpm run:*)",
       "Bash(node:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs -r kill -9)"
     ],
     "deny": [],
     "ask": []

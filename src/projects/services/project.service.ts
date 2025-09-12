@@ -10,6 +10,9 @@ import { PrismaService } from '../../database/prisma.service';
 import { GithubService } from './github.service';
 import { JwtService } from '../../auth/services/jwt.service';
 import * as crypto from 'crypto';
+import type { CreateOnboardingProjectRequestDto } from '../dtos/request/create-onboarding-project-request.dto';
+import type { OnboardingProjectResponseDto } from '../dtos/response/onboarding-project-response.dto';
+import type { RecentPipelineResponseDto } from '../dtos/response/recent-pipeline-response.dto';
 
 @Injectable()
 export class ProjectService {
@@ -883,5 +886,156 @@ export class ProjectService {
       },
       take: limit,
     });
+  }
+
+  /**
+   * 신규 유저 온보딩용 프로젝트 생성
+   * 프로젝트와 기본 파이프라인을 트랜잭션으로 생성
+   */
+  async createOnboardingProject(
+    userId: string,
+    dto: CreateOnboardingProjectRequestDto,
+  ): Promise<OnboardingProjectResponseDto> {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. 중복 체크 (같은 사용자가 같은 레포지토리로 프로젝트를 만드는지)
+      const existingProject = await tx.project.findFirst({
+        where: {
+          userId,
+          githubRepoId: dto.githubRepoId,
+        },
+      });
+
+      if (existingProject) {
+        throw new ConflictException(
+          '이미 해당 레포지토리로 생성된 프로젝트가 있습니다',
+        );
+      }
+
+      // 2. GitHub Installation 확인
+      const installation = await tx.githubInstallation.findUnique({
+        where: {
+          installationId: dto.installationId,
+        },
+      });
+
+      if (!installation) {
+        throw new ForbiddenException('GitHub App 설치를 찾을 수 없습니다');
+      }
+
+      if (installation.userId !== userId) {
+        throw new ForbiddenException('해당 GitHub 설치에 대한 권한이 없습니다');
+      }
+
+      // 3. 프로젝트 생성
+      const project = await tx.project.create({
+        data: {
+          projectId: crypto.randomUUID(),
+          name: dto.projectName,
+          description: `Initial project created during onboarding`,
+          githubOwner: dto.githubOwner,
+          githubRepoId: dto.githubRepoId,
+          githubRepoName: dto.githubRepoName,
+          githubRepoUrl: dto.githubRepoUrl,
+          installationId: dto.installationId,
+          selectedBranch: dto.selectedBranch || 'main',
+          userId,
+          isActive: true,
+          isPrivate: true, // 기본값으로 private 설정
+        },
+      });
+
+      // 4. 기본 파이프라인 생성
+      // Pipeline 모델에는 triggerType이 없고 pipelineData를 사용
+      const pipelineData = {
+        triggerType: 'MANUAL',
+        configuration: {
+          jobs: [
+            {
+              name: 'build',
+              type: 'BUILD',
+              steps: ['checkout', 'install', 'build'],
+            },
+            {
+              name: 'test',
+              type: 'TEST',
+              steps: ['test'],
+            },
+          ],
+        },
+      };
+
+      const pipeline = await tx.pipeline.create({
+        data: {
+          pipelineId: crypto.randomUUID(),
+          name: 'Getting Started Pipeline',
+          description: 'Your first pipeline - start building here!',
+          projectId: project.projectId,
+          isActive: true,
+          pipelineData: pipelineData,
+        },
+      });
+
+      return {
+        project: {
+          projectId: project.projectId,
+          name: project.name,
+          description: project.description,
+          githubOwner: project.githubOwner,
+          githubRepoName: project.githubRepoName,
+          githubRepoUrl: project.githubRepoUrl,
+          selectedBranch: project.selectedBranch,
+          createdAt: project.createdAt,
+        },
+        pipeline: {
+          pipelineId: pipeline.pipelineId,
+          name: pipeline.name,
+          description: pipeline.description,
+          triggerType: 'MANUAL',
+          isActive: pipeline.isActive,
+          createdAt: pipeline.createdAt,
+        },
+        redirectUrl: `/projects/${project.projectId}/pipelines/${pipeline.pipelineId}`,
+      };
+    });
+  }
+
+  /**
+   * 기존 유저의 최근 활동 파이프라인 조회
+   */
+  async getRecentPipeline(
+    userId: string,
+  ): Promise<RecentPipelineResponseDto | null> {
+    const pipeline = await this.prisma.pipeline.findFirst({
+      where: {
+        project: {
+          userId,
+          isActive: true,
+        },
+        isActive: true,
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+      include: {
+        project: {
+          select: {
+            projectId: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!pipeline) {
+      return null;
+    }
+
+    return {
+      pipelineId: pipeline.pipelineId,
+      projectId: pipeline.project.projectId,
+      pipelineName: pipeline.name,
+      projectName: pipeline.project.name,
+      lastUpdated: pipeline.updatedAt,
+    };
   }
 }
