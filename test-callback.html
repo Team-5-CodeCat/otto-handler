@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub OAuth Callback Test - Otto Handler</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f6f8fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            max-width: 800px;
+            width: 100%;
+            margin: 1rem;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .header h1 {
+            color: #24292f;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            color: #656d76;
+        }
+        
+        .config-section {
+            background: #f6f8fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #24292f;
+            font-weight: 500;
+        }
+        
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        
+        .form-group textarea {
+            height: 100px;
+            resize: vertical;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+        
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #0969da;
+            box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #2da44e;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2c974b;
+        }
+        
+        .btn-secondary {
+            background: #0969da;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #0860ca;
+        }
+        
+        .btn-warning {
+            background: #fb8500;
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background: #e85d00;
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .result-section {
+            background: #f6f8fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+            display: none;
+        }
+        
+        .result-section.show {
+            display: block;
+        }
+        
+        .result-section h3 {
+            color: #24292f;
+            margin-bottom: 1rem;
+        }
+        
+        .result-content {
+            background: #24292f;
+            color: #f0f6fc;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        
+        .status {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            margin: 1rem 0;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d1e7dd;
+            color: #0a3622;
+            border: 1px solid #a3cfbb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f1aeb5;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #055160;
+            border: 1px solid #b6d4fe;
+        }
+        
+        .url-display {
+            background: #f6f8fa;
+            padding: 0.75rem;
+            border-radius: 6px;
+            border: 1px solid #d0d7de;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin: 0.5rem 0;
+        }
+        
+        .section-divider {
+            border: none;
+            height: 1px;
+            background: #d0d7de;
+            margin: 2rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔗 GitHub OAuth Callback Tester</h1>
+            <p>GitHub OAuth 콜백 URL을 직접 API로 테스트해보세요</p>
+        </div>
+        
+        <div class="config-section">
+            <h3>⚙️ 서버 설정</h3>
+            <div class="form-group">
+                <label for="serverUrl">서버 URL</label>
+                <input 
+                    type="text" 
+                    id="serverUrl" 
+                    placeholder="http://localhost:4000"
+                    value="http://localhost:4000"
+                />
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>🎯 콜백 테스트 - 직접 API 요청</h3>
+            <div class="form-group">
+                <label for="authCode">Authorization Code</label>
+                <input 
+                    type="text" 
+                    id="authCode" 
+                    placeholder="GitHub에서 받은 인증 코드를 입력하세요"
+                />
+            </div>
+            <div class="form-group">
+                <label for="stateParam">State 파라미터</label>
+                <input 
+                    type="text" 
+                    id="stateParam" 
+                    placeholder="CSRF 보호용 state 값 (선택사항)"
+                />
+            </div>
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="testDirectCallback()">
+                    🔥 직접 API 콜백 테스트
+                </button>
+                <button class="btn btn-secondary" onclick="generateTestData()">
+                    🎲 테스트 데이터 생성
+                </button>
+            </div>
+        </div>
+
+        <hr class="section-divider">
+
+        <div class="config-section">
+            <h3>🌐 브라우저 콜백 시뮬레이션</h3>
+            <div class="form-group">
+                <label for="callbackUrl">완전한 콜백 URL</label>
+                <textarea 
+                    id="callbackUrl" 
+                    placeholder="예: http://localhost:4000/api/v1/auth/github/callback?code=abc123&state=xyz789"
+                ></textarea>
+            </div>
+            <div class="button-group">
+                <button class="btn btn-warning" onclick="simulateCallback()">
+                    🚀 브라우저 콜백 시뮬레이션
+                </button>
+                <button class="btn btn-secondary" onclick="parseUrlParams()">
+                    🔍 URL 파라미터 파싱
+                </button>
+            </div>
+        </div>
+
+        <div id="statusSection"></div>
+        
+        <div id="resultSection" class="result-section">
+            <h3>📋 응답 결과</h3>
+            <div id="resultContent" class="result-content"></div>
+        </div>
+    </div>
+
+    <script>
+        // 페이지 로드 시 URL 파라미터 자동 감지
+        window.addEventListener('load', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            
+            if (code) {
+                document.getElementById('authCode').value = code;
+                document.getElementById('stateParam').value = state || '';
+                showStatus('info', `URL에서 자동으로 감지된 파라미터: code=${code.substring(0, 20)}...`);
+            }
+        });
+
+        // 직접 API 콜백 테스트
+        async function testDirectCallback() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const code = document.getElementById('authCode').value;
+            const state = document.getElementById('stateParam').value;
+            
+            if (!code) {
+                showStatus('error', 'Authorization Code를 입력해주세요!');
+                return;
+            }
+            
+            showStatus('info', 'GitHub OAuth API에 직접 요청을 보내는 중...');
+            
+            const requestBody = {
+                code: code,
+                ...(state && { state: state })
+            };
+            
+            try {
+                const response = await fetch(`${serverUrl}/api/v1/auth/github`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include', // 쿠키 포함
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                
+                showResult(`요청 URL: ${serverUrl}/api/v1/auth/github
+요청 메서드: POST
+요청 헤더: Content-Type: application/json
+요청 바디: ${JSON.stringify(requestBody, null, 2)}
+
+응답 상태: ${response.status} ${response.statusText}
+응답 데이터:
+${JSON.stringify(data, null, 2)}`);
+                
+                if (response.ok) {
+                    showStatus('success', '✅ GitHub OAuth API 직접 호출 성공!');
+                } else {
+                    showStatus('error', `❌ API 호출 실패: ${data.message || '알 수 없는 오류'}`);
+                }
+            } catch (error) {
+                showStatus('error', `❌ 네트워크 오류: ${error.message}`);
+                showResult(`에러 발생: ${error.message}`);
+            }
+        }
+
+        // 브라우저 콜백 시뮬레이션 (실제로 해당 URL로 이동)
+        function simulateCallback() {
+            const callbackUrl = document.getElementById('callbackUrl').value.trim();
+            
+            if (!callbackUrl) {
+                showStatus('error', '콜백 URL을 입력해주세요!');
+                return;
+            }
+            
+            showStatus('info', '브라우저를 통한 콜백 시뮬레이션을 시작합니다...');
+            showResult(`브라우저가 다음 URL로 리다이렉트됩니다:
+${callbackUrl}`);
+            
+            setTimeout(() => {
+                window.location.href = callbackUrl;
+            }, 2000);
+        }
+
+        // URL 파라미터 파싱
+        function parseUrlParams() {
+            const callbackUrl = document.getElementById('callbackUrl').value.trim();
+            
+            if (!callbackUrl) {
+                showStatus('error', '콜백 URL을 입력해주세요!');
+                return;
+            }
+            
+            try {
+                const url = new URL(callbackUrl);
+                const params = Object.fromEntries(url.searchParams.entries());
+                
+                showStatus('success', 'URL 파라미터가 성공적으로 파싱되었습니다!');
+                showResult(`파싱된 URL 정보:
+베이스 URL: ${url.origin}${url.pathname}
+파라미터:
+${JSON.stringify(params, null, 2)}`);
+                
+                // 파싱된 값들을 입력 필드에 자동 입력
+                if (params.code) {
+                    document.getElementById('authCode').value = params.code;
+                }
+                if (params.state) {
+                    document.getElementById('stateParam').value = params.state;
+                }
+            } catch (error) {
+                showStatus('error', `URL 파싱 오류: ${error.message}`);
+            }
+        }
+
+        // 테스트 데이터 생성
+        function generateTestData() {
+            const testCode = 'test_' + generateRandomString(20);
+            const testState = generateRandomString(32);
+            
+            document.getElementById('authCode').value = testCode;
+            document.getElementById('stateParam').value = testState;
+            
+            const testCallbackUrl = `${document.getElementById('serverUrl').value}/api/v1/auth/github/callback?code=${testCode}&state=${testState}`;
+            document.getElementById('callbackUrl').value = testCallbackUrl;
+            
+            showStatus('success', '테스트 데이터가 생성되었습니다!');
+            showResult(`생성된 테스트 데이터:
+Authorization Code: ${testCode}
+State: ${testState}
+완전한 콜백 URL: ${testCallbackUrl}`);
+        }
+
+        // 상태 메시지 표시
+        function showStatus(type, message) {
+            const statusSection = document.getElementById('statusSection');
+            statusSection.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // 결과 표시
+        function showResult(content) {
+            const resultSection = document.getElementById('resultSection');
+            const resultContent = document.getElementById('resultContent');
+            
+            resultContent.textContent = content;
+            resultSection.classList.add('show');
+        }
+
+        // 랜덤 문자열 생성
+        function generateRandomString(length) {
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            for (let i = 0; i < length; i++) {
+                result += characters.charAt(Math.floor(Math.random() * characters.length));
+            }
+            return result;
+        }
+    </script>
+</body>
+</html>

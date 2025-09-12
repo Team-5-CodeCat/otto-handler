@@ -107,14 +107,14 @@ async function bootstrap() {
   // 정적 파일 서빙 (개발 환경에서만)
   if (process.env.NODE_ENV !== 'production') {
     await app.register(fastifyStatic, {
-      root: join(__dirname, '..', 'test-oauth'), // test-oauth 디렉토리
-      prefix: '/test-oauth/', // /test-oauth/ 경로에서 접근 가능
+      root: join(__dirname, '..'), // 프로젝트 루트 디렉토리
+      prefix: '/', // 루트 경로에서 접근 가능
       decorateReply: false, // 기본 설정
     });
   }
   app.useGlobalFilters(new AllExceptionsFilter());
   app.setGlobalPrefix('api/v1', {
-    exclude: ['health', 'docs', 'test-sse.html'],
+    exclude: ['health', 'docs', 'test-sse.html', 'test-oauth.html', 'test-callback.html'],
   });
 
   // 🔍 데이터베이스 연결 상태 확인

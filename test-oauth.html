@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub OAuth Test - Otto Handler</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f6f8fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            max-width: 600px;
+            width: 100%;
+            margin: 1rem;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .header h1 {
+            color: #24292f;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            color: #656d76;
+        }
+        
+        .config-section {
+            background: #f6f8fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #24292f;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #0969da;
+            box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #2da44e;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2c974b;
+        }
+        
+        .btn-secondary {
+            background: #0969da;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #0860ca;
+        }
+        
+        .btn-danger {
+            background: #cf222e;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .result-section {
+            background: #f6f8fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+            display: none;
+        }
+        
+        .result-section.show {
+            display: block;
+        }
+        
+        .result-section h3 {
+            color: #24292f;
+            margin-bottom: 1rem;
+        }
+        
+        .result-content {
+            background: #24292f;
+            color: #f0f6fc;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        
+        .status {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            margin: 1rem 0;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d1e7dd;
+            color: #0a3622;
+            border: 1px solid #a3cfbb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f1aeb5;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #055160;
+            border: 1px solid #b6d4fe;
+        }
+        
+        .url-display {
+            background: #f6f8fa;
+            padding: 0.75rem;
+            border-radius: 6px;
+            border: 1px solid #d0d7de;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin: 0.5rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Otto Handler - GitHub OAuth Test</h1>
+            <p>GitHub OAuth 로그인 플로우를 테스트해보세요</p>
+        </div>
+        
+        <div class="config-section">
+            <h3>⚙️ 환경 설정</h3>
+            <div class="form-group">
+                <label for="serverUrl">서버 URL</label>
+                <input 
+                    type="text" 
+                    id="serverUrl" 
+                    placeholder="http://localhost:4000"
+                    value="http://localhost:4000"
+                />
+            </div>
+            <div class="form-group">
+                <label for="clientId">GitHub Client ID</label>
+                <input 
+                    type="text" 
+                    id="clientId" 
+                    placeholder="your_github_client_id"
+                />
+            </div>
+            <div class="form-group">
+                <label for="redirectUri">Redirect URI (Optional)</label>
+                <input 
+                    type="text" 
+                    id="redirectUri" 
+                    placeholder="http://localhost:4000/api/v1/auth/github/callback"
+                />
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button class="btn btn-primary" onclick="startGitHubOAuth()">
+                🔐 GitHub 로그인 시작
+            </button>
+            <button class="btn btn-secondary" onclick="testRefreshToken()">
+                🔄 토큰 새로고침 테스트
+            </button>
+            <button class="btn btn-danger" onclick="testLogout()">
+                🚪 로그아웃 테스트
+            </button>
+        </div>
+        
+        <div id="statusSection"></div>
+        
+        <div id="resultSection" class="result-section">
+            <h3>📋 응답 결과</h3>
+            <div id="resultContent" class="result-content"></div>
+        </div>
+    </div>
+
+    <script>
+        // 현재 OAuth 상태 저장
+        let currentState = {
+            code: null,
+            state: null,
+            accessToken: null,
+            refreshToken: null
+        };
+
+        // 페이지 로드 시 URL에서 code와 state 파라미터 확인
+        window.addEventListener('load', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            
+            if (code) {
+                currentState.code = code;
+                currentState.state = state;
+                showStatus('success', `GitHub에서 인증 코드를 받았습니다! code: ${code.substring(0, 20)}...`);
+                
+                // 자동으로 토큰 교환 시도
+                setTimeout(() => {
+                    exchangeCodeForToken(code, state);
+                }, 1000);
+            }
+        });
+
+        // GitHub OAuth 시작
+        function startGitHubOAuth() {
+            const clientId = document.getElementById('clientId').value;
+            
+            if (!clientId) {
+                showStatus('error', 'GitHub Client ID를 입력해주세요!');
+                return;
+            }
+            
+            // state 생성 (보안을 위한 랜덤 문자열)
+            const state = generateRandomString(32);
+            
+            // 현재 페이지 URL을 redirect_uri로 사용
+            const redirectUri = document.getElementById('redirectUri').value || window.location.href.split('?')[0];
+            
+            // GitHub OAuth URL 생성
+            const githubAuthUrl = `https://github.com/login/oauth/authorize?` +
+                `client_id=${encodeURIComponent(clientId)}&` +
+                `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+                `state=${encodeURIComponent(state)}&` +
+                `response_type=code`;
+            
+            showStatus('info', 'GitHub OAuth 페이지로 이동합니다...');
+            
+            // 생성된 URL 표시
+            showResult('GitHub OAuth URL:\n' + githubAuthUrl);
+            
+            // GitHub OAuth 페이지로 이동
+            setTimeout(() => {
+                window.location.href = githubAuthUrl;
+            }, 1000);
+        }
+
+        // 인증 코드를 토큰으로 교환
+        async function exchangeCodeForToken(code, state) {
+            const serverUrl = document.getElementById('serverUrl').value;
+            
+            showStatus('info', '서버에서 토큰을 교환 중입니다...');
+            
+            try {
+                const response = await fetch(`${serverUrl}/api/v1/auth/github`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include', // 쿠키 포함
+                    body: JSON.stringify({
+                        code: code,
+                        state: state
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentState.accessToken = data.accessToken;
+                    currentState.refreshToken = data.refreshToken;
+                    
+                    showStatus('success', 'GitHub 로그인 성공! 토큰을 받았습니다.');
+                    showResult(JSON.stringify(data, null, 2));
+                } else {
+                    showStatus('error', `로그인 실패: ${data.message || '알 수 없는 오류'}`);
+                    showResult(JSON.stringify(data, null, 2));
+                }
+            } catch (error) {
+                showStatus('error', `네트워크 오류: ${error.message}`);
+                showResult(`Error: ${error.message}`);
+            }
+        }
+
+        // 토큰 새로고침 테스트
+        async function testRefreshToken() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            
+            showStatus('info', '토큰 새로고침을 시도합니다...');
+            
+            try {
+                const response = await fetch(`${serverUrl}/api/v1/auth/refresh`, {
+                    method: 'POST',
+                    credentials: 'include' // 쿠키에서 refresh token 사용
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentState.accessToken = data.accessToken;
+                    currentState.refreshToken = data.refreshToken;
+                    
+                    showStatus('success', '토큰 새로고침 성공!');
+                    showResult(JSON.stringify(data, null, 2));
+                } else {
+                    showStatus('error', `토큰 새로고침 실패: ${data.message || '알 수 없는 오류'}`);
+                    showResult(JSON.stringify(data, null, 2));
+                }
+            } catch (error) {
+                showStatus('error', `네트워크 오류: ${error.message}`);
+                showResult(`Error: ${error.message}`);
+            }
+        }
+
+        // 로그아웃 테스트
+        async function testLogout() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            
+            showStatus('info', '로그아웃을 시도합니다...');
+            
+            try {
+                const response = await fetch(`${serverUrl}/api/v1/auth/logout`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentState = { code: null, state: null, accessToken: null, refreshToken: null };
+                    
+                    showStatus('success', '로그아웃 성공!');
+                    showResult(JSON.stringify(data, null, 2));
+                } else {
+                    showStatus('error', `로그아웃 실패: ${data.message || '알 수 없는 오류'}`);
+                    showResult(JSON.stringify(data, null, 2));
+                }
+            } catch (error) {
+                showStatus('error', `네트워크 오류: ${error.message}`);
+                showResult(`Error: ${error.message}`);
+            }
+        }
+
+        // 상태 메시지 표시
+        function showStatus(type, message) {
+            const statusSection = document.getElementById('statusSection');
+            statusSection.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // 결과 표시
+        function showResult(content) {
+            const resultSection = document.getElementById('resultSection');
+            const resultContent = document.getElementById('resultContent');
+            
+            resultContent.textContent = content;
+            resultSection.classList.add('show');
+        }
+
+        // 랜덤 문자열 생성 (state용)
+        function generateRandomString(length) {
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            for (let i = 0; i < length; i++) {
+                result += characters.charAt(Math.floor(Math.random() * characters.length));
+            }
+            return result;
+        }
+    </script>
+</body>
+</html>

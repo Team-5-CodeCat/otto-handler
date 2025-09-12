@@ -1,141 +1,15 @@
 import { AuthService } from '../services';
 import { TypedBody, TypedException, TypedRoute } from '@nestia/core';
-import type {
-  GithubAuthRequestDto,
-  LoginRequestDto,
-  LoginResponseDto,
-  SignUpRequestDto,
-} from '../dtos';
-import {
-  Controller,
-  HttpCode,
-  HttpStatus,
-  Req,
-  Res,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { AuthErrorEnum, TOKEN_CONSTANTS } from '../constants';
+import type { GithubAuthRequestDto, LoginResponseDto } from '../dtos';
+import { Controller, HttpCode, HttpStatus, Res, Req } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type {
-  CommonErrorResponseDto,
-  CommonMessageResponseDto,
-} from '../../common/dto';
-import { SignUpResponseDto } from '../dtos/response/sign-up-response';
-import { GithubOauthService } from '../services/github-oauth.service';
-import { GithubUserType } from '../services/type';
+import type { CommonErrorResponseDto } from '../../common/dto';
+import { TOKEN_CONSTANTS } from '../constants';
+import { AuthGuard } from '../../common/decorators';
 
 @Controller('/auth')
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly githubOauthService: GithubOauthService,
-  ) {}
-
-  /**
-   * @tag auth
-   * @summary 로그인
-   */
-  @TypedException<CommonErrorResponseDto>({
-    status: HttpStatus.UNAUTHORIZED,
-    description: '로그인 실패',
-  })
-  @HttpCode(200)
-  @TypedRoute.Post('/sign_in')
-  async authSignIn(
-    @TypedBody() body: LoginRequestDto,
-    @Res({ passthrough: true }) res: FastifyReply,
-  ): Promise<LoginResponseDto> {
-    const result = await this.authService.login(body);
-
-    res.setCookie(TOKEN_CONSTANTS.ACCESS_TOKEN_COOKIE, result.accessToken, {
-      httpOnly: TOKEN_CONSTANTS.COOKIE_HTTP_ONLY,
-      secure: TOKEN_CONSTANTS.COOKIE_SECURE,
-      sameSite: TOKEN_CONSTANTS.COOKIE_SAME_SITE,
-      path: '/',
-      maxAge: TOKEN_CONSTANTS.ACCESS_TOKEN_TTL_SEC,
-    });
-
-    res.setCookie(TOKEN_CONSTANTS.REFRESH_TOKEN_COOKIE, result.refreshToken, {
-      httpOnly: TOKEN_CONSTANTS.COOKIE_HTTP_ONLY,
-      secure: TOKEN_CONSTANTS.COOKIE_SECURE,
-      sameSite: TOKEN_CONSTANTS.COOKIE_SAME_SITE,
-      path: '/',
-      maxAge: TOKEN_CONSTANTS.REFRESH_TOKEN_TTL_SEC,
-    });
-
-    return result;
-  }
-
-  /**
-   * @tag auth
-   * @summary 리프레시 토큰 로그인
-   */
-  @TypedException<CommonErrorResponseDto>({
-    status: HttpStatus.UNAUTHORIZED,
-    description: '리프레시 실패',
-  })
-  @HttpCode(200)
-  @TypedRoute.Post('/sign_in/refresh')
-  async authSignInByRefresh(
-    @Req() req: FastifyRequest,
-    @Res({ passthrough: true }) res: FastifyReply,
-  ): Promise<LoginResponseDto> {
-    const refreshToken = req.cookies[TOKEN_CONSTANTS.REFRESH_TOKEN_COOKIE];
-    if (!refreshToken) {
-      throw new UnauthorizedException(AuthErrorEnum.REFRESH_FAIL);
-    }
-    const result = await this.authService.loginByRefresh(refreshToken);
-    res.setCookie(TOKEN_CONSTANTS.ACCESS_TOKEN_COOKIE, result.accessToken, {
-      httpOnly: TOKEN_CONSTANTS.COOKIE_HTTP_ONLY,
-      secure: TOKEN_CONSTANTS.COOKIE_SECURE,
-      sameSite: TOKEN_CONSTANTS.COOKIE_SAME_SITE,
-      path: '/',
-      maxAge: TOKEN_CONSTANTS.ACCESS_TOKEN_TTL_SEC,
-    });
-    res.setCookie(TOKEN_CONSTANTS.REFRESH_TOKEN_COOKIE, result.refreshToken, {
-      httpOnly: TOKEN_CONSTANTS.COOKIE_HTTP_ONLY,
-      secure: TOKEN_CONSTANTS.COOKIE_SECURE,
-      sameSite: TOKEN_CONSTANTS.COOKIE_SAME_SITE,
-      path: '/',
-      maxAge: TOKEN_CONSTANTS.REFRESH_TOKEN_TTL_SEC,
-    });
-
-    return result;
-  }
-
-  /**
-   * @tag auth
-   * @summary 로그아웃
-   */
-  @TypedException<CommonErrorResponseDto>({
-    status: HttpStatus.UNAUTHORIZED,
-    description: '로그인 실패',
-  })
-  @HttpCode(200)
-  @TypedRoute.Post('/sign_out')
-  authSignOut(
-    @Res({ passthrough: true }) res: FastifyReply,
-  ): CommonMessageResponseDto {
-    res.clearCookie(TOKEN_CONSTANTS.ACCESS_TOKEN_COOKIE);
-    res.clearCookie(TOKEN_CONSTANTS.REFRESH_TOKEN_COOKIE);
-    return { message: '성공' };
-  }
-
-  /**
-   * @tag auth
-   * @summary 회원가입
-   *
-   *
-   */
-
-  @TypedException<CommonErrorResponseDto>({
-    status: HttpStatus.CONFLICT,
-    description: '이메일 중복',
-  })
-  @TypedRoute.Post('/sign_up')
-  authSignUp(@TypedBody() body: SignUpRequestDto): Promise<SignUpResponseDto> {
-    return this.authService.signUp(body);
-  }
+  constructor(private readonly authService: AuthService) {}
 
   /**
    * @tag auth
@@ -147,10 +21,50 @@ export class AuthController {
   })
   @HttpCode(200)
   @TypedRoute.Post('/github')
-  async authGithub(
+  async authGithubSignIn(
     @TypedBody() body: GithubAuthRequestDto,
     @Res({ passthrough: true }) res: FastifyReply,
-  ): Promise<GithubUserType> {
-    return await this.githubOauthService.getUserInfo(body);
+  ): Promise<LoginResponseDto> {
+    return this.authService.authenticateWithGithub(body, res);
+  }
+
+  /**
+   * @tag auth
+   * @summary Refresh Token으로 로그인
+   */
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Refresh Token이 유효하지 않음',
+  })
+  @HttpCode(200)
+  @AuthGuard()
+  @TypedRoute.Post('/refresh')
+  async authRefreshSignIn(
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ): Promise<LoginResponseDto> {
+    const refreshToken = req.cookies?.[TOKEN_CONSTANTS.REFRESH_TOKEN_COOKIE];
+
+    if (!refreshToken) {
+      throw new Error('Refresh token not found');
+    }
+
+    return this.authService.loginByRefresh(refreshToken, res);
+  }
+
+  /**
+   * @tag auth
+   * @summary 로그아웃
+   */
+  @HttpCode(200)
+  @TypedRoute.Post('/logout')
+  async authSignOut(
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ): Promise<{ message: string }> {
+    const refreshToken =
+      req.cookies?.[TOKEN_CONSTANTS.REFRESH_TOKEN_COOKIE] || '';
+
+    return this.authService.logout(refreshToken, res);
   }
 }
