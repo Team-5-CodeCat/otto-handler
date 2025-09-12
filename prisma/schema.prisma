@@ -1,5 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "darwin-arm64"]
@@ -9,452 +7,312 @@ datasource db {
   provider = "postgresql"
   url      = env("POSTGRESQL_URL")
 }
-// ==================== User & Auth ====================
+
 model User {
-  userId    String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  avatarUrl String?
-  
-  // GitHub OAuth Information (최소 스코프: read:user, user:email)
-  githubId       String   @unique
-  githubUsername String   @unique
-  githubNodeId   String?  // GitHub's GraphQL node ID
-  
-  // User Status
-  isActive  Boolean  @default(true)
-  lastLoginAt DateTime?
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relations
-  projects         Project[]
-  pipelineTemplates PipelineTemplate[] @relation("TemplateCreator")
-  sharedTemplates  PipelineTemplate[] @relation("SharedTemplates")
-  sessions        Session[]
-  installations   GithubInstallation[]
-  
+  email             String               @unique
+  name              String?
+  avatarUrl         String?
+  createdAt         DateTime             @default(now())
+  githubId          String               @unique
+  githubNodeId      String?
+  githubUsername    String               @unique
+  isActive          Boolean              @default(true)
+  lastLoginAt       DateTime?
+  updatedAt         DateTime             @updatedAt
+  userId            String               @id @default(uuid())
+  installations     GithubInstallation[]
+  pipelineTemplates PipelineTemplate[]   @relation("TemplateCreator")
+  projects          Project[]
+  sessions          Session[]
+  sharedTemplates   PipelineTemplate[]   @relation("SharedTemplates")
+
   @@index([githubId])
   @@index([githubUsername])
   @@map("users")
 }
-// ==================== Session Management ====================
+
 model Session {
-  sessionId    String   @id @default(uuid())
-  sessionToken String   @unique
-  
-  // OAuth Token (암호화 저장, 짧은 TTL)
-  accessToken  String?  @db.Text // 암호화된 GitHub OAuth token, 유저 정보 조회용
+  sessionToken   String    @unique
+  accessToken    String?
   tokenExpiresAt DateTime?
-  
-  // Session Data
-  userAgent    String?
-  ipAddress    String?
-  
-  expiresAt    DateTime
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  // Relations
-  userId String
-  user   User   @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  
+  userAgent      String?
+  ipAddress      String?
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  userId         String
+  sessionId      String    @id @default(uuid())
+  user           User      @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
   @@index([sessionToken])
   @@index([userId])
   @@map("sessions")
 }
-// ==================== GitHub App & Installation ====================
+
 model GithubInstallation {
-  installationId String   @id @default(uuid())
-  githubInstallationId String   @unique // GitHub Installation ID
-  
-  // GitHub App Installation Info (최소한의 식별 정보만 저장)
-  accountLogin   String   // GitHub 계정 로그인명
-  accountId      String   // GitHub 계정 ID (숫자)
-  accountType    String   // "User" or "Organization"
-  
-  // Installation Status
-  isActive      Boolean  @default(true)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relations
-  userId    String
-  user      User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  
-  projects  Project[]
-  
+  createdAt            DateTime  @default(now())
+  installationId       String    @id @default(uuid())
+  isActive             Boolean   @default(true)
+  updatedAt            DateTime  @updatedAt
+  userId               String
+  accountId            String
+  accountLogin         String
+  accountType          String
+  githubInstallationId String    @unique
+  user                 User      @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  projects             Project[]
+
   @@index([githubInstallationId])
   @@index([userId])
   @@map("github_installations")
 }
-// ==================== Project ====================
+
 model Project {
-  projectId   String   @id @default(uuid())
-  name        String
-  description String?
-  isActive    Boolean  @default(true)
-  
-  // GitHub 연결 정보 (핵심 - 반드시 저장)
-  githubRepoId     String   // GitHub Repository ID
-  selectedBranch   String   @default("main")
-  
-  // 설치 정보
+  name           String
+  createdAt      DateTime            @default(now())
+  description    String?
+  githubOwner    String
+  githubRepoId   String              @unique
+  githubRepoName String
+  githubRepoUrl  String
   installationId String?
+  isActive       Boolean             @default(true)
+  isPrivate      Boolean             @default(true)
+  updatedAt      DateTime            @updatedAt
+  userId         String
+  projectId      String              @id @default(uuid())
+  selectedBranch String              @default("main")
+  pipelines      Pipeline[]
+  secrets        ProjectSecret[]
   installation   GithubInstallation? @relation(fields: [installationId], references: [installationId])
-  
-  // GitHub Repository Info (UI 표시용)
-  githubRepoUrl    String   // "https://github.com/owner/repo"
-  githubRepoName   String   // "my-app"  
-  githubOwner      String   // "owner"
-  isPrivate        Boolean  @default(true)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relations
-  userId    String
-  user      User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  
-  pipelines  Pipeline[]
-  secrets    ProjectSecret[]
-  pushEvents PushEvent[]
-  
+  user           User                @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  pushEvents     PushEvent[]
+
   @@unique([githubOwner, githubRepoName])
-  @@unique([githubRepoId])
-  @@unique([userId, githubRepoId]) // 사용자당 동일 레포는 하나의 프로젝트만
+  @@unique([userId, githubRepoId])
   @@index([userId])
   @@index([installationId])
   @@map("projects")
 }
 
-
-// ==================== Secrets Management ====================
 model ProjectSecret {
-  secretId  String   @id @default(uuid())
   key       String
-  value     String   @db.Text // 암호화된 값 저장
-  isSecure  Boolean  @default(true) // 암호화 여부
-  
+  value     String
+  isSecure  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  // Relations
   projectId String
+  secretId  String   @id @default(uuid())
   project   Project  @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
-  
+
   @@unique([projectId, key])
   @@map("project_secrets")
 }
-// ==================== Pipeline ====================
+
 model Pipeline {
-  pipelineId  String   @id @default(uuid())
-  name        String
-  description String?
-  isActive    Boolean  @default(true)
-  
-  // Pipeline Configuration
-  triggerType TriggerType @default(MANUAL)
-  triggerBranches String[] // branches to trigger on
-  
-  // Visual Pipeline Data
-  pipelineYaml    String?  @db.Text // 사용자가 생성한 Pipeline YAML
-  visualConfig    Json?    // Node 위치, 연결 정보 등 시각적 데이터
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relations
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
-  
-  templateId String?
-  template   PipelineTemplate? @relation(fields: [templateId], references: [templateId])
-  
-  nodes     PipelineNode[]
-  executions PipelineExecution[]
-  
+  name            String
+  createdAt       DateTime            @default(now())
+  description     String?
+  isActive        Boolean             @default(true)
+  pipelineYaml    String?
+  projectId       String
+  templateId      String?
+  triggerBranches String[]
+  triggerType     TriggerType         @default(MANUAL)
+  updatedAt       DateTime            @updatedAt
+  visualConfig    Json?
+  pipelineId      String              @id @default(uuid())
+  executions      PipelineExecution[]
+  nodes           PipelineNode[]
+  project         Project             @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  template        PipelineTemplate?   @relation(fields: [templateId], references: [templateId])
+
   @@index([projectId])
   @@map("pipelines")
 }
-// ==================== Pipeline Template (for Asset Sharing) ====================
+
 model PipelineTemplate {
-  templateId  String   @id @default(uuid())
-  name        String
-  description String?
-  category    String?  // e.g., "Node.js", "Python", "Docker"
-  tags        String[]
-  
-  isPublic    Boolean  @default(false)
-  isOfficial  Boolean  @default(false) // 공식 템플릿 여부
-  
-  // Template Data
-  pipelineYaml  String   @db.Text // Template Pipeline YAML
-  visualConfig  Json     // Node 구조 및 시각적 설정
-  nodeConfig    Json     // Node들의 기본 설정값
-  
-  // Pre-generated Scripts (선택적)
-  dockerfile    String?  @db.Text // 미리 생성된 Dockerfile
-  dockerCompose String?  @db.Text // 미리 생성된 docker-compose.yaml
-  buildSpec     Json?    // 미리 생성된 AWS CodeBuild buildspec
-  
-  // Docker Image Reference (optional)
-  ecrImageUri String?  // Pre-built image in ECR
-  imageVersion String?
-  
-  usageCount  Int      @default(0)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relations
-  creatorId String
-  creator   User     @relation("TemplateCreator", fields: [creatorId], references: [userId])
-  
-  sharedWith User[]   @relation("SharedTemplates")
-  pipelines  Pipeline[]
-  
+  name          String
+  description   String?
+  category      String?
+  tags          String[]
+  isPublic      Boolean    @default(false)
+  isOfficial    Boolean    @default(false)
+  pipelineYaml  String
+  visualConfig  Json
+  nodeConfig    Json
+  dockerfile    String?
+  dockerCompose String?
+  buildSpec     Json?
+  ecrImageUri   String?
+  imageVersion  String?
+  usageCount    Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  creatorId     String
+  templateId    String     @id @default(uuid())
+  creator       User       @relation("TemplateCreator", fields: [creatorId], references: [userId])
+  pipelines     Pipeline[]
+  sharedWith    User[]     @relation("SharedTemplates")
+
   @@index([isPublic, category])
   @@map("pipeline_templates")
 }
-// ==================== Pipeline Node ====================
+
 model PipelineNode {
-  nodeId   String   @id @default(uuid())
-  clientNodeId String   // 클라이언트에서 생성한 고유 Node ID
-  name     String   // e.g., "build", "test", "deploy"
-  type     NodeType
-  order    Int      // 실행 순서
-  
-  // Node Visual Info
-  position Json?    // { x: 100, y: 200 } 좌표 정보
-  
-  // Node Configuration
-  config   Json     // 상세 설정 (OS, 의존성, 명령어 등)
-  // Example config:
-  // {
-  //   "image": "node:20",
-  //   "os": "ubuntu:22.04",
-  //   "commands": ["npm ci", "npm run build"],
-  //   "dependencies": ["build-essential"],
-  //   "environment": { "NODE_ENV": "production" },
-  //   "artifacts": ["dist/**/*"],
-  //   "cache": ["node_modules"]
-  // }
-  
-  // Node Connection Info
-  parentNodeIds String[] // 이전 노드 ID들 (병렬 처리 지원)
-  childNodeIds  String[] // 다음 노드 ID들 (분기 처리 지원)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relations
-  pipelineId String
-  pipeline   Pipeline @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
-  
+  nodeId         String          @id @default(uuid())
+  name           String
+  type           NodeType
+  order          Int
+  position       Json?
+  config         Json
+  parentNodeIds  String[]
+  childNodeIds   String[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  pipelineId     String
+  clientNodeId   String
   nodeExecutions NodeExecution[]
-  
+  pipeline       Pipeline        @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
+
   @@unique([pipelineId, clientNodeId])
   @@index([pipelineId, order])
   @@map("pipeline_nodes")
 }
-// ==================== Pipeline Execution ====================
+
 model PipelineExecution {
-  executionId String   @id @default(uuid())
-  awsBuildId  String   @unique // AWS CodeBuild Build ID
-  
-  status      ExecutionStatus @default(PENDING)
-  triggerType TriggerType
-  branch      String?
-  commitSha   String?
-  commitMessage String?
-  
-  // Original Pipeline Data (실행 시점의 파이프라인 데이터)
-  pipelineYaml    String   @db.Text // 실행된 Pipeline YAML
-  
-  // Generated Execution Scripts (클라이언트에서 변환된 스크립트)
-  dockerfile      String?  @db.Text // 생성된 Dockerfile
-  dockerCompose   String?  @db.Text // 생성된 docker-compose.yaml
-  buildSpec       Json?    // 생성된 AWS CodeBuild buildspec.yml
-  
-  // AWS Resources
-  codeBuildArn String?  // CodeBuild 실행 ARN
-  codeBuildLogGroupName String? // CloudWatch Log Group
-  codeBuildLogStreamName String? // CloudWatch Log Stream
-  ecrImageUri  String?  // 생성된 Docker image URI
-  ecrImageTag  String?  // Docker image tag
-  
-  startedAt   DateTime?
-  completedAt DateTime?
-  duration    Int?     // in seconds
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relations
-  pipelineId String
-  pipeline   Pipeline @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
-  
-  nodeExecutions NodeExecution[]
-  logs          ExecutionLog[]
-  deployments   Deployment[]
-  
+  executionId            String          @id @default(uuid())
+  status                 ExecutionStatus @default(PENDING)
+  triggerType            TriggerType
+  branch                 String?
+  commitSha              String?
+  commitMessage          String?
+  pipelineYaml           String
+  dockerfile             String?
+  dockerCompose          String?
+  buildSpec              Json?
+  codeBuildArn           String?
+  codeBuildLogGroupName  String?
+  codeBuildLogStreamName String?
+  ecrImageUri            String?
+  ecrImageTag            String?
+  startedAt              DateTime?
+  completedAt            DateTime?
+  duration               Int?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  pipelineId             String
+  awsBuildId             String          @unique
+  deployments            Deployment[]
+  logs                   ExecutionLog[]
+  nodeExecutions         NodeExecution[]
+  pipeline               Pipeline        @relation(fields: [pipelineId], references: [pipelineId], onDelete: Cascade)
+
   @@index([pipelineId, status])
   @@index([awsBuildId])
   @@map("pipeline_executions")
 }
-// ==================== Node Execution ====================
+
 model NodeExecution {
-  nodeExecutionId String   @id @default(uuid())
-  
-  status    ExecutionStatus @default(PENDING)
-  startedAt DateTime?
-  completedAt DateTime?
-  duration  Int?     // in seconds
-  
-  // Execution Details
-  output    String?  @db.Text
-  error     String?  @db.Text
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relations
-  executionId String
-  execution   PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
-  
-  nodeId    String
-  node      PipelineNode @relation(fields: [nodeId], references: [nodeId])
-  
+  status          ExecutionStatus   @default(PENDING)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  duration        Int?
+  output          String?
+  error           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  executionId     String
+  nodeId          String
+  nodeExecutionId String            @id @default(uuid())
+  execution       PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
+  node            PipelineNode      @relation(fields: [nodeId], references: [nodeId])
+
   @@index([executionId])
   @@map("node_executions")
 }
-// ==================== Deployment ====================
+
 model Deployment {
-  deploymentId String   @id @default(uuid())
-  
-  status    DeploymentStatus @default(PENDING)
-  
-  // Deployment Target
-  serverHost String
-  serverPort Int      @default(22)
-  deployPath String?
-  
-  // Deployment Strategy
-  strategy   DeploymentStrategy @default(ROLLING)
-  
-  // Docker Info
+  status         DeploymentStatus   @default(PENDING)
+  serverHost     String
+  serverPort     Int                @default(22)
+  deployPath     String?
+  strategy       DeploymentStrategy @default(ROLLING)
   dockerImageUri String
   containerName  String?
-  
-  startedAt   DateTime?
-  completedAt DateTime?
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relations
-  executionId String
-  execution   PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
-  
-  logs DeploymentLog[]
-  
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  executionId    String
+  deploymentId   String             @id @default(uuid())
+  logs           DeploymentLog[]
+  execution      PipelineExecution  @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
+
   @@index([executionId])
   @@map("deployments")
 }
-// ==================== Logs ====================
+
 model ExecutionLog {
-  logId     String   @id @default(uuid())
-  
-  level     LogLevel @default(INFO)
-  message   String   @db.Text
-  source    String?  // e.g., "CodeBuild", "System"
-  
-  // S3 Reference for large logs
-  s3Bucket  String?
-  s3Key     String?
-  
-  timestamp DateTime @default(now())
-  
-  // Relations
+  level       LogLevel          @default(INFO)
+  message     String
+  source      String?
+  s3Bucket    String?
+  s3Key       String?
+  timestamp   DateTime          @default(now())
   executionId String
+  logId       String            @id @default(uuid())
   execution   PipelineExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
-  
+
   @@index([executionId, timestamp])
   @@map("execution_logs")
 }
+
 model DeploymentLog {
-  logId     String   @id @default(uuid())
-  
-  level     LogLevel @default(INFO)
-  message   String   @db.Text
-  source    String?  // e.g., "SSH", "Docker"
-  
-  // S3 Reference for large logs
-  s3Bucket  String?
-  s3Key     String?
-  
-  timestamp DateTime @default(now())
-  
-  // Relations
+  level        LogLevel   @default(INFO)
+  message      String
+  source       String?
+  s3Bucket     String?
+  s3Key        String?
+  timestamp    DateTime   @default(now())
   deploymentId String
+  logId        String     @id @default(uuid())
   deployment   Deployment @relation(fields: [deploymentId], references: [deploymentId], onDelete: Cascade)
-  
+
   @@index([deploymentId, timestamp])
   @@map("deployment_logs")
 }
 
-// ==================== Push Event History ====================
 model PushEvent {
-  pushEventId String   @id @default(uuid())
-  
-  // Push Event Info
-  branch    String   // main
-  commitSha String   // commit SHA
-  commitMessage String? // commit message
-  
-  // Push Details
-  pusherName  String?  // Who pushed
-  pushedAt    DateTime // When the push happened
-  
-  createdAt DateTime @default(now())
-  
-  // Relations
-  projectId String
-  project   Project @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
-  
+  pushEventId   String   @id @default(uuid())
+  branch        String
+  commitSha     String
+  commitMessage String?
+  pusherName    String?
+  pushedAt      DateTime
+  createdAt     DateTime @default(now())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+
   @@index([projectId, pushedAt])
   @@index([branch])
   @@map("push_events")
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-// ==================== Enums ====================
 enum TriggerType {
   MANUAL
   WEBHOOK
   SCHEDULE
   API
 }
+
 enum NodeType {
   BUILD
   TEST
   DEPLOY
   CUSTOM
 }
+
 enum ExecutionStatus {
   PENDING
   QUEUED
@@ -464,6 +322,7 @@ enum ExecutionStatus {
   CANCELLED
   SKIPPED
 }
+
 enum DeploymentStatus {
   PENDING
   DEPLOYING
@@ -471,11 +330,13 @@ enum DeploymentStatus {
   FAILED
   ROLLED_BACK
 }
+
 enum DeploymentStrategy {
   ROLLING
   BLUE_GREEN
   CANARY
 }
+
 enum LogLevel {
   DEBUG
   INFO
