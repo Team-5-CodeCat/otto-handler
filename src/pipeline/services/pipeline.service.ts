@@ -196,8 +196,8 @@ export class PipelineService {
 
     return {
       ...this.mapToPipelineResponse(pipeline),
-      project: pipeline.project,
-      recentExecutions: pipeline.executions,
+      project: (pipeline as any).project || null,
+      recentExecutions: (pipeline as any).executions || [],
     };
   }
 
@@ -383,23 +383,14 @@ export class PipelineService {
   /**
    * Prisma Pipeline 객체를 PipelineResponseDto로 변환
    */
-  private mapToPipelineResponse(pipeline: {
-    pipelineId: string;
-    name: string;
-    description: string | null;
-    isActive: boolean;
-    projectId: string;
-    pipelineData: Prisma.JsonValue;
-    createdAt: Date;
-    updatedAt: Date;
-  }): PipelineResponseDto {
+  private mapToPipelineResponse(pipeline: any): PipelineResponseDto {
     return {
       pipelineId: pipeline.pipelineId,
       name: pipeline.name,
       description: pipeline.description,
       isActive: pipeline.isActive,
       projectId: pipeline.projectId,
-      pipelineData: this.safeParsePipelineData(pipeline.pipelineData),
+      pipelineData: this.safeParsePipelineData(pipeline.pipelineData || pipeline.visualConfig || null),
       createdAt: pipeline.createdAt,
       updatedAt: pipeline.updatedAt,
     };
