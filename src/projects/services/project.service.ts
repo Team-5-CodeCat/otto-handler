@@ -5,13 +5,10 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
-  Inject,
-  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { GithubService } from './github.service';
 import { JwtService } from '../../auth/services/jwt.service';
-import { PipelineService } from '../../pipelines/services/pipeline.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -20,8 +17,6 @@ export class ProjectService {
     private prisma: PrismaService,
     private githubService: GithubService,
     private jwtService: JwtService,
-    @Inject(forwardRef(() => PipelineService))
-    private pipelineService: PipelineService,
   ) {}
 
   /**
@@ -35,11 +30,30 @@ export class ProjectService {
   }
 
   /**
+   * 문자열 타입 가드
+   */
+  private isString(value: unknown): value is string {
+    return typeof value === 'string';
+  }
+
+  /**
+   * 숫자 타입 가드
+   */
+  private isNumber(value: unknown): value is number {
+    return typeof value === 'number';
+  }
+
+  /**
    * 안전하게 문자열 값을 추출하는 헬퍼
    */
   private getStringValue(obj: unknown, key: string): string | undefined {
-    if (this.hasProperty(obj, key) && typeof obj[key] === 'string') {
-      return obj[key];
+    if (
+      typeof obj === 'object' &&
+      obj !== null &&
+      key in obj &&
+      typeof (obj as Record<string, unknown>)[key] === 'string'
+    ) {
+      return (obj as Record<string, unknown>)[key] as string;
     }
     return undefined;
   }
@@ -48,8 +62,13 @@ export class ProjectService {
    * 안전하게 숫자 값을 추출하는 헬퍼
    */
   private getNumberValue(obj: unknown, key: string): number | undefined {
-    if (this.hasProperty(obj, key) && typeof obj[key] === 'number') {
-      return obj[key];
+    if (
+      typeof obj === 'object' &&
+      obj !== null &&
+      key in obj &&
+      typeof (obj as Record<string, unknown>)[key] === 'number'
+    ) {
+      return (obj as Record<string, unknown>)[key] as number;
     }
     return undefined;
   }
@@ -531,53 +550,6 @@ export class ProjectService {
   }
 
   /**
-   * 빌드 레코드 생성 및 웹훅 트리거시 자동 실행
-   */
-  async createBuildRecord(
-    projectId: string,
-    buildInfo: {
-      triggerType: 'MANUAL' | 'WEBHOOK' | 'SCHEDULE' | 'API';
-      branch?: string;
-      commitSha?: string;
-      commitMessage?: string;
-      metadata?: Record<string, unknown>;
-    },
-  ) {
-    // 프로젝트에 활성 파이프라인 1개 선택 후 실행 레코드 생성
-    const pipeline = await this.prisma.pipeline.findFirst({
-      where: { projectId: projectId, isActive: true },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!pipeline) {
-      throw new BadRequestException('활성 파이프라인이 없습니다');
-    }
-
-    const execution = await this.prisma.pipelineExecution.create({
-      data: {
-        executionId: crypto.randomUUID(),
-        pipelineId: pipeline.pipelineId,
-        awsBuildId: `build-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-        status: 'PENDING',
-        triggerType: buildInfo.triggerType,
-        branch: buildInfo.branch,
-        commitSha: buildInfo.commitSha,
-        commitMessage: buildInfo.commitMessage,
-        pipelineYaml: pipeline.pipelineYaml || '',
-      },
-    });
-
-    // 웹훅 트리거인 경우 자동으로 파이프라인 실행
-    if (buildInfo.triggerType === 'WEBHOOK') {
-      console.log(
-        `[Webhook] Auto-triggering pipeline execution for execution ${execution.executionId}`,
-      );
-      void this.pipelineService.startPipelineExecution(execution.executionId);
-    }
-
-    return execution;
-  }
-
-  /**
    * GitHub 연동 프로젝트 생성 (프로젝트 + 레포지토리 연결만)
    */
   async createProjectWithGithub(
@@ -834,7 +806,7 @@ export class ProjectService {
           installationId: installation.installationId,
           githubInstallationId: installation.githubInstallationId,
           accountLogin: installation.accountLogin,
-          accountId: installation.accountId,
+          accountId: String(installation.accountId),
           accountType: installation.accountType,
           connectedProjects: projectCount,
           installedAt: installation.createdAt.toISOString(),
@@ -912,36 +884,5 @@ export class ProjectService {
       },
       take: limit,
     });
-  }
-
-  /**
-   * 파이프라인 상태를 빌드 상태로 매핑
-   */
-  private mapExecutionStatusToBuildStatus(
-    status:
-      | 'PENDING'
-      | 'QUEUED'
-      | 'RUNNING'
-      | 'SUCCESS'
-      | 'FAILED'
-      | 'CANCELLED'
-      | 'SKIPPED',
-  ): 'pending' | 'running' | 'success' | 'failed' | 'cancelled' {
-    switch (status) {
-      case 'PENDING':
-      case 'QUEUED':
-        return 'pending';
-      case 'RUNNING':
-        return 'running';
-      case 'SUCCESS':
-        return 'success';
-      case 'FAILED':
-        return 'failed';
-      case 'CANCELLED':
-      case 'SKIPPED':
-        return 'cancelled';
-      default:
-        return 'pending';
-    }
   }
 }

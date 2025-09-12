@@ -1,7 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
 import { ProjectService } from '../services/project.service';
 import { GithubService } from '../services/github.service';
 import {
@@ -110,6 +106,130 @@ export class ProjectController {
   }
 
   /**
+   * GitHub Installation 객체 타입 가드
+   */
+  private isGithubInstallation(obj: unknown): obj is {
+    installationId: string;
+    userId: string;
+    githubInstallationId: string;
+    accountLogin: string;
+    accountId: string;
+    accountType: string;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  } {
+    return (
+      typeof obj === 'object' &&
+      obj !== null &&
+      'installationId' in obj &&
+      'userId' in obj &&
+      'githubInstallationId' in obj &&
+      'accountLogin' in obj &&
+      'accountId' in obj &&
+      'accountType' in obj &&
+      'isActive' in obj &&
+      'createdAt' in obj &&
+      'updatedAt' in obj &&
+      typeof (obj as Record<string, unknown>).installationId === 'string' &&
+      typeof (obj as Record<string, unknown>).userId === 'string' &&
+      typeof (obj as Record<string, unknown>).githubInstallationId ===
+        'string' &&
+      typeof (obj as Record<string, unknown>).accountLogin === 'string' &&
+      typeof (obj as Record<string, unknown>).accountId === 'string' &&
+      typeof (obj as Record<string, unknown>).accountType === 'string' &&
+      typeof (obj as Record<string, unknown>).isActive === 'boolean' &&
+      (obj as Record<string, unknown>).createdAt instanceof Date &&
+      (obj as Record<string, unknown>).updatedAt instanceof Date
+    );
+  }
+
+  /**
+   * GitHub Installation 배열 타입 가드
+   */
+  private isGithubInstallationArray(obj: unknown): obj is Array<{
+    installationId: string;
+    userId: string;
+    githubInstallationId: string;
+    accountLogin: string;
+    accountId: string;
+    accountType: string;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }> {
+    return (
+      Array.isArray(obj) && obj.every((item) => this.isGithubInstallation(item))
+    );
+  }
+
+  /**
+   * Project 객체 타입 가드
+   */
+  private isProject(obj: unknown): obj is {
+    projectId: string;
+    userId: string;
+    name: string;
+    description?: string | null;
+    githubRepoId: string;
+    githubRepoUrl: string;
+    githubRepoName: string;
+    githubOwner: string;
+    isPrivate: boolean;
+    selectedBranch: string;
+    isActive: boolean;
+    installationId?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    user: {
+      userId: string;
+      email: string;
+      name: string | null;
+    };
+  } {
+    return (
+      typeof obj === 'object' &&
+      obj !== null &&
+      'projectId' in obj &&
+      'userId' in obj &&
+      'name' in obj &&
+      'user' in obj &&
+      typeof (obj as Record<string, unknown>).projectId === 'string' &&
+      typeof (obj as Record<string, unknown>).userId === 'string' &&
+      typeof (obj as Record<string, unknown>).name === 'string' &&
+      typeof (obj as Record<string, unknown>).user === 'object' &&
+      (obj as Record<string, unknown>).user !== null
+    );
+  }
+
+  /**
+   * Project 배열 타입 가드
+   */
+  private isProjectArray(obj: unknown): obj is Array<{
+    projectId: string;
+    userId: string;
+    name: string;
+    description?: string | null;
+    githubRepoId: string;
+    githubRepoUrl: string;
+    githubRepoName: string;
+    githubOwner: string;
+    isPrivate: boolean;
+    selectedBranch: string;
+    isActive: boolean;
+    installationId?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    user: {
+      userId: string;
+      email: string;
+      name: string | null;
+    };
+  }> {
+    return Array.isArray(obj) && obj.every((item) => this.isProject(item));
+  }
+
+  /**
    * @tag project
    * @summary 새 프로젝트 생성
    */
@@ -189,7 +309,7 @@ export class ProjectController {
       userId: installation.userId,
       githubInstallationId: installation.githubInstallationId,
       accountLogin: installation.accountLogin,
-      accountId: installation.accountId,
+      accountId: String(installation.accountId),
       accountType: installation.accountType,
       isActive: installation.isActive,
       createdAt: installation.createdAt,
@@ -225,12 +345,20 @@ export class ProjectController {
   ): Promise<GetUserGithubInstallationsResponseDto> {
     const userId = req.user.user_id;
 
-    const installations = (await this.projectService.getUserGithubInstallations(
-      userId,
-    )) as any[];
+    const installations =
+      await this.projectService.getUserGithubInstallations(userId);
+
+    // 타입 가드로 안전하게 처리
+    if (!this.isGithubInstallationArray(installations)) {
+      console.error(
+        '[Project Controller] Invalid installations data:',
+        installations,
+      );
+      return [];
+    }
 
     // DTO 필드명 매핑
-    return installations.map((inst: any) => ({
+    return installations.map((inst) => ({
       installationId: inst.installationId,
       userId: inst.userId,
       githubInstallationId: inst.githubInstallationId,
@@ -283,7 +411,16 @@ export class ProjectController {
       // 보안 검증: 이 설치가 현재 사용자 소유인지 확인
 
       const installations =
-        (await this.projectService.getUserGithubInstallations(userId)) as any[];
+        await this.projectService.getUserGithubInstallations(userId);
+
+      // 타입 가드로 안전하게 처리
+      if (!this.isGithubInstallationArray(installations)) {
+        console.error(
+          '[Repositories API] Invalid installations data:',
+          installations,
+        );
+        throw new ForbiddenException('GitHub 설치 정보를 가져올 수 없습니다');
+      }
 
       console.log('[Repositories API] User installations found:', {
         userId,
@@ -401,9 +538,18 @@ export class ProjectController {
     const userId = req.user.user_id;
 
     // 보안 검증: 이 설치가 현재 사용자 소유인지 확인
-    const installations = (await this.projectService.getUserGithubInstallations(
-      userId,
-    )) as any[];
+    const installations =
+      await this.projectService.getUserGithubInstallations(userId);
+
+    // 타입 가드로 안전하게 처리
+    if (!this.isGithubInstallationArray(installations)) {
+      console.error(
+        '[Branches API] Invalid installations data:',
+        installations,
+      );
+      throw new ForbiddenException('GitHub 설치 정보를 가져올 수 없습니다');
+    }
+
     const hasAccess = installations.some(
       (install) => install.githubInstallationId === installationId,
     );
@@ -643,21 +789,27 @@ export class ProjectController {
     @Req() req: IRequestType,
   ): Promise<GithubStatusResponseDto> {
     const userId = req.user.user_id;
-    const status = (await this.projectService.getGitHubInstallationStatus(
-      userId,
-    )) as {
-      hasInstallations: boolean;
-      totalInstallations: number;
-      totalConnectedProjects: number;
-      installations: Array<{
-        installationId: string;
-        githubInstallationId: string;
-        accountLogin: string;
-        accountType: string;
-        connectedProjects: number;
-        installedAt: string;
-      }>;
-    };
+    const status =
+      await this.projectService.getGitHubInstallationStatus(userId);
+
+    // 타입 가드로 안전하게 처리
+    if (
+      !status ||
+      typeof status !== 'object' ||
+      !('hasInstallations' in status) ||
+      !('totalInstallations' in status) ||
+      !('totalConnectedProjects' in status) ||
+      !('installations' in status) ||
+      !Array.isArray(status.installations)
+    ) {
+      console.error('[GitHub Status] Invalid status data:', status);
+      return {
+        hasInstallation: false,
+        totalInstallations: 0,
+        totalConnectedProjects: 0,
+        installations: [],
+      };
+    }
 
     return {
       hasInstallation: status.hasInstallations,
@@ -669,6 +821,7 @@ export class ProjectController {
         installationId: String(installation.installationId),
         githubInstallationId: String(installation.githubInstallationId),
         accountLogin: String(installation.accountLogin),
+        accountId: String(installation.accountId),
         accountType: String(installation.accountType),
         connectedProjects: Number(installation.connectedProjects),
         installedAt: installation.installedAt,
@@ -701,8 +854,14 @@ export class ProjectController {
 
     const projects = await this.projectService.getUserProjects(userId);
 
+    // 타입 가드로 안전하게 처리
+    if (!this.isProjectArray(projects)) {
+      console.error('[Project Controller] Invalid projects data:', projects);
+      return [];
+    }
+
     // DTO 필드명 매핑
-    return projects.map((project: any) => ({
+    return projects.map((project) => ({
       ...project,
       projectId: project.projectId,
       userID: project.userId,
@@ -771,10 +930,19 @@ export class ProjectController {
       void setupAction;
 
       // 3) 사용자와 설치 연결 (검증 및 upsert)
-      const installation = (await this.projectService.linkInstallationToUser(
+      const installation = await this.projectService.linkInstallationToUser(
         userId,
         installationIdStr,
-      )) as any;
+      );
+
+      // 타입 가드로 안전하게 처리
+      if (!this.isGithubInstallation(installation)) {
+        console.error(
+          '[GitHub Callback] Invalid installation data:',
+          installation,
+        );
+        throw new Error('설치 정보를 저장할 수 없습니다');
+      }
 
       // installation 결과를 타입 안전하게 로깅
       console.log('[GitHub Callback] Installation saved successfully:', {

@@ -414,10 +414,10 @@ export class WebhookController {
             console.warn('Failed to record push event');
           }
 
-          // 2. 해당 브랜치가 프로젝트의 선택된 브랜치인 경우에만 빌드 트리거
+          // 2. 해당 브랜치가 프로젝트의 선택된 브랜치인 경우에만 Push 이벤트 기록
           if (project.selectedBranch === pushedBranch) {
             console.log(
-              '[GitHub Webhook] Triggering build for matching branch:',
+              '[GitHub Webhook] Recording push event for matching branch:',
               {
                 projectId: project.projectId,
                 selectedBranch: project.selectedBranch,
@@ -425,45 +425,23 @@ export class WebhookController {
               },
             );
 
-            const buildResult = await this.safeServiceCall<{
-              executionId: string;
-              pipelineId: string;
-              awsBuildId: string;
-              status: string;
-              triggerType: string;
-              branch: string | null;
-              commitSha: string | null;
-              commitMessage: string | null;
-              pipelineYaml: string;
-              createdAt: Date;
-              updatedAt: Date;
-            }>(
+            const pushRecord = await this.safeServiceCall(
               () =>
-                this.projectService.createBuildRecord(project.projectId, {
-                  triggerType: 'WEBHOOK',
+                this.projectService.recordPushEvent(project.projectId, {
                   branch: pushedBranch,
                   commitSha:
                     typeof payloadObj.after === 'string'
                       ? payloadObj.after
                       : '',
                   commitMessage: headCommitData?.message,
-                  metadata: {
-                    ref:
-                      typeof payloadObj.ref === 'string' ? payloadObj.ref : '',
-                    after:
-                      typeof payloadObj.after === 'string'
-                        ? payloadObj.after
-                        : '',
-                    branch: pushedBranch,
-                    repository: fullName,
-                    pusher: pusherData?.name,
-                  },
+                  pusherName: pusherData?.name,
+                  pushedAt: new Date(),
                 }),
-              'Error creating build record',
+              'Error recording push event',
             );
 
-            if (!buildResult) {
-              console.warn('Failed to create build record');
+            if (!pushRecord) {
+              console.warn('Failed to record push event');
             }
           } else {
             console.log(

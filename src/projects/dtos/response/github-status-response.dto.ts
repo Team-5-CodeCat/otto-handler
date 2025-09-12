@@ -19,6 +19,8 @@ export interface GithubStatusResponseDto {
     githubInstallationId: string;
     /** GitHub 계정 로그인명 */
     accountLogin: string;
+    /** GitHub 계정 ID */
+    accountId: string;
     /** GitHub 계정 타입 */
     accountType: string;
     /** 연결된 프로젝트 개수 */
