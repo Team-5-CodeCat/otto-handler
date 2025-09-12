@@ -114,7 +114,13 @@ async function bootstrap() {
   }
   app.useGlobalFilters(new AllExceptionsFilter());
   app.setGlobalPrefix('api/v1', {
-    exclude: ['health', 'docs', 'test-sse.html', 'test-oauth.html', 'test-callback.html'],
+    exclude: [
+      'health',
+      'docs',
+      'test-sse.html',
+      'test-oauth.html',
+      'test-callback.html',
+    ],
   });
 
   // 🔍 데이터베이스 연결 상태 확인
