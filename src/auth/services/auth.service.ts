@@ -138,6 +138,8 @@ export class AuthService {
       node_id: githubUser.node_id,
       login: githubUser.login,
       name: githubUser.name,
+      email: githubUser.email,
+      profileImageUrl: githubUser.avatar_url,
     });
 
     this.setAuthCookies(response, result.accessToken, result.refreshToken);
@@ -191,6 +193,8 @@ export class AuthService {
     node_id?: string;
     login: string;
     name?: string;
+    email: string | null;
+    profileImageUrl: string | null;
   }): Promise<LoginResponseDto> {
     const nowSec: number = Math.floor(Date.now() / 1000);
     const accessTokenExpiresIn: number = TOKEN_CONSTANTS.ACCESS_TOKEN_TTL_SEC;
@@ -209,14 +213,19 @@ export class AuthService {
           username: githubUser.login,
           githubId: githubUser.id,
           githubNodeId: githubUser.node_id,
+          email: githubUser.email,
+          profileImageUrl: githubUser.profileImageUrl,
           lastLoginAt: new Date(),
         },
       });
     } else {
-      // 기존 사용자 로그인 시간 업데이트 (사용자명도 최신화)
+      // 기존 사용자 로그인 시간 업데이트 (프로필 정보도 최신화)
       user = await this.prismaService.user.update({
         where: { userId: user.userId },
         data: {
+          username: githubUser.login,
+          email: githubUser.email,
+          profileImageUrl: githubUser.profileImageUrl,
           lastLoginAt: new Date(),
         },
       });

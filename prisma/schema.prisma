@@ -18,30 +18,38 @@ model User {
   /**
    * 깃허브 사용자명
    */
-  username     String    @unique
+  username        String    @unique
   /**
    * 깃허브 고유 아이디
    */
-  githubId     Int       @unique @map("github_id")
+  githubId        Int       @unique @map("github_id")
+  /**
+   * 이메일 주소
+   */
+  email           String?   @map("email")
+  /**
+   * 프로필 이미지 URL
+   */
+  profileImageUrl String?   @map("profile_image_url")
   /**
    * 생성 시간
    */
-  createdAt    DateTime  @default(now()) @map("created_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
   /**
    * 깃허브 고유 노드 아이디(내부적 graphql용)
    */
-  githubNodeId String?   @map("github_node_id")
+  githubNodeId    String?   @map("github_node_id")
   /**
    * 활성화 여부
    */
-  isActive     Boolean   @default(true) @map("is_active")
+  isActive        Boolean   @default(true) @map("is_active")
   /**
    * 마지막 로그인 시간
    */
-  lastLoginAt  DateTime? @map("last_login_at")
+  lastLoginAt     DateTime? @map("last_login_at")
   /**
    */
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   /**
    * 깃허브 앱
@@ -149,24 +157,24 @@ model Pipeline {
   /**
    * 활성화 여부
    */
-  isActive                   Boolean             @default(true) @map("is_active")
+  isActive     Boolean             @default(true) @map("is_active")
   /**
    * 프로젝트 정보
    */
-  projectId                  String              @map("project_id")
+  projectId    String              @map("project_id")
   /**
    * 파이브라인 정보
    */
-  pipelineData               Json                @map("pipeline_data")
-  createdAt                  DateTime            @default(now()) @map("created_at")
-  updatedAt                  DateTime            @updatedAt @map("updated_at")
+  pipelineData Json                @map("pipeline_data")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
   /**
    * 파이프라인 실행 로그
    */
-  executions                 PipelineExecution[]
-  project                    Project             @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
-  template                   PipelineTemplate?   @relation(fields: [templateId], references: [templateId])
-  templateId                 String?
+  executions   PipelineExecution[]
+  project      Project             @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  template     PipelineTemplate?   @relation(fields: [templateId], references: [templateId])
+  templateId   String?
 
   @@index([projectId])
   @@map("pipelines")

@@ -27,12 +27,12 @@ export interface GithubUserType {
   name: string;
   company: any;
   blog: string;
-  location: any;
-  email: any;
-  hireable: any;
-  bio: any;
-  twitter_username: any;
-  notification_email: any;
+  location: string;
+  email: string | null;
+  hireable: string;
+  bio: string;
+  twitter_username: string;
+  notification_email: string;
   public_repos: number;
   public_gists: number;
   followers: number;
