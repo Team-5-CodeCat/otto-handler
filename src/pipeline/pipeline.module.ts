@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { PipelineController } from './controllers';
-import { PipelineService } from './services';
+import { PipelineService, BuildSpecConverterService } from './services';
 
 @Module({
   controllers: [PipelineController],
-  providers: [PipelineService],
-  exports: [PipelineService],
+  providers: [PipelineService, BuildSpecConverterService],
+  exports: [PipelineService, BuildSpecConverterService],
 })
 export class PipelineModule {}
