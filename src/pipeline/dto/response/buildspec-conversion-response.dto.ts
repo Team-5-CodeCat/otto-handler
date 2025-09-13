@@ -27,7 +27,7 @@ export interface BuildSpecToJsonResponseDto {
   /**
    * 변환된 React Flow 파이프라인 데이터
    */
-  pipelineData: PipelineFlowData;
+  pipelineData: PipelineFlowData<any>;
 
   /**
    * 변환 성공 여부

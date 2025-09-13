@@ -1,0 +1,205 @@
+# Flask/FastAPI Python 프로젝트용 AWS CodeBuild buildspec.yml
+# Otto Handler에서 자동 생성됨
+
+version: '0.2'
+
+# Flask/FastAPI 환경변수
+env:
+  variables:
+    # Python 기본 설정
+    PYTHONPATH: '.'
+    PYTHON_VERSION: '3.9'
+    PYTHONUNBUFFERED: '1'
+
+    # Flask 설정
+    FLASK_APP: 'app.py'
+    FLASK_ENV: 'production'
+    FLASK_RUN_HOST: '0.0.0.0'
+    FLASK_RUN_PORT: '5000'
+
+    # 또는 FastAPI 설정
+    # FASTAPI_ENV: 'production'
+    # UVICORN_HOST: '0.0.0.0'
+    # UVICORN_PORT: '8000'
+
+    # 데이터베이스
+    DATABASE_URL: 'sqlite:///production.db'
+    # DATABASE_URL: 'postgresql://user:pass@localhost/flask_app'
+
+    # 기타
+    SECRET_KEY: '$FLASK_SECRET_KEY'
+    JWT_SECRET_KEY: '$JWT_SECRET_KEY'
+
+phases:
+  # Python 환경 및 의존성 설치
+  install:
+    commands:
+      - echo "🐍 Flask/FastAPI 환경 설정..."
+      - python3 --version
+      - pip3 --version
+
+      # 가상환경 생성 및 활성화
+      - echo "🏗️  가상환경 설정..."
+      - python3 -m venv venv
+      - source venv/bin/activate
+      - which python
+      - which pip
+
+      # 기본 패키지 업그레이드
+      - echo "⬆️  pip 업그레이드..."
+      - pip install --upgrade pip setuptools wheel
+
+      # 프로젝트 의존성 설치
+      - echo "📦 프로젝트 의존성 설치..."
+      - pip install -r requirements.txt
+
+      # 개발 및 테스트 의존성
+      - echo "🧪 테스트 도구 설치..."
+      - pip install pytest pytest-flask pytest-cov
+      - pip install flake8 black mypy
+      - pip install gunicorn uvicorn[standard]  # WSGI/ASGI 서버
+
+      - echo "✅ 의존성 설치 완료"
+
+  # 사전 빌드 설정
+  pre_build:
+    commands:
+      - echo "🔧 사전 빌드 설정..."
+      - source venv/bin/activate
+
+      # 코드 품질 검사
+      - echo "🧹 코드 품질 검사..."
+      - flake8 . --count --max-line-length=88 --show-source --statistics
+      - black --check --diff .
+      - mypy . --ignore-missing-imports || true
+
+      # Flask 앱 체크 (Flask인 경우)
+      - echo "🔍 Flask 앱 검증..."
+      - flask --version
+      - python -c "from app import app; print('Flask app import successful')"
+
+      # 데이터베이스 설정 (있는 경우)
+      - echo "🗃️  데이터베이스 초기화..."
+      - flask db upgrade || echo "No migrations found"
+
+      - echo "✅ 사전 빌드 완료"
+
+  # 테스트 실행
+  build:
+    commands:
+      - echo "🧪 Flask/FastAPI 앱 테스트..."
+      - source venv/bin/activate
+
+      # 환경변수 설정
+      - export FLASK_ENV=testing
+      - export TESTING=true
+
+      # 단위 테스트 실행
+      - echo "🔬 단위 테스트 실행..."
+      - python -m pytest tests/ -v --tb=short
+      - python -m pytest tests/ --cov=app --cov-report=xml --cov-report=html
+
+      # API 테스트 (있는 경우)
+      - echo "🌐 API 테스트..."
+      - python -m pytest tests/test_api.py -v || echo "No API tests found"
+
+      # 성능 테스트 (간단한)
+      - echo "⚡ 간단한 성능 체크..."
+      - python -c "
+        import time
+        from app import app
+        with app.test_client() as client:
+            start = time.time()
+            response = client.get('/')
+            end = time.time()
+            print(f'Health check response time: {end-start:.3f}s')
+            print(f'Status code: {response.status_code}')
+        " || echo "Performance check skipped"
+
+      - echo "✅ 테스트 완료"
+
+  # 빌드 후 패키징
+  post_build:
+    commands:
+      - echo "📦 배포 패키징..."
+      - source venv/bin/activate
+
+      # requirements.txt 업데이트
+      - echo "📝 requirements.txt 업데이트..."
+      - pip freeze > requirements-freeze.txt
+
+      # 프로덕션용 설정 파일 생성
+      - echo "⚙️  프로덕션 설정 생성..."
+      - echo "web: gunicorn app:app --bind 0.0.0.0:\$PORT --workers 4" > Procfile
+      - echo "python-3.9.18" > runtime.txt
+
+      # Docker 설정 (선택적)
+      - echo "🐳 Docker 설정..."
+      - cat > Dockerfile << 'EOF'
+        FROM python:3.9-slim
+        WORKDIR /app
+        COPY requirements.txt .
+        RUN pip install -r requirements.txt
+        COPY . .
+        CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:8000"]
+        EOF
+
+      # 배포 아카이브 생성
+      - echo "🗜️  배포 아카이브 생성..."
+      - tar -czf flask-app-$(date +%Y%m%d%H%M%S).tar.gz \
+          --exclude='tests' \
+          --exclude='.git' \
+          --exclude='__pycache__' \
+          --exclude='.pytest_cache' \
+          --exclude='htmlcov' \
+          .
+
+      - echo "✅ 패키징 완료"
+
+# 배포 아티팩트
+artifacts:
+  files:
+    # 애플리케이션 파일
+    - 'app.py'
+    - 'requirements.txt'
+    - 'requirements-freeze.txt'
+    - 'Procfile'
+    - 'runtime.txt'
+    - 'Dockerfile'
+
+    # 설정 및 템플릿
+    - 'templates/**/*'
+    - 'static/**/*'
+    - 'instance/**/*'
+
+    # 데이터베이스 (SQLite인 경우)
+    - '*.db'
+    - 'migrations/**/*'
+
+    # 테스트 결과 및 보고서
+    - 'coverage.xml'
+    - 'htmlcov/**/*'
+
+    # 배포 파일
+    - 'flask-app-*.tar.gz'
+    - 'venv/**/*'  # 가상환경 포함 (선택적)
+
+  name: 'FlaskPythonAppArtifacts'
+
+# 빌드 캐시 설정
+cache:
+  paths:
+    # pip 캐시
+    - '/root/.cache/pip/**/*'
+    - '$HOME/.cache/pip/**/*'
+
+    # Python 캐시
+    - '__pycache__/**/*'
+    - '.pytest_cache/**/*'
+    - '.mypy_cache/**/*'
+
+    # 가상환경 캐시 (주의: 경로 변경 시 재생성)
+    - 'venv/**/*'
+
+    # 데이터베이스 캐시 (개발용)
+    - '*.db'

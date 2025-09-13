@@ -16,6 +16,7 @@ import type {
   JsonToBuildSpecResponseDto,
   BuildSpecToJsonRequestDto,
   BuildSpecToJsonResponseDto,
+  PipelineFlowData,
 } from '../dto';
 import { PipelineService, BuildSpecConverterService } from '../services';
 import type { CommonErrorResponseDto } from '../../common/dto';
@@ -241,10 +242,9 @@ export class PipelineController {
   @HttpCode(HttpStatus.OK)
   @AuthGuard()
   @TypedRoute.Post('/convert/json-to-buildspec')
-  async convertJsonToBuildSpec(
+  convertJsonToBuildSpec(
     @TypedBody() request: JsonToBuildSpecRequestDto,
-    @Req() req: IRequestType,
-  ): Promise<JsonToBuildSpecResponseDto> {
+  ): JsonToBuildSpecResponseDto {
     const buildSpecYaml = this.buildSpecConverterService.convertToBuildSpec(
       request.pipelineData,
     );
@@ -271,10 +271,9 @@ export class PipelineController {
   @HttpCode(HttpStatus.OK)
   @AuthGuard()
   @TypedRoute.Post('/convert/buildspec-to-json')
-  async convertBuildSpecToJson(
+  convertBuildSpecToJson(
     @TypedBody() request: BuildSpecToJsonRequestDto,
-    @Req() req: IRequestType,
-  ): Promise<BuildSpecToJsonResponseDto> {
+  ): BuildSpecToJsonResponseDto {
     const pipelineData = this.buildSpecConverterService.convertFromBuildSpec(
       request.buildSpecYaml,
     );

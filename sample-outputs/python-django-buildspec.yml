@@ -1,0 +1,167 @@
+# Django/Python 프로젝트용 AWS CodeBuild buildspec.yml
+# Otto Handler에서 자동 생성됨
+
+version: '0.2'
+
+# Python 프로젝트 환경변수
+env:
+  variables:
+    # Python 기본 설정
+    PYTHONPATH: '/usr/local/lib/python3.9/site-packages'
+    PYTHON_VERSION: '3.9'
+    PYTHONUNBUFFERED: '1'
+
+    # Django 설정
+    DJANGO_SETTINGS_MODULE: 'myproject.settings.production'
+    DJANGO_SECRET_KEY: '$DJANGO_SECRET_KEY'
+
+    # 데이터베이스 설정
+    DATABASE_URL: 'postgresql://user:pass@localhost/db'
+    REDIS_URL: 'redis://localhost:6379'
+
+    # 기타 환경
+    DEBUG: 'False'
+    ALLOWED_HOSTS: '.amazonaws.com,.elasticbeanstalk.com'
+
+# 빌드 단계들
+phases:
+  # 의존성 설치 및 환경 설정
+  install:
+    run-as: root
+    commands:
+      - echo "🐍 Python 환경 설정 시작..."
+      - python3 --version
+      - pip3 --version
+
+      # 시스템 의존성 설치
+      - echo "📦 시스템 패키지 설치..."
+      - apt-get update -y
+      - apt-get install -y postgresql-client redis-tools
+      - apt-get install -y python3-dev python3-pip python3-venv
+
+      # Python 패키지 설치
+      - echo "🔧 Python 패키지 설치..."
+      - pip3 install --upgrade pip setuptools wheel
+      - pip3 install -r requirements.txt
+      - pip3 install pytest pytest-cov pytest-django
+      - pip3 install flake8 black mypy bandit
+      - pip3 install gunicorn whitenoise
+
+      - echo "✅ 의존성 설치 완료"
+
+  # 빌드 전 준비 작업
+  pre_build:
+    commands:
+      - echo "🔍 사전 빌드 검사 시작..."
+
+      # Django 프로젝트 체크
+      - echo "Django 설정 검증..."
+      - python manage.py check --deploy
+      - python manage.py check --settings=myproject.settings.production
+
+      # 정적 파일 수집
+      - echo "📁 정적 파일 수집..."
+      - python manage.py collectstatic --noinput --clear
+
+      # 코드 품질 검사
+      - echo "🧹 코드 품질 검사..."
+      - flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      - black --check --diff .
+      - mypy . --ignore-missing-imports
+      - bandit -r . -f json -o bandit-report.json
+
+      - echo "✅ 사전 빌드 완료"
+
+  # 메인 빌드 단계
+  build:
+    commands:
+      - echo "🚀 Python 애플리케이션 빌드 시작..."
+
+      # 데이터베이스 마이그레이션 (테스트용)
+      - echo "🗃️  테스트 데이터베이스 설정..."
+      - python manage.py makemigrations --dry-run --check
+
+      # 단위 테스트 실행
+      - echo "🧪 단위 테스트 실행..."
+      - python -m pytest tests/ --verbose --tb=short
+      - python -m pytest tests/ --cov=. --cov-report=xml --cov-report=html
+
+      # Django 테스트 실행
+      - echo "🔬 Django 통합 테스트 실행..."
+      - python manage.py test --parallel --keepdb --verbosity=2
+
+      # 패키지 빌드
+      - echo "📦 배포 패키지 생성..."
+      - python setup.py sdist bdist_wheel
+
+      - echo "✅ 빌드 완료"
+
+  # 빌드 후 작업
+  post_build:
+    commands:
+      - echo "🎯 빌드 후 작업 시작..."
+
+      # 문서 생성
+      - echo "📚 문서 생성..."
+      - pip3 install sphinx sphinx-rtd-theme
+      - sphinx-build -b html docs/ docs/_build/html
+
+      # 보안 스캔
+      - echo "🔒 보안 검사..."
+      - safety check --json --output safety-report.json || true
+
+      # 배포 패키지 생성
+      - echo "📋 배포 패키지 생성..."
+      - zip -r django-app-$(date +%Y%m%d%H%M%S).zip . \
+          -x "*.git*" "__pycache__/*" "*.pyc" "tests/*" \
+          "venv/*" ".pytest_cache/*" "htmlcov/*"
+
+      - echo "✅ 빌드 후 작업 완료"
+
+# 빌드 아티팩트 설정
+artifacts:
+  files:
+    # Python 배포 파일
+    - 'dist/**/*'
+    - 'django-app-*.zip'
+
+    # Django 프로젝트 파일
+    - 'manage.py'
+    - 'requirements.txt'
+    - 'staticfiles/**/*'
+    - 'media/**/*'
+
+    # 문서 및 보고서
+    - 'docs/_build/html/**/*'
+    - 'htmlcov/**/*'
+    - 'coverage.xml'
+    - 'bandit-report.json'
+    - 'safety-report.json'
+
+    # 설정 파일
+    - 'Procfile'
+    - 'runtime.txt'
+    - '.ebextensions/**/*'
+
+  name: 'DjangoPythonAppArtifacts'
+  base-directory: '.'
+
+# 빌드 속도 향상을 위한 캐시 설정
+cache:
+  paths:
+    # Python 패키지 캐시
+    - '/root/.cache/pip/**/*'
+    - '/root/.local/lib/python3.9/site-packages/**/*'
+
+    # Python 컴파일 캐시
+    - '__pycache__/**/*'
+    - '.pytest_cache/**/*'
+    - '.mypy_cache/**/*'
+
+    # Node.js 캐시 (Django에서 NPM 사용 시)
+    - 'node_modules/**/*'
+    - '.npm/**/*'
+
+    # 기타 도구 캐시
+    - '.tox/**/*'
+    - '.coverage'
