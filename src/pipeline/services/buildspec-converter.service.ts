@@ -235,6 +235,10 @@ export class BuildSpecConverterService {
       throw new BadRequestException('파이프라인 데이터가 없습니다.');
     }
 
+    if (pipelineData.nodes.length === 0) {
+      throw new BadRequestException('파이프라인 노드가 비어있습니다.');
+    }
+
     const buildSpec: BuildSpecYaml = {
       version: '0.2',
     };

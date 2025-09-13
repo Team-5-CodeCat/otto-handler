@@ -105,15 +105,15 @@ describe('BuildSpecConverterService', () => {
     });
 
     it('should throw error for empty pipeline data', () => {
-      expect(() => {
-        service.convertToBuildSpec({ nodes: [], edges: [] });
-      }).toThrow(BadRequestException);
+      expect(() =>
+        service.convertToBuildSpec({ nodes: [], edges: [] }),
+      ).toThrow(BadRequestException);
     });
 
     it('should throw error for null pipeline data', () => {
-      expect(() => {
-        service.convertToBuildSpec(null as unknown as PipelineFlowData);
-      }).toThrow(BadRequestException);
+      expect(() =>
+        service.convertToBuildSpec(null as unknown as PipelineFlowData),
+      ).toThrow(BadRequestException);
     });
   });
 
