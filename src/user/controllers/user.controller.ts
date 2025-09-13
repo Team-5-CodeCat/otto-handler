@@ -25,7 +25,8 @@ export class UserController {
   })
   @AuthGuard()
   @TypedRoute.Get('/')
-  userMyInfo(@Req() request: IRequestType): UserInfoResponse {
-    return request.user;
+  async userMyInfo(@Req() request: IRequestType): Promise<UserInfoResponse> {
+    const userId = request.user.user_id;
+    return this.userService.getUserInfo(userId);
   }
 }
