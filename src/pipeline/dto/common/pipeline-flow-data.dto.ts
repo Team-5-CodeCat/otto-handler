@@ -1,8 +1,8 @@
 /**
  * React Flow Node 데이터 구조 (제네릭 타입)
- * T: 커스텀 data 타입 (기본값: Record<string, any>)
+ * T: 커스텀 data 타입 (기본값: Record<string, unknown>)
  */
-export interface FlowNode<T = Record<string, any>> {
+export interface FlowNode<T = Record<string, unknown>> {
   /**
    * 노드 고유 ID
    */
@@ -28,9 +28,9 @@ export interface FlowNode<T = Record<string, any>> {
   data: T;
 
   /**
-   * 노드 스타일
+   * 노드 스타일 (CSS 속성)
    */
-  style?: Record<string, any>;
+  style?: Record<string, string | number>;
 
   /**
    * 드래그 가능 여부
@@ -83,9 +83,9 @@ export interface FlowEdge {
   label?: string;
 
   /**
-   * 엣지 스타일
+   * 엣지 스타일 (CSS 속성)
    */
-  style?: Record<string, any>;
+  style?: Record<string, string | number>;
 
   /**
    * 엣지가 애니메이션 되는지 여부
@@ -95,9 +95,9 @@ export interface FlowEdge {
 
 /**
  * React Flow 전체 데이터 구조 (파이프라인 데이터)
- * T: 커스텀 노드 data 타입 (기본값: Record<string, any>)
+ * T: 커스텀 노드 data 타입 (기본값: Record<string, unknown>)
  */
-export interface PipelineFlowData<T = Record<string, any>> {
+export interface PipelineFlowData<T = Record<string, unknown>> {
   /**
    * 노드 배열
    */
@@ -144,7 +144,7 @@ export interface PipelineNodeDataExample {
   env?: Record<string, string>;
 
   /**
-   * 추가 설정
+   * 추가 설정 (파이프라인 단계별 옵션)
    */
-  config?: Record<string, any>;
+  config?: Record<string, string | number | boolean>;
 }

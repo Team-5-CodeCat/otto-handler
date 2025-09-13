@@ -1,6 +1,6 @@
 import type { PipelineFlowData } from '../common/pipeline-flow-data.dto';
 
-export interface CreatePipelineRequestDto<T = Record<string, any>> {
+export interface CreatePipelineRequestDto<T = Record<string, unknown>> {
   /**
    * 파이프라인 이름
    */

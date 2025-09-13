@@ -1,6 +1,6 @@
 import type { PipelineFlowData } from '../common';
 
-export interface PipelineResponseDto<T = Record<string, any>> {
+export interface PipelineResponseDto<T = Record<string, unknown>> {
   /**
    * 파이프라인 ID
    */
@@ -42,7 +42,7 @@ export interface PipelineResponseDto<T = Record<string, any>> {
   updatedAt: Date;
 }
 
-export interface PipelineDetailResponseDto<T = Record<string, any>>
+export interface PipelineDetailResponseDto<T = Record<string, unknown>>
   extends PipelineResponseDto<T> {
   /**
    * 프로젝트 정보
@@ -66,7 +66,7 @@ export interface PipelineDetailResponseDto<T = Record<string, any>>
   }[];
 }
 
-export interface PipelineListResponseDto<T = Record<string, any>> {
+export interface PipelineListResponseDto<T = Record<string, unknown>> {
   /**
    * 파이프라인 목록
    */

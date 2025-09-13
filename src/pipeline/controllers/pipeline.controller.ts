@@ -12,8 +12,13 @@ import type {
   PipelineResponseDto,
   PipelineDetailResponseDto,
   PipelineListResponseDto,
+  JsonToBuildSpecRequestDto,
+  JsonToBuildSpecResponseDto,
+  BuildSpecToJsonRequestDto,
+  BuildSpecToJsonResponseDto,
+  PipelineFlowData,
 } from '../dto';
-import { PipelineService } from '../services';
+import { PipelineService, BuildSpecConverterService } from '../services';
 import type { CommonErrorResponseDto } from '../../common/dto';
 import type { IRequestType } from '../../common/type';
 import { AuthGuard } from '../../common/decorators';
@@ -37,7 +42,10 @@ interface PipelineQueryParams {
 
 @Controller('/pipelines')
 export class PipelineController {
-  constructor(private readonly pipelineService: PipelineService) {}
+  constructor(
+    private readonly pipelineService: PipelineService,
+    private readonly buildSpecConverterService: BuildSpecConverterService,
+  ) {}
 
   /**
    * @tag pipelines
@@ -217,5 +225,63 @@ export class PipelineController {
       projectId,
     );
     return { count };
+  }
+
+  /**
+   * @tag pipelines
+   * @summary JSON 파이프라인 데이터를 buildspec.yaml로 변환
+   */
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '잘못된 파이프라인 데이터',
+  })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: '인증 실패',
+  })
+  @HttpCode(HttpStatus.OK)
+  @AuthGuard()
+  @TypedRoute.Post('/convert/json-to-buildspec')
+  convertJsonToBuildSpec(
+    @TypedBody() request: JsonToBuildSpecRequestDto,
+  ): JsonToBuildSpecResponseDto {
+    const buildSpecYaml = this.buildSpecConverterService.convertToBuildSpec(
+      request.pipelineData,
+    );
+
+    return {
+      buildSpecYaml,
+      success: true,
+      nodesProcessed: request.pipelineData.nodes?.length || 0,
+    };
+  }
+
+  /**
+   * @tag pipelines
+   * @summary buildspec.yaml을 JSON 파이프라인 데이터로 변환
+   */
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.BAD_REQUEST,
+    description: '유효하지 않은 buildspec.yaml',
+  })
+  @TypedException<CommonErrorResponseDto>({
+    status: HttpStatus.UNAUTHORIZED,
+    description: '인증 실패',
+  })
+  @HttpCode(HttpStatus.OK)
+  @AuthGuard()
+  @TypedRoute.Post('/convert/buildspec-to-json')
+  convertBuildSpecToJson(
+    @TypedBody() request: BuildSpecToJsonRequestDto,
+  ): BuildSpecToJsonResponseDto {
+    const pipelineData = this.buildSpecConverterService.convertFromBuildSpec(
+      request.buildSpecYaml,
+    );
+
+    return {
+      pipelineData,
+      success: true,
+      nodesGenerated: pipelineData.nodes?.length || 0,
+    };
   }
 }

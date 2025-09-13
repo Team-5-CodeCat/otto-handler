@@ -1,0 +1,53 @@
+version: '0.2'
+
+# Environment variables for the build
+env:
+  variables:
+    NODE_ENV: production
+    BUILD_ENV: ci
+    # Add any other environment variables here
+
+# Build phases
+phases:
+  # Install phase - setup runtime and dependencies
+  install:
+    commands:
+      - echo "Installing dependencies..."
+      - npm ci
+      - npm audit --audit-level high
+      - echo "Dependencies installed successfully"
+
+  # Pre-build phase - setup before main build
+  pre_build:
+    commands:
+      - echo "Running pre-build steps..."
+      - echo "Pre-build completed"
+
+  # Main build phase
+  build:
+    commands:
+      - echo "Building application..."
+      - npm run build
+      - npm run test:coverage
+      - echo "Build completed successfully"
+
+  # Post-build phase - cleanup and final steps
+  post_build:
+    commands:
+      - echo "Running post-build steps..."
+      - echo "Post-build completed"
+
+# Define build artifacts to be uploaded to S3
+artifacts:
+  files:
+    - 'build/**/*'
+    - 'package.json'
+    - 'README.md'
+  name: WebAppBuild
+  base-directory: build
+
+# Cache configuration for faster builds
+cache:
+  paths:
+    - 'node_modules/**/*'
+    - '.npm/**/*'
